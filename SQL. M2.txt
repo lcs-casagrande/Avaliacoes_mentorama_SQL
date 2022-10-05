@@ -1,0 +1,14 @@
+1.
+Mike e Jon
+
+2.
+SELECT first_name, last_name, email
+from customer;
+
+3.
+SELECT city as nome_cidade, country_id as id_pais, city_id as id_cidade, last_update as ultima_atualização
+FROM sakila.city;
+
+4.
+SELECT distinct district
+ FROM sakila.address;
