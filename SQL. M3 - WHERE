@@ -1,0 +1,14 @@
+1.
+9 endereços em West Bengali
+
+2.
+SELECT * FROM sakila.payment WHERE amount >5;
+
+3.
+SELECT * FROM sakila.payment WHERE amount <5 AND amount >=1;
+
+4.
+SELECT * FROM sakila.film where rating in ('PG','PG-13')
+
+5.
+SELECT * FROM sakila.rental WHERE return_date is NULL
