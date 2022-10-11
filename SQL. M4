@@ -1,0 +1,10 @@
+1.
+a) Rental _id, usei o "SELECT * FROM sakila.rental;" e analisei a tabela
+b) SELECT * FROM sakila.rental ORDER BY return_date DESC ;
+c) SELECT * FROM sakila.rental ORDER BY customer_id ASC, return_date ASC;
+d) O vaor NULL se encontra no inicio da ordem
+
+2.
+
+3. 
+SELECT * FROM sakila.customer ORDER BY first_name ASC, last_name DESC;
