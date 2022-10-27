@@ -5,6 +5,10 @@ c) SELECT * FROM sakila.rental ORDER BY customer_id ASC, return_date ASC;
 d) O vaor NULL se encontra no inicio da ordem
 
 2.
+TRAILER
+COMENTARIOS
+CENAS DELETADAS
+POR TRAS DAS CENAS
 
 3. 
 SELECT * FROM sakila.customer ORDER BY first_name ASC, last_name DESC;
