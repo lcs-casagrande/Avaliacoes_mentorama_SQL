@@ -1,0 +1,48 @@
+1.
+a) 599
+SELECT COUNT(*) FROM sakila.customer;
+SELECT COUNT(1) FROM sakila.customer;
+SELECT * FROM sakila.customer; # Observar a mensagem do Action Output
+
+b) 1000
+SELECT COUNT(*) FROM sakila.film;
+SELECT COUNT(1) FROM sakila.film;
+SELECT * FROM sakila.film; # Observar a mensagem do Action Output
+
+b) 16044
+SELECT COUNT(*) FROM sakila.rental;
+SELECT COUNT(1) FROM sakila.rental;
+SELECT * FROM sakila.rental; # Observar a mensagem do Action Output
+
+2.
+a)2.99
+SELECT *,
+AVG (amount)
+FROM sakila.payment; where = '2005-06'
+
+b)67
+SELECT sum(amount)
+FROM sakila.payment; where = '2005-06'
+
+3.
+a)
+select title,
+	max(replacement_cost)
+from sakila.film
+b)
+select title, replacement_cost
+from sakila.film
+order by replacement_cost desc
+
+4.
+SELECT rental_duration, count(film_id), avg(length)
+FROM sakila.film
+group by rental_duration
+order by rental_duration asc;
+
+
+5.
+SELECT customer_id, sum(amount)
+FROM sakila.payment
+group by customer_id
+HAVING sum(amount) > 200;
