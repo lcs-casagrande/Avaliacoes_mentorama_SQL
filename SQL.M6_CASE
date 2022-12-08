@@ -1,0 +1,27 @@
+1)
+SELECT film_id, title, rental_rate, 
+CASE WHEN rental_rate <= 0.99 THEN "Basico"
+ WHEN rental_rate <= 2.99 THEN "Essencial"
+ WHEN  rental_rate > 2.99 THEN "Exclusivo"
+END as classificação
+ FROM sakila.film;
+
+2)
+SELECT store_id,
+COUNT(CASE WHEN store_id=1 AND active=0 THEN 1 ELSE NULL END) AS loja1_inativas,
+COUNT(CASE WHEN store_id=1 AND active=1 THEN 1 ELSE NULL END) AS loja1_ativas,
+COUNT(CASE WHEN store_id=2 AND active=1 THEN 1 ELSE NULL END) AS loja2_ativas,
+COUNT(CASE WHEN store_id=2 AND active=0 THEN 1 ELSE NULL END) AS loja2_inativas
+FROM sakila.customer
+
+3)
+SELECT store_id, SUM(active) as Ativos, COUNT(active)- SUM(active) as inativos
+FROM sakila.customer
+group by store_id
+
+4)
+SELECT address, city_id, 
+CASE WHEN city_id = 463 THEN "Sasebo"
+	WHEN city_id = 576 THEN "Woodridge"
+    WHEN city_id = 300 THEN "Lethbridge"   End As cidade
+ FROM sakila.address
