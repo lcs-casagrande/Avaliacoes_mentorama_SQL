@@ -1,3 +1,14 @@
+1)
+SELECT film.*,actor_id,category_id
+FROM sakila.film
+INNER JOIN sakila.film_actor
+ON film.film_id = film_actor.film_id
+INNER JOIN sakila.film_category
+ON film.film_id = film_category.film_id
+INNER JOIN sakila.film_text
+ON film.film_id = film_text.film_id
+
+2)
 SELECT first_name as Nome, last_name as sobrenome, email, city.city as cidade, rental.customer_id, count(rental.customer_id) as soma
  FROM sakila.rental
  INNER JOIN sakila.customer
@@ -7,4 +18,3 @@ ON customer.address_id = address.address_id
 INNER JOIN sakila.city
 ON address.city_id = city.city_id
  GROUP BY customer_id HAVING soma>40 order by soma DESC
-  ;
