@@ -216,7 +216,7 @@ function historyPage() {
   return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
 }
 function render() {
-  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('selected', a.dataset.page === (['edit', 'summary', 'actuals'].includes(state.page) ? state.page === 'summary' ? 'history' : 'programs' : state.page)));
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('selected', a.dataset.page === (['edit', 'summary', 'actuals'].includes(state.page) ? state.page === 'summary' ? 'history' : state.page === 'actuals' ? 'actuals' : 'programs' : state.page)));
   app.innerHTML = ({home, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
@@ -322,7 +322,7 @@ document.querySelector('#duplicate-form').addEventListener('submit', event => {
     document.querySelector('#duplicate-dialog').close(); replaceProgram(p); navigate('edit', p.id); toast('Planejamento duplicado.');
   });
 });
-document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); navigate(link.dataset.page); } });
+document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') handleAction({dataset:{action:'chronogram'}}); else navigate(link.dataset.page); } });
 window.addEventListener('hashchange', () => { const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals'].includes(page)) navigate(page, id); });
 async function boot() {
   try {
