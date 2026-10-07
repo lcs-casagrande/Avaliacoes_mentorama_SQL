@@ -11,13 +11,14 @@
   <script src="app.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#app">Ir para o conteúdo</a>
   <header class="header">
     <a class="brand" href="#home"><span class="brand-mark">I</span><span>IASDPI<small>Programação do culto</small></span></a>
     <nav aria-label="Navegação principal">
       <a href="#home" data-page="home">Início</a>
-      <a href="#actuals" data-page="actuals">Preencher realizado</a>
       <a href="#programs" data-page="programs">Programações</a>
-      <a href="#tracking" data-page="tracking">Acompanhamento</a>
+      <a href="#actuals" data-page="actuals">Registrar culto</a>
+      <a href="#tracking" data-page="tracking">Acompanhar</a>
       <a href="#history" data-page="history">Histórico</a>
     </nav>
   </header>
@@ -27,7 +28,7 @@
     <form id="duplicate-form">
       <h2>Duplicar programação</h2>
       <p>Copiar o planejamento e a equipe, sem registros de execução.</p>
-      <label>Data da nova programação<input type="date" name="date" required></label>
+      <label><span class="field-label">Data da nova programação <span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (obrigatório)</span></span><input type="date" name="date" required></label>
       <div class="actions"><button type="button" data-action="close-dialog">Cancelar</button><button class="primary" type="submit">Duplicar</button></div>
     </form>
   </dialog>

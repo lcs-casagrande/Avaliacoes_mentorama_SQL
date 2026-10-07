@@ -77,7 +77,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           const e=records[item.id];
           if(!e || typeof e.start!=='string' || typeof e.end!=='string') throw Error('Registro de horário inválido.');
           const note=e.note ?? p.actual_details?.[item.id]?.note ?? '', responsible=e.responsible ?? p.actual_details?.[item.id]?.responsible ?? '';
-          if(typeof note!=='string'||note.length>2000||typeof responsible!=='string'||responsible.length>200)throw Error('Nota ou responsável inválido.');
+          if(typeof note!=='string'||note.length>2000||typeof responsible!=='string'||responsible.length>200)throw Error('Observação ou responsável inválido.');
           details[item.id]={note:note.trim(),responsible:responsible.trim()};
           if(!e.start && !e.end) continue;
           const valid=v=>/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v);

@@ -63,14 +63,22 @@ function heading(eyebrow, title, description = '', action = '') {
 }
 function empty(title, description, action = '') { return `<div class="empty"><h2>${title}</h2><p>${description}</p>${action}</div>`; }
 function button(label, action, id = '', extra = '') { return `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}>${label}</button>`; }
+function programDate(value) {
+  const day=new Date(`${value}T12:00:00Z`);
+  return `${new Intl.DateTimeFormat('pt-BR',{weekday:'long',timeZone:'UTC'}).format(day)} · ${new Intl.DateTimeFormat('pt-BR',{timeZone:'UTC'}).format(day)}`;
+}
+function programStatus(p) {
+  const tone={'Planejamento':'neutral','Pronta':'good','Em andamento':'warning','Finalizada':'complete'}[p.status] || 'neutral';
+  return `<span class="badge ${tone}">${esc(p.status==='Planejamento'?'Rascunho':p.status)}</span>`;
+}
 function programRow(p, historic = false) {
   const m = executionInfo(p);
   const planned = minutes(p.planned_end, p.planned_start);
   const actual = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
-  return `<tr><td><strong>${esc(p.plan.name)}</strong><small>${esc(dateLabel(p.plan.date))}</small></td>
+  return `<tr><td><strong>${esc(p.plan.name)}</strong><small>${esc(programDate(p.plan.date))}</small></td>
     <td>${esc(p.plan.start)} → ${esc(p.plan.end)}${historic ? `<small>${duration(planned)} previstos · ${actual === null ? '—' : duration(actual)} realizados</small>` : ''}</td>
-    <td>${historic ? badge(m.shift, signed(m.shift)) : `<span class="badge neutral">${esc(p.status)}</span>`}</td>
-    <td class="row-actions">${button(historic ? 'Ver resumo' : 'Abrir', historic ? 'summary' : 'edit', p.id)}${button('Duplicar', 'duplicate', p.id)}${!historic ? button(p.execution_mode === 'manual' ? 'Preencher realizado' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"') : ''}</td></tr>`;
+    <td>${historic ? badge(m.shift, signed(m.shift)) : `${programStatus(p)}`}</td>
+    <td class="row-actions">${button(historic || p.status==='Finalizada' ? 'Ver resumo' : ['Planejamento','Pronta'].includes(p.status) ? 'Editar' : 'Ver programação', historic || p.status==='Finalizada' ? 'summary' : 'edit', p.id)}${button('Duplicar', 'duplicate', p.id)}${!historic ? button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"') : ''}</td></tr>`;
 }
 function programTable(programs, historic = false) {
   return `<div class="table-scroll"><table><thead><tr><th>Programação</th><th>Horário ${historic ? '/ duração' : 'previsto'}</th><th>${historic ? 'Desvio do término' : 'Status'}</th><th>Ações</th></tr></thead><tbody>${programs.map(p => programRow(p, historic)).join('')}</tbody></table></div>`;
@@ -81,39 +89,76 @@ function home() {
   const running = state.programs.find(p => p.status === 'Em andamento');
   const featured = running || upcoming;
   const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date)).slice(0, 5);
-  return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `${button('Realizado · 03/10/2026', 'chronogram')} ${button('Nova programação', 'new', '', 'class="primary"')}`) +
-    (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMA PROGRAMAÇÃO'}</p><h2>${esc(featured.plan.name)}</h2><p class="date">${esc(dateLabel(featured.plan.date))}</p><p class="large-time">${esc(featured.plan.start)} <span>→</span> ${esc(featured.plan.end)}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(running ? 'Continuar acompanhamento' : 'Iniciar acompanhamento', 'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span><span class="badge neutral">${esc(featured.status)}</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Cadastre os horários da próxima programação.', `${button('Nova programação', 'new', '', 'class="primary"')}`)) +
-    adherenceOverview() + `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
+  return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto · 03/10/2026', 'chronogram')}</div>`) +
+    (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMO CULTO'}</p><h2>${esc(featured.plan.name)}</h2><div class="featured-meta"><p class="date">${esc(programDate(featured.plan.date))}</p>${programStatus(featured)}</div><p class="large-time">${esc(featured.plan.start)} <span>→</span> ${esc(featured.plan.end)}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(featured.execution_mode==='manual'?'Registrar culto':running?'Continuar acompanhamento':'Acompanhar culto', featured.execution_mode==='manual'?'actuals':'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Use Nova programação para planejar ou Registrar culto para informar o que aconteceu.')) +
+    `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
 }
 function programsPage() {
   const list = [...state.programs].sort((a,b) => b.plan.date.localeCompare(a.plan.date));
-  return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `${button('Realizado · 03/10/2026', 'chronogram')} ${button('Nova programação', 'new', '', 'class="primary"')}`) +
-    (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Cadastre sua primeira programação.', button('Nova programação', 'new')));
+  return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto · 03/10/2026', 'chronogram')}</div>`) +
+    (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Use Nova programação para cadastrar os horários e as atividades.'));
 }
 function field(label, name, value = '', type = 'text', required = false, extra = '') {
-  return `<label>${label}<input name="${esc(name)}" type="${type}" value="${esc(value)}" ${required ? 'required' : ''} ${extra}></label>`;
+  return `<label><span class="field-label">${label}${required?' <span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (obrigatório)</span>':''}</span><input name="${esc(name)}" type="${type}" value="${esc(value)}" ${required ? 'required' : ''} ${extra}></label>`;
 }
 function itemEditor(i = {}, index = 0) {
-  return `<fieldset class="item-editor" data-item-id="${esc(i.id || crypto.randomUUID())}"><legend>Atividade <span class="item-number">${index + 1}</span></legend>
-    <div class="item-fields">${field('Bloco', 'block', i.block || 'Culto', 'text', true, 'maxlength="200" list="blocks"')}${field('Atividade', 'activity', i.activity, 'text', true, 'maxlength="200"')}${field('Responsável', 'responsible', i.responsible, 'text', false, 'maxlength="200"')}${field('Início previsto', 'start', i.start, 'time', true)}${field('Término previsto', 'end', i.end, 'time', true)}${field('Observação', 'note', i.note, 'text', false, 'maxlength="2000"')}</div>
+  const complete=Boolean(i.activity && i.start && i.end);
+  return `<fieldset class="item-editor" data-item-id="${esc(i.id || crypto.randomUUID())}"><legend>Atividade <span class="item-number">${index+1}</span></legend>
+    <details class="item-details" ${complete?'':'open'}><summary><span class="item-overview"><strong class="item-overview-title">${esc(i.start || '—')} → ${esc(i.end || '—')} · ${esc(i.activity || 'Nova atividade')}</strong><small class="item-overview-responsible">${esc(i.responsible || 'Responsável opcional')}</small></span><span class="item-edit-label">Editar</span></summary>
+    <div class="item-fields">${field('Bloco', 'block', i.block || 'Culto', 'text', true, 'maxlength="200" list="blocks"')}${field('Atividade', 'activity', i.activity, 'text', true, 'maxlength="200"')}${field('Responsável', 'responsible', i.responsible, 'text', false, 'maxlength="200"')}${field('Início previsto', 'start', i.start, 'time', true)}${field('Término previsto', 'end', i.end, 'time', true)}${field('Observação', 'note', i.note, 'text', false, 'maxlength="2000"')}</div></details>
     <div class="item-controls">${button('↑ Subir', 'up')}${button('↓ Descer', 'down')}${button('Excluir atividade', 'remove-item', '', 'class="danger-text"')}</div></fieldset>`;
+}
+function updateItemOverview(row) {
+  const get=name=>row.querySelector(`[name="${name}"]`).value;
+  row.querySelector('.item-overview-title').textContent=`${get('start') || '—'} → ${get('end') || '—'} · ${get('activity') || 'Nova atividade'}`;
+  row.querySelector('.item-overview-responsible').textContent=get('responsible') || 'Responsável opcional';
+}
+function fieldError(input,message) {
+  input.setAttribute('aria-invalid','true');
+  let error=input.parentElement.querySelector('.field-error');
+  if(!error){error=document.createElement('span');error.className='field-error';error.id='error-'+crypto.randomUUID();input.after(error);}
+  error.textContent=message;input.setAttribute('aria-describedby',error.id);
+  for(let parent=input.parentElement;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;
+  input.disabled=false;input.focus();
+  return Error(message);
+}
+function clearFieldError(input) {
+  input.removeAttribute('aria-invalid');
+  const error=input.parentElement.querySelector('.field-error');
+  if(error){input.removeAttribute('aria-describedby');error.remove();}
+}
+function validateProgramForm(form,plan) {
+  const check=(input,message)=>{throw fieldError(input,message);};
+  if(plan.end<=plan.start)check(form.querySelector('.form-grid [name="end"]'),'O término deve ser depois do início.');
+  if(!plan.name.trim())check(form.querySelector('[name="name"]'),'Informe o nome da programação.');
+  const rows=[...form.querySelectorAll('.item-editor')];
+  if(!rows.length){form.querySelector('[data-action="add-item"]').focus();throw Error('Adicione pelo menos uma atividade.');}
+  let previous=plan.start;
+  plan.items.forEach((item,index)=>{
+    const row=rows[index];
+    for(const name of ['activity','block'])if(!item[name].trim())check(row.querySelector(`[name="${name}"]`),'Preencha este campo obrigatório.');
+    if(item.end<=item.start)check(row.querySelector('[name="end"]'),'O término deve ser depois do início.');
+    if(item.start<previous)check(row.querySelector('[name="start"]'),'A atividade deve começar após a anterior e dentro da programação.');
+    if(item.end>plan.end)check(row.querySelector('[name="end"]'),'O término ultrapassa o horário da programação.');
+    previous=item.end;
+  });
 }
 function editor(p) {
   if (p?.execution_mode === 'manual') return actualsForm(p);
   if (p && !['Planejamento', 'Pronta'].includes(p.status)) return planView(p);
   const plan = p?.plan || { name: 'Culto de sábado', date: today(), start: '09:30', end: '12:25', team: {}, items: [] };
-  return heading('PLANEJAMENTO', p ? 'Editar programação' : 'Nova programação', 'Os horários previstos são preservados durante a execução.', button('Voltar', 'programs')) +
+  return heading('PLANEJAMENTO', p ? 'Editar programação' : 'Nova programação', 'Planeje os horários. Campos com * são obrigatórios; a equipe é opcional.', button('Voltar', 'programs')) +
     `<form id="program-form" data-id="${esc(p?.id || '')}" data-version="${p?.version || ''}">
       <section class="panel form-grid">${field('Nome da programação', 'name', plan.name, 'text', true, 'maxlength="200"')}${field('Data', 'date', plan.date, 'date', true)}${field('Início previsto', 'start', plan.start, 'time', true)}${field('Término previsto', 'end', plan.end, 'time', true)}<p id="weekday" class="muted"></p></section>
       <details class="panel"><summary>Equipe <span class="muted">· preenchimento opcional</span></summary><div class="form-grid team">${roles.map((role,i) => field(role, `team-${i}`, plan.team[role], 'text', false, 'maxlength="200"')).join('')}</div></details>
       <div class="section-heading"><h2>Itens da programação</h2>${button('+ Adicionar atividade', 'add-item')}</div><p class="muted">A ordem deve acompanhar os horários. Intervalos são permitidos; sobreposições, não.</p>
       <datalist id="blocks"><option value="Culto"><option value="Escola Sabatina"></datalist>
       <div id="items-editor">${(plan.items.length ? plan.items : [{}]).map(itemEditor).join('')}</div>
-      <div class="actions form-footer"><button class="primary" type="submit">Salvar programação</button><label class="checkbox"><input name="ready" type="checkbox" ${p?.status === 'Pronta' ? 'checked' : ''}> Marcar como pronta para acompanhar</label></div>
+      <div class="actions form-footer"><button class="primary" type="submit">Salvar programação</button><label class="checkbox"><input name="ready" type="checkbox" ${p?.status === 'Pronta' ? 'checked' : ''}> Liberar para acompanhamento após salvar</label><p class="muted ready-help">Ao marcar, o sistema salva o planejamento e depois altera o status para Pronta.</p></div>
     </form>`;
 }
 function planView(p) {
-  return heading('PROGRAMAÇÃO', esc(p.plan.name), esc(dateLabel(p.plan.date)), `${button('Duplicar', 'duplicate', p.id)} ${button(p.execution_mode === 'manual' ? 'Preencher realizado' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"')}`) +
+  return heading('PROGRAMAÇÃO', esc(p.plan.name), esc(dateLabel(p.plan.date)), `${button('Duplicar', 'duplicate', p.id)} ${button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"')}`) +
     `<p class="muted">Planejamento protegido após o início. Horário previsto: ${esc(p.plan.start)} → ${esc(p.plan.end)}.</p>` + timeline(p) +
     `<details class="panel"><summary>Equipe</summary><dl class="team-read">${roles.map(role => `<div><dt>${esc(role)}</dt><dd>${esc(p.plan.team[role] || 'Não informado')}</dd></div>`).join('')}</dl></details>`;
 }
@@ -132,7 +177,7 @@ function notes(p) {
 }
 function tracking(p) {
   if (p?.execution_mode === 'manual') return actualsForm(p);
-  if (!p) return heading('EXECUÇÃO', 'Acompanhamento do Culto') + empty('Escolha uma programação', 'Abra uma programação pronta para acompanhar.', button('Ver programações', 'programs', '', 'class="primary"'));
+  if (!p) return heading('EXECUÇÃO', 'Acompanhar culto', 'Use esta tela durante o culto para iniciar, avançar e pausar as atividades.') + empty('Escolha uma programação', 'Abra uma programação pronta para acompanhar.', button('Ver programações', 'programs', '', 'class="primary"'));
   if (p.status === 'Finalizada') return summary(p);
   const m = executionInfo(p);
   const focus = m.active || m.expected || m.pending;
@@ -140,8 +185,8 @@ function tracking(p) {
   const next = p.plan.items[index + 1];
   const e = focus && p.executions[focus.id];
   const dateMismatch = p.plan.date !== today();
-  return heading('EXECUÇÃO', 'Acompanhamento do Culto', `${esc(dateLabel(p.plan.date))} · ${esc(p.plan.name)}`, button('Atualizar', 'refresh')) +
-    `<div class="planned-bar"><span>Previsto <strong>${esc(p.plan.start)} → ${esc(p.plan.end)}</strong></span><span class="badge neutral">${esc(p.status)}</span></div>
+  return heading('EXECUÇÃO', 'Acompanhar culto', `${esc(dateLabel(p.plan.date))} · ${esc(p.plan.name)} · Controle durante a execução.`, button('Atualizar', 'refresh')) +
+    `<div class="planned-bar"><span>Previsto <strong>${esc(p.plan.start)} → ${esc(p.plan.end)}</strong></span>${programStatus(p)}</div>
     <section class="metrics" aria-label="Situação da programação"><div><span>HORÁRIO ATUAL</span><strong data-live="clock">${clock(currentTime())}</strong></div><div><span>DESVIO DO HORÁRIO</span><strong data-live="shift" class="${statusTone(m.shift)}">${signed(m.shift)}</strong><small data-live="status">${delayLabel(m.shift)}</small></div><div><span>PREVISÃO DE TÉRMINO</span><strong data-live="forecast">${p.status === 'Planejamento' ? '—' : clock(m.forecast)}</strong></div></section>
     <p class="context-line">Pelo plano, agora: <strong data-live="expected">${esc(m.expected?.activity || (dateMismatch ? 'outra data' : 'intervalo ou fora da programação'))}</strong></p>
     <section class="current-activity"><p class="eyebrow" data-live="focus-label">${m.active ? 'EM ANDAMENTO' : m.expected ? 'AGORA · PELO PLANEJAMENTO' : 'PRIMEIRA ATIVIDADE'}</p><h2 data-live="activity">${esc(focus?.activity || 'Sem atividades')}</h2><p class="responsible" data-live="responsible">${esc(focus?.responsible || 'Responsável não informado')}</p><div class="current-details"><div><span>Planejado</span><strong data-live="period">${esc(focus?.start || '—')} → ${esc(focus?.end || '—')}</strong></div><div><span>Início real</span><strong>${clock(e?.started)}</strong></div><div><span>Tempo transcorrido</span><strong data-live="elapsed">${e ? elapsed(e.started) : '—'}</strong></div></div><p data-live="item-note">${esc(focus?.note || '')}</p><p class="muted" data-live="origin">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}.` : 'Nenhum atraso registrado.'}</p></section>
@@ -154,7 +199,7 @@ function summary(p) {
   const m = executionInfo(p);
   const plannedDuration = minutes(p.planned_end, p.planned_start);
   const actualDuration = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
-  return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Corrigir realizado', 'actuals', p.id) : ''}`) +
+  return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Editar registro', 'actuals', p.id) : ''}`) +
     `<section class="summary-grid">${[['Início planejado', p.plan.start], ['Início real', clock(m.first?.started)], ['Término planejado', p.plan.end], ['Término real', clock(m.last?.ended)], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
     <p class="muted">Desvio do término compara o relógio. Desvio da duração compara o tempo total entre o primeiro início e o último término, incluindo intervalos.</p>
     <p class="context-line">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}. Veja as observações para entender a causa.` : 'Nenhum atraso registrado.'}</p>
@@ -208,7 +253,7 @@ function adherenceOverview() {
     <div class="metrics"><div><span>ATIVIDADES ADERENTES</span><strong>${Math.round(conforming/total*100)}%</strong><small>${conforming} de ${total} atividades</small></div><div><span>EVENTOS COM TÉRMINO ADERENTE</span><strong>${endOnTime}/${examples.length}</strong><small>Dentro da tolerância de ±${adherenceTolerance} min</small></div><div><span>DESVIO MÉDIO DO TÉRMINO</span><strong>${signed(examples.reduce((sum,p)=>sum+executionInfo(p).shift,0)/examples.length)}</strong><small>Atrasos positivos · adiantamentos negativos</small></div></div>
     <div class="table-scroll"><table><thead><tr><th>Evento</th><th>Aderência</th><th>Atividades aderentes</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
       const a=adherence(p);const tone=a.percent>=90?'good':a.percent>=70?'warning':'critical';
-      return `<tr><td>${esc(p.plan.name)}<small>${esc(dateLabel(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent}%</span></td><td>${a.conforming} / ${a.total}</td><td>${badge(executionInfo(p).shift,signed(executionInfo(p).shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
+      return `<tr><td>${esc(p.plan.name)}<small>${esc(programDate(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent}%</span></td><td>${a.conforming} / ${a.total}</td><td>${badge(executionInfo(p).shift,signed(executionInfo(p).shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
     }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p>${medianView(examples)}${transitionView(examples)}</section>`;
 }
 function historyPage() {
@@ -216,11 +261,12 @@ function historyPage() {
   return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
 }
 function render() {
-  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('selected', a.dataset.page === (['edit', 'summary', 'actuals'].includes(state.page) ? state.page === 'summary' ? 'history' : state.page === 'actuals' ? 'actuals' : 'programs' : state.page)));
+  const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':state.page==='edit'?'programs':state.page;
+  document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   app.innerHTML = ({home, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
-function navigate(page, id) { if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); window.scrollTo({top: 0, behavior: 'instant'}); }
+function navigate(page, id) { if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
 function updateWeekday() {
   const form = document.querySelector('#program-form');
   const target = document.querySelector('#weekday');
@@ -268,7 +314,7 @@ async function handleAction(target) {
     container.lastElementChild.querySelector('[name="activity"]').focus();
   } else if (['remove-item','up','down'].includes(action)) {
     const row = target.closest('.item-editor');
-    if (action === 'remove-item') row.remove();
+    if (action === 'remove-item') {row.remove();toast('Atividade removida. Salve a programação para confirmar a alteração.');}
     if (action === 'up' && row.previousElementSibling) row.previousElementSibling.before(row);
     if (action === 'down' && row.nextElementSibling) row.nextElementSibling.after(row);
     document.querySelectorAll('.item-number').forEach((n,i) => { n.textContent = i+1; });
@@ -282,22 +328,30 @@ async function handleAction(target) {
     }
     const updated = await api(`programs/${id}/action`, 'POST', {action, version:p.version});
     replaceProgram(updated); navigate(updated.status === 'Finalizada' ? 'summary' : 'tracking', id);
-    if (updated.status === 'Finalizada') toast('Programação finalizada. Resumo disponível.');
+    toast({'ready':'Programação pronta para acompanhar.','start':'Culto iniciado.','pause':'Acompanhamento pausado.','resume':'Acompanhamento retomado.','next':updated.status==='Finalizada'?'Programação finalizada. Resumo disponível.':'Atividade finalizada. Próxima atividade iniciada.'}[action]);
   }
 }
-async function guarded(task) {
+async function guarded(task, trigger) {
   if (state.busy) return;
   state.busy = true;
-  const buttons = [...document.querySelectorAll('button, input, textarea')].filter(b => !b.disabled);
+  app.setAttribute('aria-busy','true');
+  const originalLabel=trigger?.textContent;
+  if(trigger)trigger.textContent='Processando…';
+  const pending=setTimeout(()=>toast('Processando…'),200);
+  const buttons = [...document.querySelectorAll('button, input, textarea, select')].filter(b => !b.disabled);
   buttons.forEach(b => { b.disabled = true; });
   try { await task(); } catch (error) {
     toast(error.message, true);
+    const form=trigger?.closest('form');
+    if(form){let feedback=form.querySelector('.form-error');if(!feedback){feedback=document.createElement('p');feedback.className='form-error';feedback.setAttribute('role','alert');form.prepend(feedback);}feedback.textContent=error.message;}
     // Atualiza a versão em memória sem substituir campos que o usuário está editando.
     try { state.programs = await api('programs'); } catch (_) { /* manter dados já carregados */ }
-  } finally { state.busy = false; buttons.forEach(b => { b.disabled = false; }); }
+  } finally { clearTimeout(pending);if(notice.textContent==='Processando…')notice.hidden=true;state.busy=false;app.removeAttribute('aria-busy');if(trigger?.isConnected)trigger.textContent=originalLabel;buttons.forEach(b=>{b.disabled=false;});if(trigger?.isConnected&&document.activeElement===document.body)trigger.focus(); }
 }
-app.addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(() => handleAction(target)); });
-app.addEventListener('input', event => { if (event.target.closest('#actuals-form')) updateActuals(); });
+app.addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(() => handleAction(target), target); });
+app.addEventListener('toggle',event=>{if(event.target.matches('.item-details'))event.target.querySelector('.item-edit-label').textContent=event.target.open?'Recolher':'Editar';},true);
+app.addEventListener('input', event => {clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form'))updateActuals();const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
+ document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.validationMessage);}},true);
 app.addEventListener('change', event => { if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
 document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) handleAction(target); });
 app.addEventListener('submit', event => {
@@ -309,6 +363,7 @@ app.addEventListener('submit', event => {
     if (form.id === 'program-form') {
       const get = name => form.querySelector(`[name="${name}"]`).value;
       const plan = {name:get('name'), date:get('date'), start:get('start'), end:get('end'), team:Object.fromEntries(roles.map((role,i) => [role,get(`team-${i}`)])), items: [...form.querySelectorAll('.item-editor')].map(row => ({id:row.dataset.itemId, ...Object.fromEntries([...row.querySelectorAll('input')].map(input => [input.name,input.value]))}))};
+      validateProgramForm(form,plan);
       if (id) plan.version = Number(form.dataset.version);
       let p = await api(id ? `programs/${id}` : 'programs', id ? 'PUT' : 'POST', plan);
       if (form.elements.ready.checked) p = await api(`programs/${p.id}/action`, 'POST', {action:'ready', version:p.version});
@@ -317,14 +372,14 @@ app.addEventListener('submit', event => {
       const p = await api(`programs/${id}/notes`, 'PUT', {version:Number(form.dataset.version), note:form.elements.note.value, incident:form.elements.incident.value});
       replaceProgram(p); form.dataset.version = p.version; toast('Observações salvas.');
     }
-  });
+  }, event.submitter);
 });
 document.querySelector('#duplicate-form').addEventListener('submit', event => {
   event.preventDefault();
   guarded(async () => {
     const p = await api(`programs/${state.duplicate}/duplicate`, 'POST', {date:event.target.elements.date.value});
     document.querySelector('#duplicate-dialog').close(); replaceProgram(p); navigate('edit', p.id); toast('Planejamento duplicado.');
-  });
+  }, event.submitter);
 });
 document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') handleAction({dataset:{action:'chronogram'}}); else navigate(link.dataset.page); } });
 window.addEventListener('hashchange', () => { const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals'].includes(page)) navigate(page, id); });
