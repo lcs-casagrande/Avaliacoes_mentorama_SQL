@@ -3,9 +3,9 @@ window.IASDPIChronogram = {
   name:'Culto de sábado', date:'2026-10-03', start:'09:30', end:'11:24', execution_mode:'manual',
   team:{'Ancião do mês':'Adriano','Recepção':'Nilce','Diácono':'Rafael Braga','Diaconisa':'Rose','Diretor de culto':'Elmo','Sonoplastia':'','Equipe de louvor':'','Responsável pela programação':'Elmo'},
   items:[
-    ['09:30','09:35','Música Congregacional (sentados): 321 - Jesus é Melhor','Ministério de Louvor'],
-    ['09:35','09:40','Música Congregacional (sentados): 344 - Confiarei','Ministério de Louvor'],
-    ['09:40','09:45','Música Congregacional (em pé): 346 - Como Agradecer','Ministério de Louvor'],
+    ['09:30','09:35','Música Congregacional (sentados)','Ministério de Louvor'],
+    ['09:35','09:40','Música Congregacional (sentados)','Ministério de Louvor'],
+    ['09:40','09:45','Música Congregacional (em pé)','Ministério de Louvor'],
     ['09:45','09:50','Oração Intercessora (de joelhos)','Núbia'],
     ['09:50','10:00','Adoração Infantil','Pr. Carlos'],
     ['10:00','10:05','Anúncios/Comunicação','Henrique'],
@@ -34,7 +34,7 @@ function actualsForm(p) {
       <p class="muted">Informe os horários reais, sem alterar o planejamento. Você pode salvar parcialmente e completar depois.</p>
       <div class="actuals-list">${plan.items.map((i,index)=>{
         const e=executions[i.id];
-        return `<fieldset class="actual-row" data-id="${esc(i.id)}" data-planned="${minutes(`2000-01-01T${i.end}:00`,`2000-01-01T${i.start}:00`)}"><legend>${index+1}. ${esc(i.block)}</legend><div class="actual-description"><h3>${esc(i.activity)}</h3><span class="muted">Previsto: ${esc(i.start)} → ${i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end)}</span>${i.parallel?'<span class="badge neutral">Atividade simultânea · 10:10–10:15</span>':''}</div><div class="actual-inputs">${field('Início real','start',e?.started?clock(e.started):'','time',false,'aria-label="Início real da atividade '+(index+1)+'"')}${field('Término real','end',e?.ended?clock(e.ended):'','time',false,'aria-label="Término real da atividade '+(index+1)+'"')}<output class="actual-difference muted">Aguardando horários</output></div></fieldset>`;
+        return `<fieldset class="actual-row" data-id="${esc(i.id)}" data-planned="${minutes(`2000-01-01T${i.end}:00`,`2000-01-01T${i.start}:00`)}"><legend>${index+1}. ${esc(i.block)}</legend><div class="actual-description"><h3>${esc(i.activity.replace(/^(Música Congregacional[^:]*):.*$/, '$1'))}</h3><span class="muted">Previsto: ${esc(i.start)} → ${i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end)}</span>${i.parallel?'<span class="badge neutral">Atividade simultânea · 10:10–10:15</span>':''}</div><div class="actual-inputs">${field('Início real','start',e?.started?clock(e.started):'','time',false,'aria-label="Início real da atividade '+(index+1)+'"')}${field('Término real','end',e?.ended?clock(e.ended):'','time',false,'aria-label="Término real da atividade '+(index+1)+'"')}<output class="actual-difference muted">Aguardando horários</output></div></fieldset>`;
       }).join('')}</div>
       <section class="section"><h2>Observações</h2><div class="notes-grid"><div><label for="manual-note">Observações do culto</label><textarea id="manual-note" name="note" maxlength="5000" rows="3">${esc(p?.note || '')}</textarea></div><div><label for="manual-incident">Ocorrência não prevista</label><textarea id="manual-incident" name="incident" maxlength="5000" rows="3">${esc(p?.incident || '')}</textarea></div></div></section>
       <div class="actions manual-actions"><button type="submit" class="primary" name="save">Salvar realizado</button><button type="submit" name="finalize">Finalizar e ver resumo</button></div>
