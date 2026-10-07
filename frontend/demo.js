@@ -34,60 +34,19 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       const plan = prepare(input);
       return {id:id(), execution_mode:input.execution_mode || 'live', plan, status, version:1, note:'', incident:'', paused:false, executions:{}, planned_start:instant(plan.date,plan.start), planned_end:instant(plan.date,plan.end)};
     }
-    function seed() {
-      // Exemplo relativo ao relógio para permitir experimentar imediatamente.
-      let base = new Date(); base.setSeconds(0,0);
-      if (time(base) < '00:20' || time(base) > '22:46') {
-        base = new Date(instant(date(base),'12:00'));
-      }
-      const at = offset => new Date(base.getTime()+offset*60000);
-      const rows = [[-20,-15,'Música Congregacional','Equipe de louvor'],[-15,-10,'Oração Intercessora','Responsável de exemplo'],[-10,33,'Sermão','Orador de exemplo'],[33,38,'Mensagem Musical','Equipe de louvor'],[38,73,'Escola Sabatina','Equipe da Escola Sabatina']];
-      const active = make({name:'Culto · demonstração',date:date(base),start:time(at(-20)),end:time(at(73)),team:{},items:rows.map(([a,b,activity,responsible],i) => ({start:time(at(a)),end:time(at(b)),activity,responsible,block:i===4?'Escola Sabatina':'Culto',note:''}))},'Em andamento');
-      active.executions[active.plan.items[0].id] = {started:at(-20).toISOString(),ended:at(-15).toISOString()};
-      active.executions[active.plan.items[1].id] = {started:at(-15).toISOString(),ended:at(-7).toISOString()};
-      active.executions[active.plan.items[2].id] = {started:at(-7).toISOString(),ended:null};
-      active.incident = 'Exemplo fictício: uma comunicação adicional atrasou o início do sermão em 3 minutos.';
-      const upcomingDate = new Date(base.getTime()+7*86400000);
-      const upcoming = make({...active.plan,name:'Próximo culto · exemplo',date:date(upcomingDate)},'Pronta');
-      const programs = [active, upcoming];
-      return programs;
-    }
-    function adherenceExamples() {
-      const scenarios = [
-        {date:'2026-09-05',label:'Dentro do planejado',start:0,changes:{},note:'Exemplo fictício: todas as atividades seguiram os horários previstos.'},
-        {date:'2026-09-12',label:'Pequenos desvios',start:1,changes:{3:2,11:-3},note:'Exemplo fictício: a oração durou 2 minutos a mais; o sermão compensou o tempo.'},
-        {date:'2026-09-19',label:'Atraso relevante',start:3,changes:{5:3,11:9},note:'Exemplo fictício: comunicação adicional e sermão prolongado elevaram o atraso.'},
-        {date:'2026-09-26',label:'Recuperação do atraso',start:4,changes:{0:-2,3:-1,11:-1},note:'Exemplo fictício: o culto começou atrasado, mas ajustes de duração recuperaram o horário.'},
-        {date:'2026-10-03',label:'Levemente adiantado',start:-1,changes:{11:-1},note:'Exemplo fictício: início e término levemente adiantados, dentro da tolerância.'}
-      ];
-      return scenarios.map(scenario => {
-        const plan=clone(window.IASDPIChronogram);plan.date=scenario.date;plan.name=`Culto · ${scenario.label} (fictício)`;
-        plan.team={};plan.items.forEach(item=>{item.id=id();item.responsible='';});
-        const p=make(plan,'Finalizada');p.sample_set='adherence-v1';p.note=scenario.note;
-        if(scenario.start>2 || scenario.changes[5])p.incident=scenario.note;
-        let cursor=new Date(instant(plan.date,plan.start)).getTime()+scenario.start*60000;
-        for(let i=0;i<p.plan.items.length;i++){
-          const item=p.plan.items[i];
-          const planned=(new Date(item.planned_end)-new Date(item.planned_start))/60000;
-          const end=cursor+(planned+(scenario.changes[i] || 0))*60000;
-          p.executions[item.id]={started:new Date(cursor).toISOString(),ended:new Date(end).toISOString()};
-          if(item.parallel && p.plan.items[i+1]?.parallel && p.plan.items[i+1].start===item.start){
-            p.executions[p.plan.items[++i].id]={started:new Date(cursor).toISOString(),ended:new Date(end).toISOString()};
-          }
-          cursor=end;
-        }
-        return p;
-      });
+    function isTestProgram(p) {
+      return p.sample_set === 'adherence-v1' ||
+        ['Culto · demonstração', 'Próximo culto · exemplo', 'Culto de sábado · exemplo'].includes(p.plan?.name);
     }
     let memory, needsInitialSave = false, initialReadError = null;
     try {
       const raw = localStorage.getItem(key);
-      if (raw === null) { memory = seed(); needsInitialSave = true; }
+      if (raw === null) { memory = []; needsInitialSave = true; }
       else {
         memory = JSON.parse(raw);
         if (!Array.isArray(memory)) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
       }
-    } catch (error) { initialReadError = error; memory = seed(); }
+    } catch (error) { initialReadError = error; memory = []; }
     let storageAvailable = initialReadError === null;
     function save() {
       try { localStorage.setItem(key, JSON.stringify(memory)); storageAvailable = true; }
@@ -159,9 +118,10 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           memory = stored;
         }
         before = clone(memory);
-        if (path === 'programs' && method === 'GET' && window.IASDPIChronogram && !memory.some(p => p.sample_set === 'adherence-v1')) {
-          memory.push(...adherenceExamples());
-          try { save(); } catch (_) { memory = before; }
+        const cleaned = memory.filter(p => !isTestProgram(p));
+        if (cleaned.length !== memory.length) {
+          memory = cleaned;
+          save();
           before = clone(memory);
         }
         return performRequest(path, method, body);
