@@ -7,7 +7,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
     const clone = data => JSON.parse(JSON.stringify(data));
     const date = time => new Intl.DateTimeFormat('sv-SE', { timeZone: zone }).format(new Date(time));
     const time = stamp => new Intl.DateTimeFormat('pt-BR', { timeZone: zone, hour:'2-digit', minute:'2-digit' }).format(new Date(stamp));
-    const instant = (day, clock) => `${day}T${clock}:00-03:00`;
+    const instant = (day, clock) => `${day}T${clock.length===5?clock+':00':clock}-03:00`;
     const stamp = () => new Date().toISOString();
     const id = () => crypto.randomUUID();
     function prepare(input) {
@@ -77,8 +77,8 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           const e=records[item.id];
           if(!e || typeof e.start!=='string' || typeof e.end!=='string') throw Error('Registro de horário inválido.');
           if(!e.start && !e.end) continue;
-          const valid=v=>/^([01]\d|2[0-3]):[0-5]\d$/.test(v);
-          if(!valid(e.start) || (e.end && (!valid(e.end) || e.end<e.start))) throw Error('Informe início e término reais válidos.');
+          const valid=v=>/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v);
+          if(!valid(e.start) || (e.end && (!valid(e.end) || timeSeconds(e.end)<timeSeconds(e.start)))) throw Error('Informe início e término reais válidos.');
           executions[item.id]={started:instant(p.plan.date,e.start),ended:e.end?instant(p.plan.date,e.end):null};
         }
         const complete = Object.keys(executions).length === p.plan.items.length && Object.values(executions).every(e=>e.ended);

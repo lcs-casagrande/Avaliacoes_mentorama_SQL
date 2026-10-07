@@ -160,8 +160,8 @@ function summary(p) {
     <p class="context-line">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}. Veja as observações para entender a causa.` : 'Nenhum atraso registrado.'}</p>
     <div class="table-scroll"><table><thead><tr><th>Atividade / bloco</th><th>Horários previstos</th><th>Horários reais</th><th>Duração prevista</th><th>Duração real</th><th>Diferença de duração</th></tr></thead><tbody>${p.plan.items.map(i => {
       const e = p.executions[i.id]; const planned = minutes(i.planned_end, i.planned_start); const real = e?.ended ? minutes(e.ended, e.started) : null;
-      return `<tr><td><strong>${esc(i.activity)}</strong><small>${esc(i.block)} · ${esc(i.responsible)}</small></td><td>${esc(i.start)} → ${esc(i.end)}${i.end_inferred ? ' (referência)' : ''}</td><td>${clock(e?.started)} → ${clock(e?.ended)}</td><td>${duration(planned)}</td><td>${real === null ? '—' : duration(real)}</td><td>${real === null ? '—' : badge(real - planned, signed(real - planned))}</td></tr>`;
-    }).join('')}</tbody></table></div>${notes(p)}`;
+      return `<tr><td><strong>${esc(i.activity)}</strong><small>${esc(i.block)} · ${esc(i.responsible)}</small></td><td>${esc(i.start)} → ${esc(i.end)}${i.end_inferred ? ' (referência)' : ''}</td><td>${actualClock(e?.started) || '—'} → ${actualClock(e?.ended) || '—'}</td><td>${duration(planned)}</td><td>${real === null ? '—' : duration(real)}</td><td>${real === null ? '—' : badge(real - planned, signed(real - planned))}</td></tr>`;
+    }).join('')}</tbody></table></div>${transitionView([p])}${notes(p)}`;
 }
 const adherenceTolerance = 2;
 function adherence(p) {
@@ -209,7 +209,7 @@ function adherenceOverview() {
     <div class="table-scroll"><table><thead><tr><th>Evento</th><th>Aderência</th><th>Atividades aderentes</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
       const a=adherence(p);const tone=a.percent>=90?'good':a.percent>=70?'warning':'critical';
       return `<tr><td>${esc(p.plan.name)}<small>${esc(dateLabel(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent}%</span></td><td>${a.conforming} / ${a.total}</td><td>${badge(executionInfo(p).shift,signed(executionInfo(p).shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
-    }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p>${medianView(examples)}</section>`;
+    }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p>${medianView(examples)}${transitionView(examples)}</section>`;
 }
 function historyPage() {
   const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date));
@@ -245,7 +245,11 @@ function tick() {
 }
 async function handleAction(target) {
   const {action, id} = target.dataset;
-  if (action === 'chronogram') {
+  if (action === 'time-now') {
+    target.closest('.actual-row').querySelector(`[name="${target.dataset.field}"]`).value=actualClock(currentTime());
+    updateActuals();
+  }
+  else if (action === 'chronogram') {
     const existing = state.programs.find(p => p.execution_mode === 'manual' && p.plan.date === '2026-10-03' && p.plan.items.some(i => i.id === 'culto-03102026-1'));
     state.selected = existing?.id || null; navigate('actuals', existing?.id);
   }

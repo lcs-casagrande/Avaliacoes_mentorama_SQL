@@ -74,12 +74,13 @@ def text(value, label, limit=200, required=False):
     return value
 
 
-def planned(date, clock):
+def planned(date, clock, seconds=False):
     try:
-        if not isinstance(clock, str) or len(clock) != 5:
+        if not isinstance(clock, str) or len(clock) not in ((5, 8) if seconds else (5,)):
             raise ValueError()
-        dt = datetime.strptime(f'{date} {clock}', '%Y-%m-%d %H:%M')
-        if dt.strftime('%Y-%m-%d %H:%M') != f'{date} {clock}':
+        fmt = '%Y-%m-%d %H:%M:%S' if len(clock) == 8 else '%Y-%m-%d %H:%M'
+        dt = datetime.strptime(f'{date} {clock}', fmt)
+        if dt.strftime(fmt) != f'{date} {clock}':
             raise ValueError()
         return dt.replace(tzinfo=TZ).isoformat()
     except (ValueError, TypeError):
@@ -200,8 +201,8 @@ def save_actuals(con, program, body):
             continue
         if not start:
             raise Problem(f"{item['activity']}: informe o início real antes do término.")
-        first = planned(program['plan']['date'], start)
-        last = planned(program['plan']['date'], end) if end else None
+        first = planned(program['plan']['date'], start, seconds=True)
+        last = planned(program['plan']['date'], end, seconds=True) if end else None
         if last and last < first:
             raise Problem(f"{item['activity']}: término real não pode ser anterior ao início.")
         values.append((program['id'], item['id'], first, last))
