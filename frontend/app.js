@@ -173,6 +173,30 @@ function adherence(p) {
   });
   return {total:completed.length,conforming:conforming.length,percent:completed.length ? Math.round(conforming.length/completed.length*100) : 0};
 }
+function median(values) {
+  const sorted=[...values].sort((a,b)=>a-b), middle=Math.floor(sorted.length/2);
+  return sorted.length%2 ? sorted[middle] : (sorted[middle-1]+sorted[middle])/2;
+}
+function activityMedians(programs) {
+  const groups=new Map();
+  programs.forEach(p=>p.plan.items.forEach(item=>{
+    const real=p.executions[item.id];if(!real?.ended)return;
+    const name=item.activity.startsWith('Música Congregacional') ? 'Música Congregacional' : item.activity;
+    if(!groups.has(name))groups.set(name,{name,values:[],events:new Set(),estimated:false});
+    const group=groups.get(name);
+    group.values.push(minutes(real.ended,real.started)-minutes(item.planned_end,item.planned_start));
+    group.events.add(p.id);group.estimated ||= Boolean(item.end_inferred);
+  }));
+  return [...groups.values()].map(group=>({...group,median:median(group.values)}));
+}
+function medianView(programs) {
+  const groups=activityMedians(programs);
+  const label=value=>`${value>0?'+':value<0?'−':''}${Math.abs(value).toLocaleString('pt-BR',{maximumFractionDigits:1})} min`;
+  return `<section class="section median-section"><div class="section-heading"><h2>Mediana do desvio por atividade</h2><span class="muted">${programs.length} programações fictícias</span></div>
+    <p class="muted">Diferença entre duração realizada e prevista em cada registro de atividade. Positivo = durou mais; negativo = durou menos. As músicas congregacionais estão agrupadas, incluindo sentados e em pé.</p>
+    <div class="table-scroll"><table><thead><tr><th>Atividade</th><th>Mediana do desvio</th><th>Registros comparados</th><th>Programações</th></tr></thead><tbody>${groups.map(group=>`<tr><td>${esc(group.name)}${group.estimated?' *':''}</td><td><span class="badge ${statusTone(group.median)}">${label(group.median)}</span></td><td>${group.values.length}</td><td>${group.events.size}</td></tr>`).join('')}</tbody></table></div>
+    <p class="muted">* Anúncios: comparação com duração de referência de 5 minutos; o término não foi informado no cronograma. A mediana considera os registros, inclusive quando a atividade se repete no mesmo culto.</p></section>`;
+}
 function adherenceOverview() {
   const examples=state.programs.filter(p=>p.sample_set==='adherence-v1' && p.status==='Finalizada').sort((a,b)=>a.plan.date.localeCompare(b.plan.date));
   if(!examples.length)return '';
@@ -185,7 +209,7 @@ function adherenceOverview() {
     <div class="table-scroll"><table><thead><tr><th>Evento / cenário</th><th>Aderência</th><th>Atividades aderentes</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
       const a=adherence(p);const tone=a.percent>=90?'good':a.percent>=70?'warning':'critical';
       return `<tr><td>${esc(p.plan.name)}<small>${esc(dateLabel(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent}%</span></td><td>${a.conforming} / ${a.total}</td><td>${badge(executionInfo(p).shift,signed(executionInfo(p).shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
-    }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p></section>`;
+    }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p>${medianView(examples)}</section>`;
 }
 function historyPage() {
   const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date));
