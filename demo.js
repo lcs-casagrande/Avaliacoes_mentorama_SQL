@@ -34,42 +34,25 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       const plan = prepare(input);
       return {id:id(), execution_mode:input.execution_mode || 'live', plan, status, version:1, note:'', incident:'', paused:false, executions:{}, planned_start:instant(plan.date,plan.start), planned_end:instant(plan.date,plan.end)};
     }
-    function seed() {
-      // Exemplo relativo ao relógio para permitir experimentar imediatamente.
-      let base = new Date(); base.setSeconds(0,0);
-      if (time(base) < '00:20' || time(base) > '22:46') {
-        base = new Date(instant(date(base),'12:00'));
-      }
-      const at = offset => new Date(base.getTime()+offset*60000);
-      const rows = [[-20,-15,'Música Congregacional','Equipe de louvor'],[-15,-10,'Oração Intercessora','Responsável de exemplo'],[-10,33,'Sermão','Orador de exemplo'],[33,38,'Mensagem Musical','Equipe de louvor'],[38,73,'Escola Sabatina','Equipe da Escola Sabatina']];
-      const active = make({name:'Culto · demonstração',date:date(base),start:time(at(-20)),end:time(at(73)),team:{},items:rows.map(([a,b,activity,responsible],i) => ({start:time(at(a)),end:time(at(b)),activity,responsible,block:i===4?'Escola Sabatina':'Culto',note:''}))},'Em andamento');
-      active.executions[active.plan.items[0].id] = {started:at(-20).toISOString(),ended:at(-15).toISOString()};
-      active.executions[active.plan.items[1].id] = {started:at(-15).toISOString(),ended:at(-7).toISOString()};
-      active.executions[active.plan.items[2].id] = {started:at(-7).toISOString(),ended:null};
-      active.incident = 'Exemplo fictício: uma comunicação adicional atrasou o início do sermão em 3 minutos.';
-      const upcomingDate = new Date(base.getTime()+7*86400000);
-      const upcoming = make({...active.plan,name:'Próximo culto · exemplo',date:date(upcomingDate)},'Pronta');
-      const programs = [active, upcoming];
-      [5,-2,6,1,0].forEach((deviation,index) => {
-        const day = date(new Date(base.getTime()-(index+1)*7*86400000));
-        const p = make({name:'Culto de sábado · exemplo',date:day,start:'09:30',end:'12:25',team:{},items:[{block:'Culto',start:'09:30',end:'11:10',activity:'Culto',responsible:'Equipe de exemplo'},{block:'Escola Sabatina',start:'11:10',end:'12:25',activity:'Escola Sabatina',responsible:'Equipe de exemplo'}]},'Finalizada');
-        const first = new Date(instant(day,'09:30'));
-        const middle = new Date(instant(day,'11:10'));
-        const end = new Date(new Date(instant(day,'12:25')).getTime()+deviation*60000);
-        p.executions[p.plan.items[0].id] = {started:first.toISOString(),ended:middle.toISOString()};
-        p.executions[p.plan.items[1].id] = {started:middle.toISOString(),ended:end.toISOString()};
-        programs.push(p);
-      });
-      return programs;
+    function isTestProgram(p) {
+      return p.sample_set === 'adherence-v1' ||
+        ['Culto · demonstração', 'Próximo culto · exemplo', 'Culto de sábado · exemplo'].includes(p.plan?.name);
     }
-    let memory;
-    try { memory = JSON.parse(localStorage.getItem(key)); } catch (_) { memory = null; }
-    if (!Array.isArray(memory) || !memory.length) memory = seed();
+    let memory, needsInitialSave = false, initialReadError = null;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) { memory = []; needsInitialSave = true; }
+      else {
+        memory = JSON.parse(raw);
+        if (!Array.isArray(memory)) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
+      }
+    } catch (error) { initialReadError = error; memory = []; }
+    let storageAvailable = initialReadError === null;
     function save() {
-      try { localStorage.setItem(key, JSON.stringify(memory)); }
+      try { localStorage.setItem(key, JSON.stringify(memory)); storageAvailable = true; }
       catch (_) { throw Error('O navegador não permitiu salvar a demonstração. Libere o armazenamento local.'); }
     }
-    async function request(path, method, body = {}) {
+    function performRequest(path, method, body = {}) {
       if (path === 'health') return {status:'ok',timezone:zone,server_time:stamp()};
       if (path === 'programs' && method === 'GET') return clone(memory);
       if (path === 'programs' && method === 'POST') {
@@ -124,10 +107,35 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       } else throw Error('Operação indisponível.');
       p.version++; save(); return clone(p);
     }
-    save();
+    async function request(path, method, body = {}) {
+      if (path === 'health') return performRequest(path, method, body);
+      let before;
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw !== null) {
+          const stored = JSON.parse(raw);
+          if (!Array.isArray(stored)) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
+          memory = stored;
+        }
+        before = clone(memory);
+        const cleaned = memory.filter(p => !isTestProgram(p));
+        if (cleaned.length !== memory.length) {
+          memory = cleaned;
+          save();
+          before = clone(memory);
+        }
+        return performRequest(path, method, body);
+      } catch (error) {
+        if (before) memory = before;
+        if (error instanceof SyntaxError) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
+        if (error.name === 'SecurityError') throw Error('O navegador bloqueou o armazenamento local. Libere-o para salvar os dados.');
+        throw error;
+      }
+    }
+    if (needsInitialSave) { try { save(); } catch (_) { storageAvailable = false; } }
     document.addEventListener('DOMContentLoaded', () => {
       const banner=document.createElement('aside');banner.className='demo-banner';
-      banner.textContent='DEMONSTRAÇÃO · Sem envio de dados. Suas alterações ficam apenas neste navegador.';
+      banner.textContent='DEMONSTRAÇÃO · Sem envio de dados. Suas alterações ficam apenas neste navegador.' + (storageAvailable ? '' : ' O salvamento está bloqueado neste navegador.');
       document.querySelector('.header').after(banner);
     });
     return {request};

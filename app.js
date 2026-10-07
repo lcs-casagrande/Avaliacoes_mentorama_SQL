@@ -82,13 +82,13 @@ function home() {
   const featured = running || upcoming;
   const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date)).slice(0, 5);
   return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `${button('Realizado · 03/10/2026', 'chronogram')} ${button('Nova programação', 'new', '', 'class="primary"')}`) +
-    (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMA PROGRAMAÇÃO'}</p><h2>${esc(featured.plan.name)}</h2><p class="date">${esc(dateLabel(featured.plan.date))}</p><p class="large-time">${esc(featured.plan.start)} <span>→</span> ${esc(featured.plan.end)}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(running ? 'Continuar acompanhamento' : 'Iniciar acompanhamento', 'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span><span class="badge neutral">${esc(featured.status)}</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Cadastre os horários e responsáveis ou use o exemplo para experimentar.', `${button('Nova programação', 'new', '', 'class="primary"')} ${button('Usar programação de exemplo', 'sample')}`)) +
-    `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
+    (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMA PROGRAMAÇÃO'}</p><h2>${esc(featured.plan.name)}</h2><p class="date">${esc(dateLabel(featured.plan.date))}</p><p class="large-time">${esc(featured.plan.start)} <span>→</span> ${esc(featured.plan.end)}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(running ? 'Continuar acompanhamento' : 'Iniciar acompanhamento', 'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span><span class="badge neutral">${esc(featured.status)}</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Cadastre os horários da próxima programação.', `${button('Nova programação', 'new', '', 'class="primary"')}`)) +
+    adherenceOverview() + `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
 }
 function programsPage() {
   const list = [...state.programs].sort((a,b) => b.plan.date.localeCompare(a.plan.date));
   return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `${button('Realizado · 03/10/2026', 'chronogram')} ${button('Nova programação', 'new', '', 'class="primary"')}`) +
-    (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Comece do zero ou experimente uma programação de exemplo.', button('Usar exemplo', 'sample')));
+    (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Cadastre sua primeira programação.', button('Nova programação', 'new')));
 }
 function field(label, name, value = '', type = 'text', required = false, extra = '') {
   return `<label>${label}<input name="${esc(name)}" type="${type}" value="${esc(value)}" ${required ? 'required' : ''} ${extra}></label>`;
@@ -163,9 +163,57 @@ function summary(p) {
       return `<tr><td><strong>${esc(i.activity)}</strong><small>${esc(i.block)} · ${esc(i.responsible)}</small></td><td>${esc(i.start)} → ${esc(i.end)}${i.end_inferred ? ' (referência)' : ''}</td><td>${clock(e?.started)} → ${clock(e?.ended)}</td><td>${duration(planned)}</td><td>${real === null ? '—' : duration(real)}</td><td>${real === null ? '—' : badge(real - planned, signed(real - planned))}</td></tr>`;
     }).join('')}</tbody></table></div>${notes(p)}`;
 }
+const adherenceTolerance = 2;
+function adherence(p) {
+  const completed=p.plan.items.filter(item=>p.executions[item.id]?.ended);
+  const conforming=completed.filter(item=>{
+    const real=p.executions[item.id];
+    return Math.abs(minutes(real.started,item.planned_start)) <= adherenceTolerance &&
+      (item.end_inferred || Math.abs(minutes(real.ended,item.planned_end)) <= adherenceTolerance);
+  });
+  return {total:completed.length,conforming:conforming.length,percent:completed.length ? Math.round(conforming.length/completed.length*100) : 0};
+}
+function median(values) {
+  const sorted=[...values].sort((a,b)=>a-b), middle=Math.floor(sorted.length/2);
+  return sorted.length%2 ? sorted[middle] : (sorted[middle-1]+sorted[middle])/2;
+}
+function activityMedians(programs) {
+  const groups=new Map();
+  programs.forEach(p=>p.plan.items.forEach(item=>{
+    const real=p.executions[item.id];if(!real?.ended)return;
+    const name=item.activity.startsWith('Música Congregacional') ? 'Música Congregacional' : item.activity;
+    if(!groups.has(name))groups.set(name,{name,values:[],events:new Set(),estimated:false});
+    const group=groups.get(name);
+    group.values.push(minutes(real.ended,real.started)-minutes(item.planned_end,item.planned_start));
+    group.events.add(p.id);group.estimated ||= Boolean(item.end_inferred);
+  }));
+  return [...groups.values()].map(group=>({...group,median:median(group.values)}));
+}
+function medianView(programs) {
+  const groups=activityMedians(programs);
+  const label=value=>`${value>0?'+':value<0?'−':''}${Math.abs(value).toLocaleString('pt-BR',{maximumFractionDigits:1})} min`;
+  return `<section class="section median-section"><div class="section-heading"><h2>Mediana do desvio por atividade</h2><span class="muted">${programs.length} programações finalizadas</span></div>
+    <p class="muted">Diferença entre duração realizada e prevista em cada registro de atividade. Positivo = durou mais; negativo = durou menos. As músicas congregacionais estão agrupadas, incluindo sentados e em pé.</p>
+    <div class="table-scroll"><table><thead><tr><th>Atividade</th><th>Mediana do desvio</th><th>Registros comparados</th><th>Programações</th></tr></thead><tbody>${groups.map(group=>`<tr><td>${esc(group.name)}${group.estimated?' *':''}</td><td><span class="badge ${statusTone(group.median)}">${label(group.median)}</span></td><td>${group.values.length}</td><td>${group.events.size}</td></tr>`).join('')}</tbody></table></div>
+    <p class="muted">* Anúncios: comparação com duração de referência de 5 minutos; o término não foi informado no cronograma. A mediana considera os registros, inclusive quando a atividade se repete no mesmo culto.</p></section>`;
+}
+function adherenceOverview() {
+  const examples=state.programs.filter(p=>p.status==='Finalizada' && p.plan.items.some(i=>p.executions[i.id]?.ended)).sort((a,b)=>a.plan.date.localeCompare(b.plan.date));
+  if(!examples.length)return '';
+  const counts=examples.map(adherence);
+  const conforming=counts.reduce((sum,a)=>sum+a.conforming,0),total=counts.reduce((sum,a)=>sum+a.total,0);
+  const endOnTime=examples.filter(p=>Math.abs(executionInfo(p).shift)<=adherenceTolerance).length;
+  return `<section class="section adherence-section"><div class="section-heading"><h2>Aderência à programação</h2><span class="badge neutral">${examples.length} eventos finalizados</span></div>
+    <p class="muted">Aderência = atividades com início e término até ${adherenceTolerance} minutos antes ou depois do previsto. Para anúncios, cujo término não foi informado, considera-se somente o início.</p>
+    <div class="metrics"><div><span>ATIVIDADES ADERENTES</span><strong>${Math.round(conforming/total*100)}%</strong><small>${conforming} de ${total} atividades</small></div><div><span>EVENTOS COM TÉRMINO ADERENTE</span><strong>${endOnTime}/${examples.length}</strong><small>Dentro da tolerância de ±${adherenceTolerance} min</small></div><div><span>DESVIO MÉDIO DO TÉRMINO</span><strong>${signed(examples.reduce((sum,p)=>sum+executionInfo(p).shift,0)/examples.length)}</strong><small>Atrasos positivos · adiantamentos negativos</small></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Evento</th><th>Aderência</th><th>Atividades aderentes</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
+      const a=adherence(p);const tone=a.percent>=90?'good':a.percent>=70?'warning':'critical';
+      return `<tr><td>${esc(p.plan.name)}<small>${esc(dateLabel(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent}%</span></td><td>${a.conforming} / ${a.total}</td><td>${badge(executionInfo(p).shift,signed(executionInfo(p).shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
+    }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p>${medianView(examples)}</section>`;
+}
 function historyPage() {
   const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date));
-  return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
+  return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
 }
 function render() {
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('selected', a.dataset.page === (['edit', 'summary', 'actuals'].includes(state.page) ? state.page === 'summary' ? 'history' : 'programs' : state.page)));
@@ -195,11 +243,6 @@ function tick() {
     if (element) { element.textContent = value; if (key === 'shift') element.className = statusTone(m.shift); }
   }
 }
-async function sample() {
-  const rows = [['09:30','09:35','Música Congregacional','Ministério de Louvor'],['09:35','09:40','Música Congregacional','Ministério de Louvor'],['09:40','09:45','Música Congregacional','Ministério de Louvor'],['09:45','09:50','Oração Intercessora','Núbia'],['09:50','10:00','Adoração Infantil','Pr. Carlos'],['10:00','10:05','Anúncios / Comunicação','Henrique'],['10:05','10:10','Provai e Vede','Ministério da Mordomia'],['10:22','11:05','Sermão','Gabriel Henrique'],['11:05','11:10','Mensagem Musical','Priscilla'],['11:10','12:25','Escola Sabatina','Equipe da Escola Sabatina']];
-  const p = await api('programs', 'POST', { name:'Culto de sábado · exemplo', date:today(), start:'09:30', end:'12:25', team:{}, items: rows.map(([start,end,activity,responsible],i) => ({start,end,activity,responsible,block: i === 9 ? 'Escola Sabatina' : 'Culto', note:''})) });
-  replaceProgram(p); navigate('edit', p.id); toast('Exemplo criado. Confira os horários e marque como pronta.');
-}
 async function handleAction(target) {
   const {action, id} = target.dataset;
   if (action === 'chronogram') {
@@ -210,7 +253,6 @@ async function handleAction(target) {
   else if (action === 'new') { state.selected = null; navigate('edit'); }
   else if (action === 'programs') navigate('programs');
   else if (['edit','summary','track'].includes(action)) navigate(action === 'track' ? 'tracking' : action, id);
-  else if (action === 'sample') await sample();
   else if (action === 'duplicate') {
     state.duplicate = id;
     document.querySelector('#duplicate-form').elements.date.value = today();
@@ -292,7 +334,7 @@ async function boot() {
     if (page === 'actuals' && !id) state.selected = null;
     state.page = ['home','programs','tracking','history','edit','summary','actuals'].includes(page) ? page : 'home'; render();
   } catch (error) {
-    app.innerHTML = empty('Não foi possível conectar', 'Verifique se o servidor está em execução e recarregue a página.'); toast(error.message, true);
+    app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
   }
 }
 setInterval(tick, 1000);
