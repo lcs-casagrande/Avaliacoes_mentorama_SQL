@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F4C78">
+  <title>IASDPI · Programação do culto</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="demo.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="#home"><span class="brand-mark">I</span><span>IASDPI<small>Programação do culto</small></span></a>
+    <nav aria-label="Navegação principal">
+      <a href="#home" data-page="home">Início</a>
+      <a href="#programs" data-page="programs">Programações</a>
+      <a href="#tracking" data-page="tracking">Acompanhamento</a>
+      <a href="#history" data-page="history">Histórico</a>
+    </nav>
+  </header>
+  <main id="app" tabindex="-1"><p class="empty">Carregando programações…</p></main>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <dialog id="duplicate-dialog">
+    <form id="duplicate-form">
+      <h2>Duplicar programação</h2>
+      <p>Copiar o planejamento e a equipe, sem registros de execução.</p>
+      <label>Data da nova programação<input type="date" name="date" required></label>
+      <div class="actions"><button type="button" data-action="close-dialog">Cancelar</button><button class="primary" type="submit">Duplicar</button></div>
+    </form>
+  </dialog>
+  <footer>Planejar com clareza. Acompanhar com tranquilidade.</footer>
+</body>
+</html>
