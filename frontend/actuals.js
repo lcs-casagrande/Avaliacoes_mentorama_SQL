@@ -80,25 +80,25 @@ function activityDetailsField(p,item,index) {
   const defaultMinistry={'Ministério de Louvor':'Min. Louvor','Ministério Louvor':'Min. Louvor','Ministério da Mordomia':'Min. Mordomia','Ministério de Louvor e/ou Ancianato':'Min. Louvor e/ou Ancianato'}[item.responsible] || '';
   const responsible=detail.responsible ?? defaultMinistry;
   const custom=responsible && !ministryOptions.includes(responsible);
-  return `<div class="activity-details"><label>Nota<input name="activity-note" value="${esc(detail.note || '')}" maxlength="2000" placeholder="Observação da atividade" aria-label="Nota da atividade ${index+1}"></label><div><label>Responsável<select name="responsible-option" aria-label="Responsável da atividade ${index+1}"><option value="">Selecionar</option>${ministryOptions.map(name=>`<option value="${esc(name)}" ${responsible===name?'selected':''}>${esc(name)}</option>`).join('')}<option value="other" ${custom?'selected':''}>Outro responsável</option></select></label><input name="responsible-name" value="${esc(custom?responsible:'')}" maxlength="200" placeholder="Nome do responsável" aria-label="Nome do responsável da atividade ${index+1}" ${custom?'':'hidden'}></div></div>`;
+  return `<div class="activity-details"><label>Observação<input name="activity-note" value="${esc(detail.note || '')}" maxlength="2000" placeholder="Observação da atividade" aria-label="Observação da atividade ${index+1}"></label><div><label>Responsável<select name="responsible-option" aria-label="Responsável da atividade ${index+1}"><option value="">Selecionar</option>${ministryOptions.map(name=>`<option value="${esc(name)}" ${responsible===name?'selected':''}>${esc(name)}</option>`).join('')}<option value="other" ${custom?'selected':''}>Outro responsável</option></select></label><input name="responsible-name" value="${esc(custom?responsible:'')}" maxlength="200" placeholder="Nome do responsável" aria-label="Nome do responsável da atividade ${index+1}" ${custom?'':'hidden'}></div></div>`;
 }
 function actualsForm(p) {
   const plan=p?.plan || window.IASDPIChronogram;
   const executions=p?.executions || {};
-  return heading('REGISTRO DO REALIZADO', 'Preencher realizado', `${esc(dateLabel(plan.date))} · ${esc(plan.name)}`, button('Voltar às programações','programs')) +
+  return heading('REGISTRO DO CULTO', 'Registrar culto', `${esc(dateLabel(plan.date))} · ${esc(plan.name)}`, button('Voltar às programações','programs')) +
     `<section class="planned-bar"><span>Previsto <strong>${esc(plan.start)} → ${esc(plan.end)}</strong></span><span class="badge neutral">Registro manual</span></section>
     <details class="panel"><summary>Equipe da programação</summary><dl class="team-read">${roles.map(role => `<div><dt>${esc(role==='Responsável pela programação'?'Ministração do Culto':role)}</dt><dd>${esc(plan.team[role] || 'Não informado')}</dd></div>`).join('')}</dl></details>
     ${plan.items.some(i=>i.end_inferred) ? '<p class="form-note">O término dos anúncios não foi informado no cronograma. A referência de 10:05, início do próximo item, será usada apenas para comparar a duração. Os itens das 10:10 são simultâneos.</p>' : ''}
     <form id="actuals-form" data-id="${esc(p?.id || '')}" data-version="${p?.version || ''}">
       <div class="section-heading"><h2>O que aconteceu no culto?</h2><span id="actuals-progress" class="muted"></span></div>
-      <p class="muted">Informe os horários reais, sem alterar o planejamento. Você pode salvar parcialmente e completar depois.</p>
+      <p class="muted">Registre o que realmente aconteceu: horários, responsáveis e observações. Salve parcialmente e complete depois; para finalizar, informe todos os horários.</p>
       <div class="actuals-list">${plan.items.map((i,index)=>{
         const e=executions[i.id];
         return `<fieldset class="actual-row" data-id="${esc(i.id)}" data-planned="${minutes(`2000-01-01T${i.end}:00`,`2000-01-01T${i.start}:00`)}"><legend>${index+1}. ${esc(i.block)}</legend><div class="actual-description"><h3>${esc(activityLabel(plan,index))}</h3><span class="muted">Previsto: ${esc(i.start)} → ${i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end)}</span>${i.parallel?'<span class="badge neutral">Atividade simultânea · 10:10–10:15</span>':''}${activityDetailsField(p,i,index)}</div><div class="actual-inputs">${actualTimeField('Início real','start',e?.started?actualClock(e.started):'',index)}${actualTimeField('Término real','end',e?.ended?actualClock(e.ended):'',index)}<output class="actual-difference muted">Aguardando horários</output></div></fieldset>`;
       }).join('')}</div>
       <div id="actual-transitions"></div>
       <section class="section"><h2>Observações</h2><div class="notes-grid"><div><label for="manual-note">Observações do culto</label><textarea id="manual-note" name="note" maxlength="5000" rows="3">${esc(p?.note || '')}</textarea></div><div><label for="manual-incident">Ocorrência não prevista</label><textarea id="manual-incident" name="incident" maxlength="5000" rows="3">${esc(p?.incident || '')}</textarea></div></div></section>
-      <div class="actions manual-actions"><button type="submit" class="primary" name="save">Salvar realizado</button><button type="submit" name="finalize">Finalizar e ver resumo</button></div>
+      <div class="actions manual-actions"><button type="submit" class="primary" name="save">Salvar registro</button><button type="submit" name="finalize">Finalizar e ver resumo</button></div>
     </form>`;
 }
 function updateActuals() {
@@ -121,10 +121,11 @@ function updateActuals() {
 }
 async function saveActuals(form, finalize) {
   const records=Object.fromEntries([...form.querySelectorAll('.actual-row')].map(row=>[row.dataset.id,{start:row.querySelector('[name="start"]').value,end:row.querySelector('[name="end"]').value,note:row.querySelector('[name="activity-note"]').value,responsible:row.querySelector('[name="responsible-option"]').value==='other'?row.querySelector('[name="responsible-name"]').value:row.querySelector('[name="responsible-option"]').value}]));
-  for(const record of Object.values(records)){
-    if(record.end && !record.start)throw Error('Informe o início real antes do término.');
-    if(record.start && record.end && timeSeconds(record.end)<timeSeconds(record.start))throw Error('O término real não pode ser anterior ao início.');
-    if(finalize && (!record.start || !record.end))throw Error('Preencha início e término de todas as atividades para finalizar.');
+  for(const [id,record] of Object.entries(records)){
+    const row=form.querySelector(`.actual-row[data-id="${CSS.escape(id)}"]`);
+    if(record.end && !record.start)throw fieldError(row.querySelector('[name="start"]'),'Informe o início real antes do término.');
+    if(record.start && record.end && timeSeconds(record.end)<timeSeconds(record.start))throw fieldError(row.querySelector('[name="end"]'),'O término real não pode ser anterior ao início.');
+    if(finalize && (!record.start || !record.end))throw fieldError(row.querySelector(record.start?'[name="end"]':'[name="start"]'),'Informe este horário para finalizar o culto.');
   }
   let p=selected();
   if(!form.dataset.id){
@@ -134,5 +135,5 @@ async function saveActuals(form, finalize) {
   }
   p=await api(`programs/${form.dataset.id}/actuals`,'PUT',{version:Number(form.dataset.version),executions:records,note:form.elements.note.value,incident:form.elements.incident.value,finalize});
   replaceProgram(p);navigate(finalize?'summary':'actuals',p.id);
-  toast(finalize?'Realizado finalizado. Resumo disponível.':'Realizado salvo. Você pode continuar depois.');
+  toast(finalize?'Culto registrado e finalizado. Resumo disponível.':'Registro salvo. Você pode continuar depois.');
 }
