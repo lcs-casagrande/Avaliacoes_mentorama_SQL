@@ -47,7 +47,7 @@ function actualClock(value) {
 }
 const timeSeconds = value => value ? value.split(':').reduce((sum,part)=>sum*60+Number(part),0)*(value.length===5?60:1) : null;
 function actualTimeField(label,name,value,index) {
-  return `<div class="actual-time-field">${field(label,name,value,'time',false,`step="1" aria-label="${label} da atividade ${index+1}"`)}<button type="button" data-action="time-now" data-field="${name}" aria-label="Preencher ${label.toLowerCase()} da atividade ${index+1} com a hora atual">Agora</button></div>`;
+  return `<div class="actual-time-field">${field(label,name,value,'time',true,`step="1" aria-label="${label} da atividade ${index+1}"`)}<button type="button" data-action="time-now" data-field="${name}" aria-label="Preencher ${label.toLowerCase()} da atividade ${index+1} com a hora atual">Agora</button></div>`;
 }
 function transitions(p) {
   const groups=[];
@@ -91,14 +91,14 @@ function actualsForm(p) {
     ${plan.items.some(i=>i.end_inferred) ? '<p class="form-note">O término dos anúncios não foi informado no cronograma. A referência de 10:05, início do próximo item, será usada apenas para comparar a duração. Os itens das 10:10 são simultâneos.</p>' : ''}
     <form id="actuals-form" data-id="${esc(p?.id || '')}" data-version="${p?.version || ''}">
       <div class="section-heading"><h2>O que aconteceu no culto?</h2><span id="actuals-progress" class="muted"></span></div>
-      <p class="muted">Registre o que realmente aconteceu: horários, responsáveis e observações. Salve parcialmente e complete depois; para finalizar, informe todos os horários.</p>
+      <p class="muted">Todos os horários de início e término são obrigatórios para finalizar (*). Responsável e observação são opcionais. Salvar registro permite guardar o preenchimento parcial e continuar depois.</p>
       <div class="actuals-list">${plan.items.map((i,index)=>{
         const e=executions[i.id];
         return `<fieldset class="actual-row" data-id="${esc(i.id)}" data-planned="${minutes(`2000-01-01T${i.end}:00`,`2000-01-01T${i.start}:00`)}"><legend>${index+1}. ${esc(i.block)}</legend><div class="actual-description"><h3>${esc(activityLabel(plan,index))}</h3><span class="muted">Previsto: ${esc(i.start)} → ${i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end)}</span>${i.parallel?'<span class="badge neutral">Atividade simultânea · 10:10–10:15</span>':''}${activityDetailsField(p,i,index)}</div><div class="actual-inputs">${actualTimeField('Início real','start',e?.started?actualClock(e.started):'',index)}${actualTimeField('Término real','end',e?.ended?actualClock(e.ended):'',index)}<output class="actual-difference muted">Aguardando horários</output></div></fieldset>`;
       }).join('')}</div>
       <div id="actual-transitions"></div>
       <section class="section"><h2>Observações</h2><div class="notes-grid"><div><label for="manual-note">Observações do culto</label><textarea id="manual-note" name="note" maxlength="5000" rows="3">${esc(p?.note || '')}</textarea></div><div><label for="manual-incident">Ocorrência não prevista</label><textarea id="manual-incident" name="incident" maxlength="5000" rows="3">${esc(p?.incident || '')}</textarea></div></div></section>
-      <div class="actions manual-actions"><button type="submit" class="primary" name="save">Salvar registro</button><button type="submit" name="finalize">Finalizar e ver resumo</button></div>
+      <div class="actions manual-actions"><button type="submit" name="save" formnovalidate>Salvar registro</button><button type="submit" class="primary" name="finalize">Finalizar e ver resumo</button></div>
     </form>`;
 }
 function updateActuals() {
