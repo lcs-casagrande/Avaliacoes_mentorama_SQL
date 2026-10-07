@@ -60,6 +60,9 @@ def initialize():
           PRIMARY KEY(program_id,item_id)
         );
         ''')
+        columns = {row[1] for row in con.execute('PRAGMA table_info(programs)')}
+        if 'execution_mode' not in columns:
+            con.execute("ALTER TABLE programs ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'live'")
 
 
 def text(value, label, limit=200, required=False):
@@ -105,13 +108,16 @@ def validate_plan(body):
         a, b = item.get('start'), item.get('end')
         if planned(date, b) <= planned(date, a):
             raise Problem(f'Atividade {index + 1}: término deve ser depois do início.')
-        if a < previous_end or a < start or b > end:
+        parallel = (body.get('execution_mode') == 'manual' and item.get('parallel') is True and result
+                    and result[-1].get('parallel') and a == result[-1]['start'] and b == result[-1]['end'])
+        if (a < previous_end and not parallel) or a < start or b > end:
             raise Problem(f'Atividade {index + 1}: horários sobrepostos, fora de ordem ou fora da programação.')
         previous_end = b
         result.append(dict(id=identifier, block=text(item.get('block', ''), 'Bloco', required=True),
                            start=a, end=b, activity=text(item.get('activity', ''), 'Atividade', required=True),
                            responsible=text(item.get('responsible', ''), 'Responsável'),
-                           note=text(item.get('note', ''), 'Observação da atividade', 2000), order=index + 1))
+                           note=text(item.get('note', ''), 'Observação da atividade', 2000), order=index + 1,
+                           parallel=item.get('parallel') is True, end_inferred=item.get('end_inferred') is True))
     team = body.get('team', {})
     if not isinstance(team, dict):
         raise Problem('Equipe inválida.')
@@ -120,7 +126,7 @@ def validate_plan(body):
 
 
 def load(con, identifier):
-    row = con.execute('SELECT id, plan, status, note, incident, paused, version FROM programs WHERE id=?',
+    row = con.execute('SELECT id, plan, status, note, incident, paused, version, execution_mode FROM programs WHERE id=?',
                       (identifier,)).fetchone()
     if row is None:
         raise Problem('Programação não encontrada.', 404)
@@ -146,6 +152,8 @@ def revision(body, program):
 def mutate(con, identifier, body):
     program = load(con, identifier)
     revision(body, program)
+    if program['execution_mode'] == 'manual':
+        raise Problem('Use o formulário de realizado para esta programação.', 409)
     action, status = body.get('action'), program['status']
     items, executions = program['plan']['items'], program['executions']
     active = next((e for e in executions.values() if e['ended'] is None), None)
@@ -173,6 +181,42 @@ def mutate(con, identifier, body):
         raise Problem('Ação indisponível para o estado atual.', 409)
     con.execute('UPDATE programs SET version=version+1 WHERE id=?', (identifier,))
     return load(con, identifier)
+
+
+def save_actuals(con, program, body):
+    revision(body, program)
+    if program['execution_mode'] != 'manual':
+        raise Problem('Este formulário é exclusivo das programações de registro manual.', 409)
+    records = body.get('executions')
+    if not isinstance(records, dict) or set(records) != {i['id'] for i in program['plan']['items']}:
+        raise Problem('Envie os horários de todos os itens, deixando vazios os não preenchidos.')
+    values = []
+    for item in program['plan']['items']:
+        record = records[item['id']]
+        if not isinstance(record, dict):
+            raise Problem('Registro de horário inválido.')
+        start, end = record.get('start', ''), record.get('end', '')
+        if not start and not end:
+            continue
+        if not start:
+            raise Problem(f"{item['activity']}: informe o início real antes do término.")
+        first = planned(program['plan']['date'], start)
+        last = planned(program['plan']['date'], end) if end else None
+        if last and last < first:
+            raise Problem(f"{item['activity']}: término real não pode ser anterior ao início.")
+        values.append((program['id'], item['id'], first, last))
+    complete = len(values) == len(program['plan']['items']) and all(v[3] for v in values)
+    if body.get('finalize') is True and not complete:
+        raise Problem('Preencha início e término de todas as atividades para finalizar.')
+    note = text(body.get('note', ''), 'Observações', 5000)
+    incident = text(body.get('incident', ''), 'Ocorrência não prevista', 5000)
+    # Validação completa antes de substituir registros; tudo na mesma transação.
+    con.execute('DELETE FROM executions WHERE program_id=?', (program['id'],))
+    con.executemany('INSERT INTO executions VALUES (?,?,?,?)', values)
+    status = 'Finalizada' if body.get('finalize') is True else ('Em andamento' if values else 'Planejamento')
+    con.execute('UPDATE programs SET status=?,note=?,incident=?,paused=0,version=version+1 WHERE id=?',
+                (status, note, incident, program['id']))
+    return load(con, program['id'])
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -223,8 +267,9 @@ class Handler(SimpleHTTPRequestHandler):
                 if method == 'POST':
                     plan = validate_plan(body)
                     identifier = str(uuid.uuid4())
-                    con.execute('INSERT INTO programs(id,plan,status) VALUES (?,?,?)',
-                                (identifier, json.dumps(plan), 'Planejamento'))
+                    mode = 'manual' if body.get('execution_mode') == 'manual' else 'live'
+                    con.execute('INSERT INTO programs(id,plan,status,execution_mode) VALUES (?,?,?,?)',
+                                (identifier, json.dumps(plan), 'Planejamento', mode))
                     return load(con, identifier)
             if len(path) not in (3, 4):
                 raise Problem('Rota não encontrada.', 404)
@@ -237,6 +282,7 @@ class Handler(SimpleHTTPRequestHandler):
                     revision(body, program)
                     if program['status'] not in ('Planejamento', 'Pronta'):
                         raise Problem('O plano fica protegido após o início. Duplique para preparar uma nova programação.', 409)
+                    body['execution_mode'] = program['execution_mode']
                     plan = validate_plan(body)
                     con.execute("UPDATE programs SET plan=?,status='Planejamento',version=version+1 WHERE id=?",
                                 (json.dumps(plan), identifier))
@@ -244,6 +290,8 @@ class Handler(SimpleHTTPRequestHandler):
             if len(path) == 4:
                 if path[3] == 'action' and method == 'POST':
                     return mutate(con, identifier, body)
+                if path[3] == 'actuals' and method == 'PUT':
+                    return save_actuals(con, program, body)
                 if path[3] == 'notes' and method == 'PUT':
                     revision(body, program)
                     note = text(body.get('note', ''), 'Observações', 5000)
@@ -256,10 +304,11 @@ class Handler(SimpleHTTPRequestHandler):
                     plan['date'] = body.get('date', '')
                     for item in plan['items']:
                         item['id'] = str(uuid.uuid4())
+                    plan['execution_mode'] = program['execution_mode']
                     plan = validate_plan(plan)
                     new_id = str(uuid.uuid4())
-                    con.execute('INSERT INTO programs(id,plan,status) VALUES (?,?,?)',
-                                (new_id, json.dumps(plan), 'Planejamento'))
+                    con.execute('INSERT INTO programs(id,plan,status,execution_mode) VALUES (?,?,?,?)',
+                                (new_id, json.dumps(plan), 'Planejamento', program['execution_mode']))
                     return load(con, new_id)
         raise Problem('Rota ou método indisponível.', 404)
 
@@ -284,13 +333,13 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path.startswith('/api/'):
             self.dispatch()
-        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/styles.css'):
+        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/styles.css'):
             super().do_GET()
         else:
             self.json_response(dict(error='Arquivo não encontrado.'), 404)
 
     def do_HEAD(self):
-        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/styles.css'):
+        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/styles.css'):
             super().do_HEAD()
         else:
             self.send_error(404)

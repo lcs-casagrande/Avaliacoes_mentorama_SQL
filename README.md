@@ -46,3 +46,7 @@ A demonstração no GitHub Pages utiliza dados fictícios e armazenamento local 
 A branch `gh-pages` contém somente os arquivos estáticos de `frontend/`, sem backend, banco ou configurações privadas. Em **Settings → Pages**, selecione **Deploy from a branch**, branch **gh-pages**, pasta **/ (root)** e salve. Essa ativação depende de permissão administrativa no GitHub.
 
 As alterações na demonstração ficam no armazenamento local do navegador. O aplicativo com API Python e SQLite continua sendo a versão local.
+
+## Registro manual do culto de 03/10/2026
+
+Em **Início** ou **Programações**, selecione **Realizado · 03/10/2026**. O formulário contém os 17 itens e a equipe informada. Preencha início/término reais e salve parcialmente; **Finalizar e ver resumo** exige todos os horários. **Corrigir realizado** reabre o formulário após finalizar. Os itens das 10:10 permanecem simultâneos e não são somados duas vezes na duração total. Para anúncios, o término ausente continua sinalizado; 10:05 é somente a referência estimada de comparação. No GitHub Pages, os registros ficam exclusivamente neste navegador.
