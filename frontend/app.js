@@ -83,7 +83,7 @@ function home() {
   const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date)).slice(0, 5);
   return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `${button('Realizado · 03/10/2026', 'chronogram')} ${button('Nova programação', 'new', '', 'class="primary"')}`) +
     (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMA PROGRAMAÇÃO'}</p><h2>${esc(featured.plan.name)}</h2><p class="date">${esc(dateLabel(featured.plan.date))}</p><p class="large-time">${esc(featured.plan.start)} <span>→</span> ${esc(featured.plan.end)}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(running ? 'Continuar acompanhamento' : 'Iniciar acompanhamento', 'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span><span class="badge neutral">${esc(featured.status)}</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Cadastre os horários e responsáveis ou use o exemplo para experimentar.', `${button('Nova programação', 'new', '', 'class="primary"')} ${button('Usar programação de exemplo', 'sample')}`)) +
-    `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
+    adherenceOverview() + `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
 }
 function programsPage() {
   const list = [...state.programs].sort((a,b) => b.plan.date.localeCompare(a.plan.date));
@@ -163,9 +163,33 @@ function summary(p) {
       return `<tr><td><strong>${esc(i.activity)}</strong><small>${esc(i.block)} · ${esc(i.responsible)}</small></td><td>${esc(i.start)} → ${esc(i.end)}${i.end_inferred ? ' (referência)' : ''}</td><td>${clock(e?.started)} → ${clock(e?.ended)}</td><td>${duration(planned)}</td><td>${real === null ? '—' : duration(real)}</td><td>${real === null ? '—' : badge(real - planned, signed(real - planned))}</td></tr>`;
     }).join('')}</tbody></table></div>${notes(p)}`;
 }
+const adherenceTolerance = 2;
+function adherence(p) {
+  const completed=p.plan.items.filter(item=>p.executions[item.id]?.ended);
+  const conforming=completed.filter(item=>{
+    const real=p.executions[item.id];
+    return Math.abs(minutes(real.started,item.planned_start)) <= adherenceTolerance &&
+      (item.end_inferred || Math.abs(minutes(real.ended,item.planned_end)) <= adherenceTolerance);
+  });
+  return {total:completed.length,conforming:conforming.length,percent:completed.length ? Math.round(conforming.length/completed.length*100) : 0};
+}
+function adherenceOverview() {
+  const examples=state.programs.filter(p=>p.sample_set==='adherence-v1' && p.status==='Finalizada').sort((a,b)=>a.plan.date.localeCompare(b.plan.date));
+  if(!examples.length)return '';
+  const counts=examples.map(adherence);
+  const conforming=counts.reduce((sum,a)=>sum+a.conforming,0),total=counts.reduce((sum,a)=>sum+a.total,0);
+  const endOnTime=examples.filter(p=>Math.abs(executionInfo(p).shift)<=adherenceTolerance).length;
+  return `<section class="section adherence-section"><div class="section-heading"><h2>Aderência à programação</h2><span class="badge neutral">${examples.length} eventos fictícios · dados demonstrativos</span></div>
+    <p class="muted">Aderência = atividades com início e término até ${adherenceTolerance} minutos antes ou depois do previsto. Para anúncios, cujo término não foi informado, considera-se somente o início.</p>
+    <div class="metrics"><div><span>ATIVIDADES ADERENTES</span><strong>${Math.round(conforming/total*100)}%</strong><small>${conforming} de ${total} atividades</small></div><div><span>EVENTOS COM TÉRMINO ADERENTE</span><strong>${endOnTime}/${examples.length}</strong><small>Dentro da tolerância de ±${adherenceTolerance} min</small></div><div><span>DESVIO MÉDIO DO TÉRMINO</span><strong>${signed(examples.reduce((sum,p)=>sum+executionInfo(p).shift,0)/examples.length)}</strong><small>Atrasos positivos · adiantamentos negativos</small></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Evento / cenário</th><th>Aderência</th><th>Atividades aderentes</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
+      const a=adherence(p);const tone=a.percent>=90?'good':a.percent>=70?'warning':'critical';
+      return `<tr><td>${esc(p.plan.name)}<small>${esc(dateLabel(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent}%</span></td><td>${a.conforming} / ${a.total}</td><td>${badge(executionInfo(p).shift,signed(executionInfo(p).shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
+    }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p></section>`;
+}
 function historyPage() {
   const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date));
-  return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
+  return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
 }
 function render() {
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('selected', a.dataset.page === (['edit', 'summary', 'actuals'].includes(state.page) ? state.page === 'summary' ? 'history' : 'programs' : state.page)));

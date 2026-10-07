@@ -50,17 +50,34 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       const upcomingDate = new Date(base.getTime()+7*86400000);
       const upcoming = make({...active.plan,name:'Próximo culto · exemplo',date:date(upcomingDate)},'Pronta');
       const programs = [active, upcoming];
-      [5,-2,6,1,0].forEach((deviation,index) => {
-        const day = date(new Date(base.getTime()-(index+1)*7*86400000));
-        const p = make({name:'Culto de sábado · exemplo',date:day,start:'09:30',end:'12:25',team:{},items:[{block:'Culto',start:'09:30',end:'11:10',activity:'Culto',responsible:'Equipe de exemplo'},{block:'Escola Sabatina',start:'11:10',end:'12:25',activity:'Escola Sabatina',responsible:'Equipe de exemplo'}]},'Finalizada');
-        const first = new Date(instant(day,'09:30'));
-        const middle = new Date(instant(day,'11:10'));
-        const end = new Date(new Date(instant(day,'12:25')).getTime()+deviation*60000);
-        p.executions[p.plan.items[0].id] = {started:first.toISOString(),ended:middle.toISOString()};
-        p.executions[p.plan.items[1].id] = {started:middle.toISOString(),ended:end.toISOString()};
-        programs.push(p);
-      });
       return programs;
+    }
+    function adherenceExamples() {
+      const scenarios = [
+        {date:'2026-09-05',label:'Dentro do planejado',start:0,changes:{},note:'Exemplo fictício: todas as atividades seguiram os horários previstos.'},
+        {date:'2026-09-12',label:'Pequenos desvios',start:1,changes:{3:2,11:-3},note:'Exemplo fictício: a oração durou 2 minutos a mais; o sermão compensou o tempo.'},
+        {date:'2026-09-19',label:'Atraso relevante',start:3,changes:{5:3,11:9},note:'Exemplo fictício: comunicação adicional e sermão prolongado elevaram o atraso.'},
+        {date:'2026-09-26',label:'Recuperação do atraso',start:4,changes:{0:-2,3:-1,11:-1},note:'Exemplo fictício: o culto começou atrasado, mas ajustes de duração recuperaram o horário.'},
+        {date:'2026-10-03',label:'Levemente adiantado',start:-1,changes:{11:-1},note:'Exemplo fictício: início e término levemente adiantados, dentro da tolerância.'}
+      ];
+      return scenarios.map(scenario => {
+        const plan=clone(window.IASDPIChronogram);plan.date=scenario.date;plan.name=`Culto · ${scenario.label} (fictício)`;
+        plan.team={};plan.items.forEach(item=>{item.id=id();item.responsible='';});
+        const p=make(plan,'Finalizada');p.sample_set='adherence-v1';p.note=scenario.note;
+        if(scenario.start>2 || scenario.changes[5])p.incident=scenario.note;
+        let cursor=new Date(instant(plan.date,plan.start)).getTime()+scenario.start*60000;
+        for(let i=0;i<p.plan.items.length;i++){
+          const item=p.plan.items[i];
+          const planned=(new Date(item.planned_end)-new Date(item.planned_start))/60000;
+          const end=cursor+(planned+(scenario.changes[i] || 0))*60000;
+          p.executions[item.id]={started:new Date(cursor).toISOString(),ended:new Date(end).toISOString()};
+          if(item.parallel && p.plan.items[i+1]?.parallel && p.plan.items[i+1].start===item.start){
+            p.executions[p.plan.items[++i].id]={started:new Date(cursor).toISOString(),ended:new Date(end).toISOString()};
+          }
+          cursor=end;
+        }
+        return p;
+      });
     }
     let memory, needsInitialSave = false, initialReadError = null;
     try {
@@ -142,6 +159,11 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           memory = stored;
         }
         before = clone(memory);
+        if (path === 'programs' && method === 'GET' && window.IASDPIChronogram && !memory.some(p => p.sample_set === 'adherence-v1')) {
+          memory.push(...adherenceExamples());
+          try { save(); } catch (_) { memory = before; }
+          before = clone(memory);
+        }
         return performRequest(path, method, body);
       } catch (error) {
         if (before) memory = before;
