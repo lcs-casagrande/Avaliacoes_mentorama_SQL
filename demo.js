@@ -16,12 +16,13 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       const validTime = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
       if (!validTime(p.start) || !validTime(p.end) || p.end <= p.start) throw Error('Informe horários válidos, com término depois do início.');
       if (!Array.isArray(p.items) || !p.items.length || p.items.length > 100) throw Error('Cadastre entre 1 e 100 atividades.');
-      let previous = p.start;
+      let previous = p.start, previousItem = null;
       const ids = new Set();
       p.items = p.items.map((item, index) => {
-        if (!validTime(item.start) || !validTime(item.end) || item.start < previous || item.end <= item.start || item.end > p.end) throw Error(`Atividade ${index+1}: horários sobrepostos, fora de ordem ou fora da programação.`);
+        const parallel = p.execution_mode === 'manual' && item.parallel && previousItem?.parallel && item.start === previousItem.start && item.end === previousItem.end;
+        if (!validTime(item.start) || !validTime(item.end) || (item.start < previous && !parallel) || item.end <= item.start || item.end > p.end) throw Error(`Atividade ${index+1}: horários sobrepostos, fora de ordem ou fora da programação.`);
         if (!item.activity?.trim() || !item.block?.trim()) throw Error('Informe atividade e bloco.');
-        previous = item.end;
+        previous = item.end; previousItem = item;
         const identifier = item.id || id();
         if (ids.has(identifier)) throw Error('Identificador de atividade duplicado.');
         ids.add(identifier);
@@ -29,9 +30,9 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       });
       return {name:p.name, date:p.date, start:p.start, end:p.end, items:p.items, team:p.team || {}};
     }
-    function make(plan, status = 'Planejamento') {
-      plan = prepare(plan);
-      return {id:id(), plan, status, version:1, note:'', incident:'', paused:false, executions:{}, planned_start:instant(plan.date,plan.start), planned_end:instant(plan.date,plan.end)};
+    function make(input, status = 'Planejamento') {
+      const plan = prepare(input);
+      return {id:id(), execution_mode:input.execution_mode || 'live', plan, status, version:1, note:'', incident:'', paused:false, executions:{}, planned_start:instant(plan.date,plan.start), planned_end:instant(plan.date,plan.end)};
     }
     function seed() {
       // Exemplo relativo ao relógio para permitir experimentar imediatamente.
@@ -79,16 +80,35 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       if (!p) throw Error('Programação não encontrada.');
       if (method === 'GET') return clone(p);
       if (route === 'duplicate') {
-        const plan=clone(p.plan); plan.date=body.date;
+        const plan=clone(p.plan); plan.date=body.date; plan.execution_mode=p.execution_mode || 'live';
         plan.items.forEach(i => {i.id=id();});
         const copy=make(plan); memory.unshift(copy); save(); return clone(copy);
       }
       if (body.version !== p.version) throw Error('Esta programação mudou. Atualize antes de continuar.');
-      if (route === 'notes') { p.note=body.note || ''; p.incident=body.incident || ''; }
+      if (route === 'actuals') {
+        if (p.execution_mode !== 'manual') throw Error('Use uma programação de registro manual.');
+        const records = body.executions;
+        if (!records || Object.keys(records).length !== p.plan.items.length) throw Error('Envie todos os itens.');
+        const executions = {};
+        for (const item of p.plan.items) {
+          const e=records[item.id];
+          if(!e || typeof e.start!=='string' || typeof e.end!=='string') throw Error('Registro de horário inválido.');
+          if(!e.start && !e.end) continue;
+          const valid=v=>/^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+          if(!valid(e.start) || (e.end && (!valid(e.end) || e.end<e.start))) throw Error('Informe início e término reais válidos.');
+          executions[item.id]={started:instant(p.plan.date,e.start),ended:e.end?instant(p.plan.date,e.end):null};
+        }
+        const complete = Object.keys(executions).length === p.plan.items.length && Object.values(executions).every(e=>e.ended);
+        if(body.finalize && !complete) throw Error('Preencha todas as atividades antes de finalizar.');
+        p.executions=executions;p.note=body.note || '';p.incident=body.incident || '';
+        p.status=body.finalize?'Finalizada':Object.keys(executions).length?'Em andamento':'Planejamento';p.paused=false;
+      }
+      else if (route === 'notes') { p.note=body.note || ''; p.incident=body.incident || ''; }
       else if (!route && method === 'PUT') {
         if (!['Planejamento','Pronta'].includes(p.status)) throw Error('O plano fica protegido após o início.');
-        const plan=prepare(body);p.plan=plan;p.planned_start=instant(plan.date,plan.start);p.planned_end=instant(plan.date,plan.end);p.status='Planejamento';
+        const plan=prepare({...body,execution_mode:p.execution_mode || 'live'});p.plan=plan;p.planned_start=instant(plan.date,plan.start);p.planned_end=instant(plan.date,plan.end);p.status='Planejamento';
       } else if (route === 'action') {
+        if(p.execution_mode==='manual')throw Error('Use o formulário de realizado.');
         const active = p.plan.items.find(i => p.executions[i.id] && !p.executions[i.id].ended);
         const next = p.plan.items.find(i => !p.executions[i.id]);
         const now=stamp();
@@ -107,7 +127,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
     save();
     document.addEventListener('DOMContentLoaded', () => {
       const banner=document.createElement('aside');banner.className='demo-banner';
-      banner.textContent='DEMONSTRAÇÃO · Dados fictícios. Suas alterações ficam apenas neste navegador.';
+      banner.textContent='DEMONSTRAÇÃO · Sem envio de dados. Suas alterações ficam apenas neste navegador.';
       document.querySelector('.header').after(banner);
     });
     return {request};
