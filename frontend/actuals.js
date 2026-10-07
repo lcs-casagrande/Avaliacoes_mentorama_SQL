@@ -20,8 +20,28 @@ window.IASDPIChronogram = {
     ['11:15','11:20','Música Congregacional (em pé)','Ministério de Louvor'],
     ['11:20','11:22','Orientações sobre a Classe','Ministério de Louvor e/ou Ancianato'],
     ['11:22','11:24','Vídeo para a saída das pessoas','Sonoplastia']
-  ].map(([start,end,activity,responsible],index) => ({id:`culto-03102026-${index+1}`,block:'Culto',start,end,activity,responsible,note:'',parallel:index===7 || index===8,end_inferred:index===5}))
+  ].map(([start,end,activity,responsible],index) => ({id:`culto-03102026-${index+1}`,block:'Culto',start,end,activity,responsible,note:'',parallel:false,end_inferred:false})).filter(item=>item.id!=='culto-03102026-8')
 };
+// Atualiza o cronograma conhecido sem alterar os horários reais dos demais itens.
+function updateCultoChronogram(p) {
+  if(p.execution_mode!=='manual' || !p.plan.items.some(i=>i.id==='culto-03102026-1'))return false;
+  let changed=false;
+  p.plan.items=p.plan.items.filter(i=>{
+    if(i.id==='culto-03102026-8' && i.activity==='Tudo Vem de Ti'){
+      delete p.executions[i.id];changed=true;return false;
+    }
+    return true;
+  });
+  p.plan.items.forEach((i,index)=>{
+    if(i.id==='culto-03102026-6' && (i.end_inferred || i.end!=='10:05')){
+      i.end='10:05';i.end_inferred=false;
+      i.planned_end=`${p.plan.date}T10:05:00-03:00`;changed=true;
+    }
+    if(i.id==='culto-03102026-9' && i.parallel){i.parallel=false;changed=true;}
+    i.order=index+1;
+  });
+  return changed;
+}
 function actualClock(value) {
   return value ? new Intl.DateTimeFormat('pt-BR', {timeZone:state.zone,hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(value)) : '';
 }

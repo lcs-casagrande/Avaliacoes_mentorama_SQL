@@ -195,7 +195,7 @@ function medianView(programs) {
   return `<section class="section median-section"><div class="section-heading"><h2>Mediana do desvio por atividade</h2><span class="muted">${programs.length} programações finalizadas</span></div>
     <p class="muted">Diferença entre duração realizada e prevista em cada registro de atividade. Positivo = durou mais; negativo = durou menos. As músicas congregacionais estão agrupadas, incluindo sentados e em pé.</p>
     <div class="table-scroll"><table><thead><tr><th>Atividade</th><th>Mediana do desvio</th><th>Registros comparados</th><th>Programações</th></tr></thead><tbody>${groups.map(group=>`<tr><td>${esc(group.name)}${group.estimated?' *':''}</td><td><span class="badge ${statusTone(group.median)}">${label(group.median)}</span></td><td>${group.values.length}</td><td>${group.events.size}</td></tr>`).join('')}</tbody></table></div>
-    <p class="muted">* Anúncios: comparação com duração de referência de 5 minutos; o término não foi informado no cronograma. A mediana considera os registros, inclusive quando a atividade se repete no mesmo culto.</p></section>`;
+    <p class="muted">${groups.some(g=>g.estimated)?'* Atividades marcadas usam um término de referência. ':''}A mediana considera os registros, inclusive quando a atividade se repete no mesmo culto.</p></section>`;
 }
 function adherenceOverview() {
   const examples=state.programs.filter(p=>p.status==='Finalizada' && p.plan.items.some(i=>p.executions[i.id]?.ended)).sort((a,b)=>a.plan.date.localeCompare(b.plan.date));
@@ -204,7 +204,7 @@ function adherenceOverview() {
   const conforming=counts.reduce((sum,a)=>sum+a.conforming,0),total=counts.reduce((sum,a)=>sum+a.total,0);
   const endOnTime=examples.filter(p=>Math.abs(executionInfo(p).shift)<=adherenceTolerance).length;
   return `<section class="section adherence-section"><div class="section-heading"><h2>Aderência à programação</h2><span class="badge neutral">${examples.length} eventos finalizados</span></div>
-    <p class="muted">Aderência = atividades com início e término até ${adherenceTolerance} minutos antes ou depois do previsto. Para anúncios, cujo término não foi informado, considera-se somente o início.</p>
+    <p class="muted">Aderência = atividades com início e término até ${adherenceTolerance} minutos antes ou depois do previsto. Atividades com término de referência são avaliadas somente pelo início.</p>
     <div class="metrics"><div><span>ATIVIDADES ADERENTES</span><strong>${Math.round(conforming/total*100)}%</strong><small>${conforming} de ${total} atividades</small></div><div><span>EVENTOS COM TÉRMINO ADERENTE</span><strong>${endOnTime}/${examples.length}</strong><small>Dentro da tolerância de ±${adherenceTolerance} min</small></div><div><span>DESVIO MÉDIO DO TÉRMINO</span><strong>${signed(examples.reduce((sum,p)=>sum+executionInfo(p).shift,0)/examples.length)}</strong><small>Atrasos positivos · adiantamentos negativos</small></div></div>
     <div class="table-scroll"><table><thead><tr><th>Evento</th><th>Aderência</th><th>Atividades aderentes</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
       const a=adherence(p);const tone=a.percent>=90?'good':a.percent>=70?'warning':'critical';

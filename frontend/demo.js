@@ -119,7 +119,9 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         }
         before = clone(memory);
         const cleaned = memory.filter(p => !isTestProgram(p));
-        if (cleaned.length !== memory.length) {
+        let chronogramChanged=false;
+        for(const p of cleaned)if(updateCultoChronogram(p)){p.version++;chronogramChanged=true;}
+        if (cleaned.length !== memory.length || chronogramChanged) {
           memory = cleaned;
           save();
           before = clone(memory);

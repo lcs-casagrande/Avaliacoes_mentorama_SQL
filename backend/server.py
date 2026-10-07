@@ -137,6 +137,17 @@ def load(con, identifier):
     result['executions'] = {r['item_id']: dict(r) for r in con.execute(
         'SELECT item_id, started, ended FROM executions WHERE program_id=?', (identifier,))}
     p = result['plan']
+    if result['execution_mode'] == 'manual' and any(i['id'] == 'culto-03102026-1' for i in p['items']):
+        removed = [i['id'] for i in p['items'] if i['id'] == 'culto-03102026-8' and i['activity'] == 'Tudo Vem de Ti']
+        p['items'] = [i for i in p['items'] if i['id'] not in removed]
+        for item_id in removed:
+            result['executions'].pop(item_id, None)
+        for index, item in enumerate(p['items']):
+            item['order'] = index + 1
+            if item['id'] == 'culto-03102026-6':
+                item['end'], item['end_inferred'] = '10:05', False
+            if item['id'] == 'culto-03102026-9':
+                item['parallel'] = False
     result['planned_start'] = planned(p['date'], p['start'])
     result['planned_end'] = planned(p['date'], p['end'])
     for item in p['items']:
