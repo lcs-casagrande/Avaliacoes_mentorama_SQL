@@ -50,3 +50,7 @@ As alterações na demonstração ficam no armazenamento local do navegador. O a
 ## Registro manual do culto de 03/10/2026
 
 Em **Início** ou **Programações**, selecione **Realizado · 03/10/2026**. O formulário contém os 17 itens e a equipe informada. Preencha início/término reais e salve parcialmente; **Finalizar e ver resumo** exige todos os horários. **Corrigir realizado** reabre o formulário após finalizar. Os itens das 10:10 permanecem simultâneos e não são somados duas vezes na duração total. Para anúncios, o término ausente continua sinalizado; 10:05 é somente a referência estimada de comparação. No GitHub Pages, os registros ficam exclusivamente neste navegador.
+
+## Prévia sem publicação
+
+Execute `python3 scripts/export_preview.py` para gerar `dist/IASDPI-previa.html` e o ZIP correspondente. Extraia o ZIP e abra o HTML no Chrome ou Edge. O arquivo reúne toda a demonstração, sem instalar dependências ou acessar a API. Durante os ajustes, entregue a prévia atualizada; publique no Pages quando a versão estiver concluída.

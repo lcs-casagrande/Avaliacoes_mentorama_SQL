@@ -469,3 +469,5 @@ Sem modificar arquivos até que eu solicite.
 ---
 
 A partir deste momento utilize estas regras como padrão deste projeto.
+
+Durante os ajustes deste projeto, priorize a prévia HTML independente gerada por `python3 scripts/export_preview.py`. Entregue o arquivo atualizado ao usuário para revisão, sem publicar automaticamente cada ajuste no GitHub Pages. Retome a publicação quando o usuário solicitar concluir/publicar a versão.
