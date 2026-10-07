@@ -292,7 +292,7 @@ async function boot() {
     if (page === 'actuals' && !id) state.selected = null;
     state.page = ['home','programs','tracking','history','edit','summary','actuals'].includes(page) ? page : 'home'; render();
   } catch (error) {
-    app.innerHTML = empty('Não foi possível conectar', 'Verifique se o servidor está em execução e recarregue a página.'); toast(error.message, true);
+    app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
   }
 }
 setInterval(tick, 1000);

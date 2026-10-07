@@ -62,14 +62,21 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       });
       return programs;
     }
-    let memory;
-    try { memory = JSON.parse(localStorage.getItem(key)); } catch (_) { memory = null; }
-    if (!Array.isArray(memory) || !memory.length) memory = seed();
+    let memory, needsInitialSave = false, initialReadError = null;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) { memory = seed(); needsInitialSave = true; }
+      else {
+        memory = JSON.parse(raw);
+        if (!Array.isArray(memory)) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
+      }
+    } catch (error) { initialReadError = error; memory = seed(); }
+    let storageAvailable = initialReadError === null;
     function save() {
-      try { localStorage.setItem(key, JSON.stringify(memory)); }
+      try { localStorage.setItem(key, JSON.stringify(memory)); storageAvailable = true; }
       catch (_) { throw Error('O navegador não permitiu salvar a demonstração. Libere o armazenamento local.'); }
     }
-    async function request(path, method, body = {}) {
+    function performRequest(path, method, body = {}) {
       if (path === 'health') return {status:'ok',timezone:zone,server_time:stamp()};
       if (path === 'programs' && method === 'GET') return clone(memory);
       if (path === 'programs' && method === 'POST') {
@@ -124,10 +131,29 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       } else throw Error('Operação indisponível.');
       p.version++; save(); return clone(p);
     }
-    save();
+    async function request(path, method, body = {}) {
+      if (path === 'health') return performRequest(path, method, body);
+      let before;
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw !== null) {
+          const stored = JSON.parse(raw);
+          if (!Array.isArray(stored)) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
+          memory = stored;
+        }
+        before = clone(memory);
+        return performRequest(path, method, body);
+      } catch (error) {
+        if (before) memory = before;
+        if (error instanceof SyntaxError) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
+        if (error.name === 'SecurityError') throw Error('O navegador bloqueou o armazenamento local. Libere-o para salvar os dados.');
+        throw error;
+      }
+    }
+    if (needsInitialSave) { try { save(); } catch (_) { storageAvailable = false; } }
     document.addEventListener('DOMContentLoaded', () => {
       const banner=document.createElement('aside');banner.className='demo-banner';
-      banner.textContent='DEMONSTRAÇÃO · Sem envio de dados. Suas alterações ficam apenas neste navegador.';
+      banner.textContent='DEMONSTRAÇÃO · Sem envio de dados. Suas alterações ficam apenas neste navegador.' + (storageAvailable ? '' : ' O salvamento está bloqueado neste navegador.');
       document.querySelector('.header').after(banner);
     });
     return {request};
