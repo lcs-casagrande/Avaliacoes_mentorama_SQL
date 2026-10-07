@@ -68,6 +68,20 @@ function transitionView(programs) {
   const rows=programs.flatMap(p=>transitions(p).filter(t=>t.seconds!==null).map(t=>({...t,event:p.plan.name})));
   return `<section class="section"><h2>Transição entre atividades</h2><p class="muted">Do término da atividade anterior ao início da próxima. Alerta acima de 30 segundos. Itens simultâneos formam um único grupo.</p>${rows.length?`<div class="table-scroll"><table><thead><tr><th>Evento</th><th>De → Para</th><th>Transição</th><th>Situação</th></tr></thead><tbody>${rows.map(t=>`<tr><td>${esc(t.event)}</td><td>${esc(t.from)} → ${esc(t.to)}</td><td>${Math.abs(t.seconds)} s</td><td><span class="badge ${t.seconds>30?'critical':t.seconds<0?'warning':'good'}">${t.seconds>30?'Alerta: acima de 30 s':t.seconds<0?'Sobreposição':'Dentro de 30 s'}</span></td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Preencha o término de uma atividade e o início da próxima para calcular a transição.</p>'}</section>`;
 }
+const ministryOptions=['Min. Louvor','Min. Mordomia','Min. Louvor e/ou Ancianato'];
+function activityLabel(plan,index) {
+  const name=plan.items[index].activity.replace(/^(Música Congregacional[^:]*):.*$/, '$1');
+  if(!name.startsWith('Música Congregacional'))return name;
+  const number=plan.items.slice(0,index+1).filter(i=>i.activity.startsWith('Música Congregacional')).length;
+  return `${number}ª ${name}`;
+}
+function activityDetailsField(p,item,index) {
+  const detail=p?.actual_details?.[item.id] || {};
+  const defaultMinistry={'Ministério de Louvor':'Min. Louvor','Ministério Louvor':'Min. Louvor','Ministério da Mordomia':'Min. Mordomia','Ministério de Louvor e/ou Ancianato':'Min. Louvor e/ou Ancianato'}[item.responsible] || '';
+  const responsible=detail.responsible ?? defaultMinistry;
+  const custom=responsible && !ministryOptions.includes(responsible);
+  return `<div class="activity-details"><label>Nota<input name="activity-note" value="${esc(detail.note || '')}" maxlength="2000" placeholder="Observação da atividade" aria-label="Nota da atividade ${index+1}"></label><div><label>Responsável<select name="responsible-option" aria-label="Responsável da atividade ${index+1}"><option value="">Selecionar</option>${ministryOptions.map(name=>`<option value="${esc(name)}" ${responsible===name?'selected':''}>${esc(name)}</option>`).join('')}<option value="other" ${custom?'selected':''}>Outro responsável</option></select></label><input name="responsible-name" value="${esc(custom?responsible:'')}" maxlength="200" placeholder="Nome do responsável" aria-label="Nome do responsável da atividade ${index+1}" ${custom?'':'hidden'}></div></div>`;
+}
 function actualsForm(p) {
   const plan=p?.plan || window.IASDPIChronogram;
   const executions=p?.executions || {};
@@ -80,7 +94,7 @@ function actualsForm(p) {
       <p class="muted">Informe os horários reais, sem alterar o planejamento. Você pode salvar parcialmente e completar depois.</p>
       <div class="actuals-list">${plan.items.map((i,index)=>{
         const e=executions[i.id];
-        return `<fieldset class="actual-row" data-id="${esc(i.id)}" data-planned="${minutes(`2000-01-01T${i.end}:00`,`2000-01-01T${i.start}:00`)}"><legend>${index+1}. ${esc(i.block)}</legend><div class="actual-description"><h3>${esc(i.activity.replace(/^(Música Congregacional[^:]*):.*$/, '$1'))}</h3><span class="muted">Previsto: ${esc(i.start)} → ${i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end)}</span>${i.parallel?'<span class="badge neutral">Atividade simultânea · 10:10–10:15</span>':''}</div><div class="actual-inputs">${actualTimeField('Início real','start',e?.started?actualClock(e.started):'',index)}${actualTimeField('Término real','end',e?.ended?actualClock(e.ended):'',index)}<output class="actual-difference muted">Aguardando horários</output></div></fieldset>`;
+        return `<fieldset class="actual-row" data-id="${esc(i.id)}" data-planned="${minutes(`2000-01-01T${i.end}:00`,`2000-01-01T${i.start}:00`)}"><legend>${index+1}. ${esc(i.block)}</legend><div class="actual-description"><h3>${esc(activityLabel(plan,index))}</h3><span class="muted">Previsto: ${esc(i.start)} → ${i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end)}</span>${i.parallel?'<span class="badge neutral">Atividade simultânea · 10:10–10:15</span>':''}${activityDetailsField(p,i,index)}</div><div class="actual-inputs">${actualTimeField('Início real','start',e?.started?actualClock(e.started):'',index)}${actualTimeField('Término real','end',e?.ended?actualClock(e.ended):'',index)}<output class="actual-difference muted">Aguardando horários</output></div></fieldset>`;
       }).join('')}</div>
       <div id="actual-transitions"></div>
       <section class="section"><h2>Observações</h2><div class="notes-grid"><div><label for="manual-note">Observações do culto</label><textarea id="manual-note" name="note" maxlength="5000" rows="3">${esc(p?.note || '')}</textarea></div><div><label for="manual-incident">Ocorrência não prevista</label><textarea id="manual-incident" name="incident" maxlength="5000" rows="3">${esc(p?.incident || '')}</textarea></div></div></section>
@@ -106,7 +120,7 @@ function updateActuals() {
   document.querySelector('#actuals-progress').textContent=`${completed} de ${rows.length} atividades completas`;
 }
 async function saveActuals(form, finalize) {
-  const records=Object.fromEntries([...form.querySelectorAll('.actual-row')].map(row=>[row.dataset.id,{start:row.querySelector('[name="start"]').value,end:row.querySelector('[name="end"]').value}]));
+  const records=Object.fromEntries([...form.querySelectorAll('.actual-row')].map(row=>[row.dataset.id,{start:row.querySelector('[name="start"]').value,end:row.querySelector('[name="end"]').value,note:row.querySelector('[name="activity-note"]').value,responsible:row.querySelector('[name="responsible-option"]').value==='other'?row.querySelector('[name="responsible-name"]').value:row.querySelector('[name="responsible-option"]').value}]));
   for(const record of Object.values(records)){
     if(record.end && !record.start)throw Error('Informe o início real antes do término.');
     if(record.start && record.end && timeSeconds(record.end)<timeSeconds(record.start))throw Error('O término real não pode ser anterior ao início.');

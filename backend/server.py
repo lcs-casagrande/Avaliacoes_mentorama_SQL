@@ -64,6 +64,9 @@ def initialize():
         if 'execution_mode' not in columns:
             con.execute("ALTER TABLE programs ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'live'")
 
+        if 'actual_details' not in columns:
+            con.execute("ALTER TABLE programs ADD COLUMN actual_details TEXT NOT NULL DEFAULT '{}'")
+
 
 def text(value, label, limit=200, required=False):
     if not isinstance(value, str) or len(value) > limit:
@@ -127,12 +130,13 @@ def validate_plan(body):
 
 
 def load(con, identifier):
-    row = con.execute('SELECT id, plan, status, note, incident, paused, version, execution_mode FROM programs WHERE id=?',
+    row = con.execute('SELECT id, plan, status, note, incident, paused, version, execution_mode, actual_details FROM programs WHERE id=?',
                       (identifier,)).fetchone()
     if row is None:
         raise Problem('Programação não encontrada.', 404)
     result = dict(row)
     result['plan'] = json.loads(result['plan'])
+    result['actual_details'] = json.loads(result['actual_details'])
     result['paused'] = bool(result['paused'])
     result['executions'] = {r['item_id']: dict(r) for r in con.execute(
         'SELECT item_id, started, ended FROM executions WHERE program_id=?', (identifier,))}
@@ -202,11 +206,14 @@ def save_actuals(con, program, body):
     records = body.get('executions')
     if not isinstance(records, dict) or set(records) != {i['id'] for i in program['plan']['items']}:
         raise Problem('Envie os horários de todos os itens, deixando vazios os não preenchidos.')
-    values = []
+    values, details = [], {}
     for item in program['plan']['items']:
         record = records[item['id']]
         if not isinstance(record, dict):
             raise Problem('Registro de horário inválido.')
+        previous = program.get('actual_details', {}).get(item['id'], {})
+        details[item['id']] = dict(note=text(record.get('note', previous.get('note', '')), 'Nota da atividade', 2000),
+                                   responsible=text(record.get('responsible', previous.get('responsible', '')), 'Responsável', 200))
         start, end = record.get('start', ''), record.get('end', '')
         if not start and not end:
             continue
@@ -226,8 +233,8 @@ def save_actuals(con, program, body):
     con.execute('DELETE FROM executions WHERE program_id=?', (program['id'],))
     con.executemany('INSERT INTO executions VALUES (?,?,?,?)', values)
     status = 'Finalizada' if body.get('finalize') is True else ('Em andamento' if values else 'Planejamento')
-    con.execute('UPDATE programs SET status=?,note=?,incident=?,paused=0,version=version+1 WHERE id=?',
-                (status, note, incident, program['id']))
+    con.execute('UPDATE programs SET status=?,note=?,incident=?,actual_details=?,paused=0,version=version+1 WHERE id=?',
+                (status, note, incident, json.dumps(details, ensure_ascii=False), program['id']))
     return load(con, program['id'])
 
 

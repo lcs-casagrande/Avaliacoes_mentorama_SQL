@@ -72,10 +72,13 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         if (p.execution_mode !== 'manual') throw Error('Use uma programação de registro manual.');
         const records = body.executions;
         if (!records || Object.keys(records).length !== p.plan.items.length) throw Error('Envie todos os itens.');
-        const executions = {};
+        const executions = {}, details = {};
         for (const item of p.plan.items) {
           const e=records[item.id];
           if(!e || typeof e.start!=='string' || typeof e.end!=='string') throw Error('Registro de horário inválido.');
+          const note=e.note ?? p.actual_details?.[item.id]?.note ?? '', responsible=e.responsible ?? p.actual_details?.[item.id]?.responsible ?? '';
+          if(typeof note!=='string'||note.length>2000||typeof responsible!=='string'||responsible.length>200)throw Error('Nota ou responsável inválido.');
+          details[item.id]={note:note.trim(),responsible:responsible.trim()};
           if(!e.start && !e.end) continue;
           const valid=v=>/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v);
           if(!valid(e.start) || (e.end && (!valid(e.end) || timeSeconds(e.end)<timeSeconds(e.start)))) throw Error('Informe início e término reais válidos.');
@@ -83,7 +86,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         }
         const complete = Object.keys(executions).length === p.plan.items.length && Object.values(executions).every(e=>e.ended);
         if(body.finalize && !complete) throw Error('Preencha todas as atividades antes de finalizar.');
-        p.executions=executions;p.note=body.note || '';p.incident=body.incident || '';
+        p.executions=executions;p.actual_details=details;p.note=body.note || '';p.incident=body.incident || '';
         p.status=body.finalize?'Finalizada':Object.keys(executions).length?'Em andamento':'Planejamento';p.paused=false;
       }
       else if (route === 'notes') { p.note=body.note || ''; p.incident=body.incident || ''; }
