@@ -54,3 +54,21 @@ Em **Início** ou **Programações**, selecione **Realizado · 03/10/2026**. O f
 ## Prévia sem publicação
 
 Execute `python3 scripts/export_preview.py` para gerar `dist/IASDPI-previa.html` e o ZIP correspondente. Extraia o ZIP e abra o HTML no Chrome ou Edge. O arquivo reúne toda a demonstração, sem instalar dependências ou acessar a API. Durante os ajustes, entregue a prévia atualizada; publique no Pages quando a versão estiver concluída.
+
+## Agenda oficial
+
+A página **Escalas e agendas** separa anciãos mensais/semanais e eventos da igreja. O arquivo `frontend/agenda-data.js` contém apenas dados públicos importados do calendário incorporado em https://iasd-paradainglesa.netlify.app/. A data da última consulta aparece na tela. Comunicação mantém a escala informada pelo usuário, separada da fonte Google.
+
+Para atualizar manualmente:
+
+```sh
+python3 -m pip install -r scripts/agenda-requirements.txt
+python3 scripts/sync_agenda.py
+python3 scripts/export_preview.py
+```
+
+O importador descobre o calendário no iframe ou no JavaScript do site; `--calendar-id` permite informar diretamente um ID público. O período padrão começa em fevereiro de 2026 e termina em dezembro de daqui a três anos; `--from-month` e `--to-month` permitem consultar outros períodos. Falhas de rede ou parsing preservam a última versão. Não são necessárias chaves privadas; o Google Calendar permanece somente leitura.
+
+O workflow **Sincronizar agenda oficial** consulta a fonte a cada seis horas ou por execução manual. Ele atualiza somente os dados da agenda em `main` e `gh-pages`, sem publicar automaticamente alterações de layout. A agenda publicada usa a última consulta concluída; o horário do GitHub Actions pode sofrer atrasos. Se o workflow falhar, consulte sua execução e use a atualização manual.
+
+Duplicações exatamente iguais são removidas. Dias inteiros consecutivos com título, departamento e local iguais são agrupados apenas na apresentação, preservando os IDs originais. Eventos simultâneos e horários diferentes continuam visíveis com avisos de conferência. Departamentos vêm do sufixo `| Departamento` do título ou de um campo explícito na descrição; informações ausentes não são inventadas.

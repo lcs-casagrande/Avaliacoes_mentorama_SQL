@@ -1,0 +1,42 @@
+name: Sincronizar agenda oficial
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 */6 * * *'
+permissions:
+  contents: write
+concurrency:
+  group: agenda-official-sync
+  cancel-in-progress: false
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scripts/agenda-requirements.txt
+      - run: python scripts/sync_agenda.py
+      - name: Salvar a agenda conferida no projeto
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/agenda-data.js
+          git commit -m 'data: sincroniza agenda oficial' || test -z "$(git status --porcelain)"
+          git push origin HEAD:main
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: .agenda-pages
+      - name: Atualizar somente os dados públicos no Pages
+        run: |
+          cp frontend/agenda-data.js .agenda-pages/agenda-data.js
+          cd .agenda-pages
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add agenda-data.js
+          git commit -m 'data: atualiza agenda oficial' || test -z "$(git status --porcelain)"
+          git push origin HEAD:gh-pages
