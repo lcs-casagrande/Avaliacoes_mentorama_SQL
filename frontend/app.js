@@ -260,10 +260,45 @@ function historyPage() {
   const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date));
   return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
 }
+const agendaState={month:'2026-10',ministry:'Comunicação',showPeople:true,day:'2026-10-03'};
+const ministrySchedules={
+  'Comunicação':[
+    {date:'2026-10-03',person:'Henrique'},
+    {date:'2026-10-10',person:'Izabelle PI Souza'},
+    {date:'2026-10-17',person:'Simone/Profªde Pilates 🧘'},
+    {date:'2026-10-24',person:'macedo Logos'},
+    {date:'2026-10-31',person:'Letícia PI'}
+  ],
+  'Sonoplastia':[]
+};
+function agendasPage() {
+  const {month,ministry,showPeople,day}=agendaState;
+  const entries=ministrySchedules[ministry].filter(e=>e.date.startsWith(month));
+  const first=new Date(`${month}-01T12:00:00Z`),offset=first.getUTCDay();
+  const days=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();
+  const monthTitle=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric',timeZone:'UTC'}).format(first);
+  const selected=entries.find(e=>e.date===day);
+  return heading('ORGANIZAÇÃO','Escalas e agendas','Consulte quem está escalado para cada data.')+
+    `<section class="panel agenda-filters"><label for="agenda-ministry">Ministério / área<select id="agenda-ministry">${Object.keys(ministrySchedules).map(name=>`<option ${name===ministry?'selected':''}>${esc(name)}</option>`).join('')}</select></label><label class="checkbox"><input id="agenda-show-people" type="checkbox" ${showPeople?'checked':''}> Mostrar pessoa escalada</label><span class="badge neutral">${entries.length} datas com escala</span></section>
+    <section class="agenda-calendar" aria-label="Calendário de ${esc(monthTitle)}"><div class="agenda-month"><button type="button" data-action="agenda-previous" aria-label="Mês anterior">‹</button><h2 id="agenda-month-title">${esc(monthTitle)}</h2><button type="button" data-action="agenda-next" aria-label="Próximo mês">›</button></div>
+    <div class="calendar-weekdays" aria-hidden="true">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<span>${d}</span>`).join('')}</div>
+    <div class="calendar-days">${Array.from({length:offset},()=>'<span class="calendar-blank" aria-hidden="true"></span>').join('')}${Array.from({length:days},(_,index)=>{
+      const date=`${month}-${String(index+1).padStart(2,'0')}`,entry=entries.find(e=>e.date===date);
+      return `<button type="button" class="calendar-day ${entry?'scheduled':''} ${date===day?'selected-day':''}" data-action="agenda-day" data-id="${date}" aria-pressed="${date===day}" ${date===today()?'aria-current="date"':''} aria-label="${esc(programDate(date))}${entry?showPeople?' · '+esc(entry.person):' · Escala definida':' · Sem escala cadastrada'}"><span class="calendar-number">${index+1}</span>${entry?`<span class="calendar-person">${showPeople?esc(entry.person):'Escala definida'}</span>`:''}</button>`;
+    }).join('')}</div></section>
+    <section class="agenda-selected panel" aria-live="polite"><span class="eyebrow">DATA SELECIONADA</span><h2>${esc(programDate(day))}</h2><p>${esc(ministry)} · ${selected?showPeople?`<strong>${esc(selected.person)}</strong>`:'Escala definida':'Sem escala cadastrada para esta data.'}</p></section>
+    <section class="section"><div class="section-heading"><h2>${ministry==='Comunicação'?'Escala de anúncios':`Escala de ${esc(ministry)}`}</h2><span class="muted">${esc(monthTitle)}</span></div>${entries.length?`<ul class="agenda-list">${entries.map(e=>`<li><button type="button" data-action="agenda-day" data-id="${e.date}" aria-label="Consultar ${esc(programDate(e.date))}"><span>${esc(programDate(e.date))}</span><strong>${showPeople?esc(e.person):'Escala definida'}</strong></button></li>`).join('')}</ul>`:empty('Nenhuma escala cadastrada neste mês',`Ainda não há nomes informados para ${esc(ministry)} neste período.`)}</section>`;
+}
+function changeAgendaMonth(amount) {
+  const date=new Date(`${agendaState.month}-01T12:00:00Z`);date.setUTCMonth(date.getUTCMonth()+amount);
+  agendaState.month=date.toISOString().slice(0,7);
+  agendaState.day=(ministrySchedules[agendaState.ministry].find(e=>e.date.startsWith(agendaState.month))?.date)||agendaState.month+'-01';
+  render();document.querySelector(`[data-action="${amount>0?'agenda-next':'agenda-previous'}"]`).focus();
+}
 function render() {
   const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':state.page==='edit'?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  app.innerHTML = ({home, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
+  app.innerHTML = ({home, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
 function navigate(page, id) { if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
@@ -291,7 +326,9 @@ function tick() {
 }
 async function handleAction(target) {
   const {action, id} = target.dataset;
-  if(action==='add-extra')addExtraEvent(target);
+  if(action==='agenda-previous'||action==='agenda-next')changeAgendaMonth(action==='agenda-next'?1:-1);
+  else if(action==='agenda-day'){agendaState.day=id;render();document.querySelector(`.calendar-day[data-id="${id}"]`).focus();}
+  else if(action==='add-extra')addExtraEvent(target);
   else if(action==='remove-extra'){target.closest('.actual-row').remove();document.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);updateActuals();}
   else if (action === 'time-now') {
     target.closest('.actual-row').querySelector(`[name="${target.dataset.field}"]`).value=actualClock(currentTime());
@@ -354,7 +391,7 @@ app.addEventListener('click', event => { const target = event.target.closest('[d
 app.addEventListener('toggle',event=>{if(event.target.matches('.item-details'))event.target.querySelector('.item-edit-label').textContent=event.target.open?'Recolher':'Editar';},true);
 app.addEventListener('input', event => {clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form'))updateActuals();const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
  document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.validationMessage);}},true);
-app.addEventListener('change', event => { if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
+app.addEventListener('change', event => {if(event.target.id==='agenda-ministry'||event.target.id==='agenda-show-people'){const id=event.target.id;if(id==='agenda-ministry')agendaState.ministry=event.target.value;else agendaState.showPeople=event.target.checked;render();document.getElementById(id).focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
 document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) handleAction(target); });
 app.addEventListener('submit', event => {
   event.preventDefault(); const form = event.target;
@@ -384,7 +421,7 @@ document.querySelector('#duplicate-form').addEventListener('submit', event => {
   }, event.submitter);
 });
 document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') handleAction({dataset:{action:'chronogram'}}); else navigate(link.dataset.page); } });
-window.addEventListener('hashchange', () => { const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals'].includes(page)) navigate(page, id); });
+window.addEventListener('hashchange', () => { const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas'].includes(page)) navigate(page, id); });
 async function boot() {
   try {
     const health = await api('health'); state.zone = health.timezone; state.offset = new Date(health.server_time).getTime() - Date.now();
@@ -393,7 +430,7 @@ async function boot() {
     const [page,id] = location.hash.slice(1).split('/');
     if (id && state.programs.some(p => p.id === id)) state.selected = id;
     if (page === 'actuals' && !id) state.selected = null;
-    state.page = ['home','programs','tracking','history','edit','summary','actuals'].includes(page) ? page : 'home'; render();
+    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas'].includes(page) ? page : 'home'; render();
   } catch (error) {
     app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
   }
