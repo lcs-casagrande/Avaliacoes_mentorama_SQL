@@ -37,7 +37,7 @@ function executionInfo(p) {
   const active = p.execution_mode === 'manual' ? null : items.find(i => p.executions[i.id] && !p.executions[i.id].ended);
   const pending = items.find(i => !p.executions[i.id]);
   const finished = items.filter(i => p.executions[i.id]?.ended);
-  const records = Object.values(p.executions);
+  const records = Object.values(p.extra_events?.length?registrationData(p).executions:p.executions);
   const first = [...records].sort((a,b) => new Date(a.started)-new Date(b.started))[0];
   const last = records.filter(e => e.ended).sort((a,b) => new Date(b.ended)-new Date(a.ended))[0];
   let shift = 0;
@@ -206,7 +206,7 @@ function summary(p) {
     <div class="table-scroll"><table><thead><tr><th>Atividade / bloco</th><th>Horários previstos</th><th>Horários reais</th><th>Duração prevista</th><th>Duração real</th><th>Diferença de duração</th></tr></thead><tbody>${p.plan.items.map((i,index) => {
       const e = p.executions[i.id]; const planned = minutes(i.planned_end, i.planned_start); const real = e?.ended ? minutes(e.ended, e.started) : null;
       return `<tr><td><strong>${esc(activityLabel(p.plan,index))}</strong><small>${esc(i.block)} · ${esc(p.actual_details?.[i.id]?.responsible ?? i.responsible)}</small>${p.actual_details?.[i.id]?.note?`<small>${esc(p.actual_details[i.id].note)}</small>`:''}</td><td>${esc(i.start)} → ${esc(i.end)}${i.end_inferred ? ' (referência)' : ''}</td><td>${actualClock(e?.started) || '—'} → ${actualClock(e?.ended) || '—'}</td><td>${duration(planned)}</td><td>${real === null ? '—' : duration(real)}</td><td>${real === null ? '—' : badge(real - planned, signed(real - planned))}</td></tr>`;
-    }).join('')}</tbody></table></div>${transitionView([p])}${notes(p)}`;
+    }).join('')}</tbody></table></div>${extraEventsSummary(p)}${transitionView([p])}${notes(p)}`;
 }
 const adherenceTolerance = 2;
 function adherence(p) {
@@ -291,7 +291,9 @@ function tick() {
 }
 async function handleAction(target) {
   const {action, id} = target.dataset;
-  if (action === 'time-now') {
+  if(action==='add-extra')addExtraEvent(target);
+  else if(action==='remove-extra'){target.closest('.actual-row').remove();document.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);updateActuals();}
+  else if (action === 'time-now') {
     target.closest('.actual-row').querySelector(`[name="${target.dataset.field}"]`).value=actualClock(currentTime());
     updateActuals();
   }

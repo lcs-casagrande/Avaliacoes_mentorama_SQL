@@ -137,6 +137,7 @@ def load(con, identifier):
     result = dict(row)
     result['plan'] = json.loads(result['plan'])
     result['actual_details'] = json.loads(result['actual_details'])
+    result['extra_events'] = result['actual_details'].pop('_extra_events', [])
     result['paused'] = bool(result['paused'])
     result['executions'] = {r['item_id']: dict(r) for r in con.execute(
         'SELECT item_id, started, ended FROM executions WHERE program_id=?', (identifier,))}
@@ -199,6 +200,37 @@ def mutate(con, identifier, body):
     return load(con, identifier)
 
 
+def validate_extra_events(program, events, finalize):
+    if not isinstance(events, list) or len(events) + len(program['plan']['items']) > 100:
+        raise Problem('Lista de eventos inválida ou maior que 100 atividades.')
+    ids = {i['id'] for i in program['plan']['items']}
+    positions, result = set(), []
+    for event in events:
+        if not isinstance(event, dict):
+            raise Problem('Evento inválido.')
+        identifier, position = event.get('id'), event.get('position')
+        if not isinstance(identifier, str) or not identifier or len(identifier) > 200 or identifier in ids:
+            raise Problem('Identificador de evento inválido.')
+        if type(position) is not int or position < 0 or position >= len(program['plan']['items']) + len(events) or position in positions:
+            raise Problem('Posição de evento inválida.')
+        ids.add(identifier)
+        positions.add(position)
+        activity = text(event.get('activity'), 'Tema do evento', 200, required=True)
+        note = text(event.get('note', ''), 'Observação do evento', 2000)
+        responsible = text(event.get('responsible', ''), 'Responsável do evento', 200)
+        start, end = event.get('start', ''), event.get('end', '')
+        if not isinstance(start, str) or not isinstance(end, str) or (end and not start):
+            raise Problem('Informe horários reais válidos para o evento.')
+        first = planned(program['plan']['date'], start, seconds=True) if start else None
+        last = planned(program['plan']['date'], end, seconds=True) if end else None
+        if last and last < first:
+            raise Problem('O término do evento não pode ser anterior ao início.')
+        if finalize and (not first or not last):
+            raise Problem('Preencha os horários dos eventos fora da liturgia para finalizar.')
+        result.append(dict(id=identifier, position=position, activity=activity, start=start, end=end, note=note, responsible=responsible))
+    return result
+
+
 def save_actuals(con, program, body):
     revision(body, program)
     if program['execution_mode'] != 'manual':
@@ -227,12 +259,14 @@ def save_actuals(con, program, body):
     complete = len(values) == len(program['plan']['items']) and all(v[3] for v in values)
     if body.get('finalize') is True and not complete:
         raise Problem('Preencha início e término de todas as atividades para finalizar.')
+    extra_events = validate_extra_events(program, body.get('extra_events', program.get('extra_events', [])), body.get('finalize') is True)
+    details['_extra_events'] = extra_events
     note = text(body.get('note', ''), 'Observações', 5000)
     incident = text(body.get('incident', ''), 'Ocorrência não prevista', 5000)
     # Validação completa antes de substituir registros; tudo na mesma transação.
     con.execute('DELETE FROM executions WHERE program_id=?', (program['id'],))
     con.executemany('INSERT INTO executions VALUES (?,?,?,?)', values)
-    status = 'Finalizada' if body.get('finalize') is True else ('Em andamento' if values else 'Planejamento')
+    status = 'Finalizada' if body.get('finalize') is True else ('Em andamento' if values or any(e['start'] for e in extra_events) else 'Planejamento')
     con.execute('UPDATE programs SET status=?,note=?,incident=?,actual_details=?,paused=0,version=version+1 WHERE id=?',
                 (status, note, incident, json.dumps(details, ensure_ascii=False), program['id']))
     return load(con, program['id'])
