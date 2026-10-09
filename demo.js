@@ -86,8 +86,9 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         }
         const complete = Object.keys(executions).length === p.plan.items.length && Object.values(executions).every(e=>e.ended);
         if(body.finalize && !complete) throw Error('Preencha todas as atividades antes de finalizar.');
-        p.executions=executions;p.actual_details=details;p.note=body.note || '';p.incident=body.incident || '';
-        p.status=body.finalize?'Finalizada':Object.keys(executions).length?'Em andamento':'Planejamento';p.paused=false;
+        const extraEvents=validateExtraEvents(p,body.extra_events ?? p.extra_events ?? [],Boolean(body.finalize));
+        p.extra_events=extraEvents;p.executions=executions;p.actual_details=details;p.note=body.note || '';p.incident=body.incident || '';
+        p.status=body.finalize?'Finalizada':(Object.keys(executions).length||extraEvents.some(e=>e.start))?'Em andamento':'Planejamento';p.paused=false;
       }
       else if (route === 'notes') { p.note=body.note || ''; p.incident=body.incident || ''; }
       else if (!route && method === 'PUT') {
