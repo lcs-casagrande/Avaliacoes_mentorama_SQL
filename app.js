@@ -263,7 +263,7 @@ function historyPage() {
 function render() {
   const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':state.page==='edit'?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  app.innerHTML = ({home, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
+  app.innerHTML = ({home, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
 function navigate(page, id) { if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
@@ -291,7 +291,11 @@ function tick() {
 }
 async function handleAction(target) {
   const {action, id} = target.dataset;
-  if(action==='add-extra')addExtraEvent(target);
+  if(action==='agenda-current'){selectAgendaMonth(today().slice(0,7));document.querySelector('[data-action="agenda-current"]').focus();}
+  else if(action==='agenda-calendar'||action==='agenda-list'){agendaState.view=action==='agenda-calendar'?'calendar':'list';render();document.querySelector(`[data-action="${action}"]`).focus();}
+  else if(action==='agenda-previous'||action==='agenda-next')changeAgendaMonth(action==='agenda-next'?1:-1);
+  else if(action==='agenda-day'){agendaState.day=id;render();document.querySelector(`.calendar-day[data-id="${id}"]`)?.focus();}
+  else if(action==='add-extra')addExtraEvent(target);
   else if(action==='remove-extra'){target.closest('.actual-row').remove();document.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);updateActuals();}
   else if (action === 'time-now') {
     target.closest('.actual-row').querySelector(`[name="${target.dataset.field}"]`).value=actualClock(currentTime());
@@ -354,7 +358,7 @@ app.addEventListener('click', event => { const target = event.target.closest('[d
 app.addEventListener('toggle',event=>{if(event.target.matches('.item-details'))event.target.querySelector('.item-edit-label').textContent=event.target.open?'Recolher':'Editar';},true);
 app.addEventListener('input', event => {clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form'))updateActuals();const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
  document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.validationMessage);}},true);
-app.addEventListener('change', event => { if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
+app.addEventListener('change', event => {if(['agenda-area','agenda-department','agenda-show-people','agenda-month-picker'].includes(event.target.id)){const id=event.target.id;if(id==='agenda-area')agendaState.area=event.target.value;else if(id==='agenda-department')agendaState.department=event.target.value;else if(id==='agenda-show-people')agendaState.showPeople=event.target.checked;else if(event.target.value)selectAgendaMonth(event.target.value);render();document.getElementById(id)?.focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
 document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) handleAction(target); });
 app.addEventListener('submit', event => {
   event.preventDefault(); const form = event.target;
@@ -384,7 +388,7 @@ document.querySelector('#duplicate-form').addEventListener('submit', event => {
   }, event.submitter);
 });
 document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') handleAction({dataset:{action:'chronogram'}}); else navigate(link.dataset.page); } });
-window.addEventListener('hashchange', () => { const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals'].includes(page)) navigate(page, id); });
+window.addEventListener('hashchange', () => { const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas'].includes(page)) navigate(page, id); });
 async function boot() {
   try {
     const health = await api('health'); state.zone = health.timezone; state.offset = new Date(health.server_time).getTime() - Date.now();
@@ -393,7 +397,7 @@ async function boot() {
     const [page,id] = location.hash.slice(1).split('/');
     if (id && state.programs.some(p => p.id === id)) state.selected = id;
     if (page === 'actuals' && !id) state.selected = null;
-    state.page = ['home','programs','tracking','history','edit','summary','actuals'].includes(page) ? page : 'home'; render();
+    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas'].includes(page) ? page : 'home'; render();
   } catch (error) {
     app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
   }
