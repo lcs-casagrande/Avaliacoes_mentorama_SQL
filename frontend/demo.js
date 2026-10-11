@@ -49,7 +49,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
     } catch (error) { initialReadError = error; memory = []; }
     let storageAvailable = initialReadError === null;
     function save() {
-      try { localStorage.setItem(key, JSON.stringify(memory)); storageAvailable = true; }
+      try { const previous=localStorage.getItem(key);if(previous!==null)localStorage.setItem('iasdpi-last-safety-copy-v1',previous);localStorage.setItem(key,JSON.stringify(memory)); storageAvailable=true; }
       catch (_) { throw Error('O navegador não permitiu salvar a demonstração. Libere o armazenamento local.'); }
     }
     function performRequest(path, method, body = {}) {
@@ -122,14 +122,6 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           memory = stored;
         }
         before = clone(memory);
-        const cleaned = memory.filter(p => !isTestProgram(p));
-        let chronogramChanged=false;
-        for(const p of cleaned)if(updateCultoChronogram(p)){p.version++;chronogramChanged=true;}
-        if (cleaned.length !== memory.length || chronogramChanged) {
-          memory = cleaned;
-          save();
-          before = clone(memory);
-        }
         return performRequest(path, method, body);
       } catch (error) {
         if (before) memory = before;
@@ -141,7 +133,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
     if (needsInitialSave) { try { save(); } catch (_) { storageAvailable = false; } }
     document.addEventListener('DOMContentLoaded', () => {
       const banner=document.createElement('aside');banner.className='demo-banner';
-      banner.textContent='DEMONSTRAÇÃO · Sem envio de dados. Suas alterações ficam apenas neste navegador.' + (storageAvailable ? '' : ' O salvamento está bloqueado neste navegador.');
+      banner.textContent='ARMAZENAMENTO LOCAL · Os registros permanecem neste navegador. Guarde uma cópia em Arquivo e banco.' + (storageAvailable ? '' : ' O salvamento está bloqueado neste navegador.');
       document.querySelector('.header').after(banner);
     });
     return {request};

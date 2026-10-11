@@ -72,3 +72,13 @@ O importador descobre o calendário no iframe ou no JavaScript do site; `--calen
 O workflow **Sincronizar agenda oficial** consulta a fonte a cada seis horas ou por execução manual. Ele atualiza somente os dados da agenda em `main` e `gh-pages`, sem publicar automaticamente alterações de layout. A agenda publicada usa a última consulta concluída; o horário do GitHub Actions pode sofrer atrasos. Se o workflow falhar, consulte sua execução e use a atualização manual.
 
 Duplicações exatamente iguais são removidas. Dias inteiros consecutivos com título, departamento e local iguais são agrupados apenas na apresentação, preservando os IDs originais. Eventos simultâneos e horários diferentes continuam visíveis com avisos de conferência. Departamentos vêm do sufixo `| Departamento` do título ou de um campo explícito na descrição; informações ausentes não são inventadas.
+
+## Preservação e arquivo privado
+
+**Arquivo e banco** exporta todos os registros em um arquivo protegido por senha (AES-GCM, chave derivada com PBKDF2/SHA-256). Guarde uma cópia fora do dispositivo; a senha não fica no arquivo nem é recuperável pelo site. A restauração no Pages/HTML preserva os registros atuais, ignora cópias iguais e cria um novo registro para versões diferentes com o mesmo ID. O HTML baixado não contém os dados de outro navegador/origem; para exportar os registros do celular, use o site no mesmo endereço em que foram preenchidos.
+
+Os registros do Pages continuam na chave `iasdpi-demo-v1`; leituras não removem exemplos nem modificam registros antigos. Antes de cada escrita local, `iasdpi-last-safety-copy-v1` recebe o estado anterior. Essa cópia também é local: limpar o navegador pode removê-la. Um erro de espaço impede a nova escrita e mantém os registros existentes.
+
+Para arquivar em banco privado, crie um projeto Supabase, execute `database/supabase-archives.sql` e crie uma conta em Supabase Auth. Na página, informe URL do projeto, chave pública publishable/anon e credenciais da conta. Nunca use service_role, chave secreta ou senha do banco. O site grava versões imutáveis e confirma a existência de cada arquivo depois da inserção. Políticas RLS limitam leitura/inserção ao usuário autenticado, sem permissão de alteração/exclusão. A sessão fica apenas em memória; a senha não é persistida. Escritas locais continuam funcionando sem banco, e falhas remotas não apagam dados locais.
+
+A integração Supabase precisa ser configurada e validada no projeto real antes de ser considerada ativa. O esquema SQL e o cliente foram preparados; nenhum banco externo é criado automaticamente e nenhum registro de um navegador é migrado sem conexão autenticada. A restauração no SQLite não é feita pelo cliente de backup; preserve também o arquivo do banco do servidor.

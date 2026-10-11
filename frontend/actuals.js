@@ -122,6 +122,14 @@ function addExtraEvent(target) {
   form.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);
   added.querySelector('[name="extra-theme"]').focus();updateActuals();
 }
+function summaryActivityRows(p){
+  const {plan,executions}=registrationData(p);
+  return plan.items.map((i,index)=>{
+    const e=executions[i.id],extra=p.extra_events?.find(x=>x.id===i.id),details=extra||p.actual_details?.[i.id]||{};
+    const planned=i.unplanned?null:minutes(i.planned_end,i.planned_start),real=e?.ended?minutes(e.ended,e.started):null;
+    return `<tr><td>${esc(activityLabel(plan,index))}${i.unplanned?'<small>Fora da liturgia</small>':''}<small>${esc(details.responsible??i.responsible??'')}</small>${details.note?`<small>${esc(details.note)}</small>`:''}</td><td>${i.unplanned?'Fora da liturgia':esc(i.start)+' → '+esc(i.end)}</td><td>${actualClock(e?.started)||'—'} → ${actualClock(e?.ended)||'—'}</td><td>${planned===null?'—':duration(planned)}</td><td>${real===null?'—':duration(real)}</td><td>${real===null||planned===null?'—':badge(real-planned,signed(real-planned))}</td></tr>`;
+  }).join('');
+}
 function extraEventsSummary(p) {
   if(!p.extra_events?.length)return '';
   return `<section class="section"><h2>Eventos fora da liturgia</h2><div class="table-scroll"><table><thead><tr><th>Tema</th><th>Horários reais</th><th>Responsável / observação</th></tr></thead><tbody>${p.extra_events.map(e=>`<tr><td>${esc(e.activity)}<small>Previsto: Fora da liturgia</small></td><td>${esc(e.start || '—')} → ${esc(e.end || '—')}</td><td>${esc(e.responsible)}${e.note?`<small>${esc(e.note)}</small>`:''}</td></tr>`).join('')}</tbody></table></div></section>`;
