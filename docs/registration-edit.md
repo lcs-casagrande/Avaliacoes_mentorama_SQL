@@ -92,8 +92,9 @@ necessário. Não limpar o armazenamento para atualizar o site.
 
 ## Data de 10/10/2026
 
-A seleção de data de novos cultos continua vazia e obrigatória. Não foi reintroduzida
-03/10 como data fixa. A correção pontual com prévia de 03/10 para 10/10 continua
+O novo fluxo por modelos preenche a data atual de São Paulo automaticamente e
+permite alterá-la em dd/mm/aaaa. Não foi reintroduzida 03/10 como data fixa. Ver
+[record-templates.md](record-templates.md). A correção pontual com prévia de 03/10 para 10/10 continua
 disponível no resumo do registro antigo. A edição de data também mantém o ID,
 ajusta as datas dos timestamps e preserva horas e planejamento. Nenhuma dessas
 ações é executada automaticamente no carregamento. Ver session-and-date.md.

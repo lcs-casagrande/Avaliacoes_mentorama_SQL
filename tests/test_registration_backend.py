@@ -79,3 +79,21 @@ class RegistrationBackendTests(unittest.TestCase):
         self.assertNotIn(self.parent,saved['executions'])
         self.assertEqual(saved['actual_details'][self.parent]['status'],'nao_realizada')
         self.assertEqual(saved['status'],'Finalizada')
+
+    def test_free_empty_program_can_save_but_cannot_finalize(self):
+        body={'name':'Livre','date':'2026-10-21','execution_mode':'manual','template_id':'free','start':'','end':'','items':[],'team':{}}
+        plan=server.validate_plan(body)
+        self.assertEqual(plan['items'],[])
+        with server.database() as con:
+            con.execute('INSERT INTO programs(id,plan,status,execution_mode) VALUES (?,?,?,?)',('free-record',json.dumps(plan),'Planejamento','manual'))
+            p=server.load(con,'free-record')
+            self.assertIsNone(p['planned_start']);self.assertIsNone(p['planned_end'])
+            saved=server.save_actuals(con,p,{'version':1,'executions':{},'record_date':'2026-10-10'})
+            self.assertEqual(saved['id'],'free-record');self.assertEqual(saved['plan']['date'],'2026-10-10')
+            self.assertEqual(saved['plan']['items'],[])
+        with self.assertRaises(server.Problem),server.database() as con:
+            server.save_actuals(con,server.load(con,'free-record'),{'version':saved['version'],'executions':{},'finalize':True})
+        with server.database() as con:
+            self.assertEqual(server.load(con,'free-record')['version'],2)
+        for invalid in [dict(body,execution_mode='live'),dict(body,template_id='unknown'),dict(body,start='09:30')]:
+            with self.assertRaises(server.Problem):server.validate_plan(invalid)

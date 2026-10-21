@@ -9,7 +9,8 @@ function backupValidate(data){
     ids.add(p.id);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(p.plan.date)||p.plan.items.some(i=>!i||typeof i.id!=='string'||typeof i.activity!=='string'))throw Error('Cronograma inválido no backup. Nada foi alterado.');
     const clock=/^([01]\d|2[0-3]):[0-5]\d$/;
-    if(!clock.test(p.plan.start)||!clock.test(p.plan.end)||!['Planejamento','Pronta','Em andamento','Finalizada'].includes(p.status)||!Number.isFinite(new Date(p.planned_start).getTime())||!Number.isFinite(new Date(p.planned_end).getTime()))throw Error('Datas, horários ou status inválidos no backup.');
+    const emptyFree=p.execution_mode==='manual'&&p.plan.template_id==='free'&&!p.plan.items.length&&p.plan.start===''&&p.plan.end===''&&p.planned_start===null&&p.planned_end===null;
+    if((!emptyFree&&(!clock.test(p.plan.start)||!clock.test(p.plan.end)||typeof p.planned_start!=='string'||typeof p.planned_end!=='string'||!Number.isFinite(new Date(p.planned_start).getTime())||!Number.isFinite(new Date(p.planned_end).getTime())))||!['Planejamento','Pronta','Em andamento','Finalizada'].includes(p.status))throw Error('Datas, horários ou status inválidos no backup.');
     const itemIds=new Set();
     for(const item of p.plan.items){if(itemIds.has(item.id)||!clock.test(item.start)||!clock.test(item.end)||typeof item.block!=='string'||!Number.isFinite(new Date(item.planned_start).getTime())||!Number.isFinite(new Date(item.planned_end).getTime()))throw Error('Atividade inválida no backup.');itemIds.add(item.id);}
     if(Array.isArray(p.executions))throw Error('Execução inválida no backup.');

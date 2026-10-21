@@ -97,10 +97,16 @@ def validate_plan(body):
     date = text(body.get('date', ''), 'Data', 10, True)
     name = text(body.get('name', ''), 'Nome', required=True)
     start, end = body.get('start'), body.get('end')
+    empty_free = body.get('execution_mode')=='manual' and body.get('template_id')=='free' and body.get('items')==[]
+    if empty_free and start=='' and end=='':
+        planned(date,'12:00')
+        team=body.get('team',{})
+        if not isinstance(team,dict):raise Problem('Equipe inválida.')
+        return dict(date=date,name=name,start='',end='',items=[],team={role:text(team.get(role,''),role) for role in TEAM},template_id='free')
     if planned(date, end) <= planned(date, start):
         raise Problem('O término deve ser posterior ao início, no mesmo dia.')
     items = body.get('items')
-    if not isinstance(items, list) or not 1 <= len(items) <= 100:
+    if not isinstance(items, list) or (not 0 <= len(items) <= 100 or (not items and not empty_free)):
         raise Problem('Cadastre entre 1 e 100 atividades.')
     result, ids, previous_end = [], set(), start
     for index, item in enumerate(items):
@@ -127,7 +133,7 @@ def validate_plan(body):
     if not isinstance(team, dict):
         raise Problem('Equipe inválida.')
     return dict(date=date, name=name, start=start, end=end, items=result,
-                team={role: text(team.get(role, ''), role) for role in TEAM})
+                team={role: text(team.get(role, ''), role) for role in TEAM}, **({'template_id':body['template_id']} if body.get('template_id') else {}))
 
 
 def load(con, identifier):
@@ -144,8 +150,8 @@ def load(con, identifier):
     result['executions'] = {r['item_id']: dict(r) for r in con.execute(
         'SELECT item_id, started, ended FROM executions WHERE program_id=?', (identifier,))}
     p = result['plan']
-    result['planned_start'] = planned(p['date'], p['start'])
-    result['planned_end'] = planned(p['date'], p['end'])
+    result['planned_start'] = planned(p['date'], p['start']) if p['start'] else None
+    result['planned_end'] = planned(p['date'], p['end']) if p['end'] else None
     for item in p['items']:
         item['planned_start'] = planned(p['date'], item['start'])
         item['planned_end'] = planned(p['date'], item['end'])
@@ -276,6 +282,8 @@ def save_actuals(con, program, body):
     revision(body, program)
     if program['execution_mode'] != 'manual':
         raise Problem('Este formulário é exclusivo das programações de registro manual.', 409)
+    if body.get('finalize') is True and not program['plan']['items']:
+        raise Problem('Adicione atividades antes de finalizar.')
     records = body.get('executions')
     if not isinstance(records, dict) or set(records) != {i['id'] for i in program['plan']['items']}:
         raise Problem('Envie os horários de todos os itens, deixando vazios os não preenchidos.')

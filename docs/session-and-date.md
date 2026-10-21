@@ -44,15 +44,12 @@ de qualquer procedimento. A correção nesta interface atua exclusivamente no lo
 não sobrescreve arquivos remotos, não cria outra versão remota e não restaura nada
 automaticamente. Uma eventual correção de arquivo remoto exige decisão separada.
 
-## Modelo padrão: data obrigatória
+## Criação por modelos (fluxo atualizado)
 
-Registrar culto inicia por um campo de data vazio e obrigatório. O modelo privado
-é carregado após a escolha; suas atividades são preservadas num clone com a data
-escolhida. Ao salvar, os timestamps planejados e realizados, cabeçalhos, resumos,
-histórico e relatórios usam essa mesma data. O modelo Supabase não é regravado.
-Abrir a criação não cria registros, não reabre automaticamente um culto anterior
-e não copia seus horários realizados. Para editar um culto existente, abrir seu
-resumo e selecionar Editar registro.
+A escolha obrigatória de data foi substituída por Modelo da programação e Novo
+registro, com data atual de São Paulo editável e exibição brasileira. Liturgia I
+mantém o modelo completo e Livre começa vazio. Ver [record-templates.md](record-templates.md).
+Nenhum registro antigo é corrigido ou recuperado automaticamente.
 
 ## Sessão no celular
 

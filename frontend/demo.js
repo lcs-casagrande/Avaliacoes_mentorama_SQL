@@ -14,8 +14,9 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       const p = clone(input);
       if (!p.name?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(p.date) || date(instant(p.date, '12:00')) !== p.date) throw Error('Informe nome e data válidos.');
       const validTime = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-      if (!validTime(p.start) || !validTime(p.end) || p.end <= p.start) throw Error('Informe horários válidos, com término depois do início.');
-      if (!Array.isArray(p.items) || !p.items.length || p.items.length > 100) throw Error('Cadastre entre 1 e 100 atividades.');
+      const emptyFree=p.execution_mode==='manual'&&p.template_id==='free'&&Array.isArray(p.items)&&!p.items.length;
+      if (!(emptyFree&&!p.start&&!p.end)&&(!validTime(p.start) || !validTime(p.end) || p.end <= p.start)) throw Error('Informe horários válidos, com término depois do início.');
+      if (!Array.isArray(p.items) || (!p.items.length&&!emptyFree) || p.items.length > 100) throw Error('Cadastre entre 1 e 100 atividades.');
       let previous = p.start, previousItem = null;
       const ids = new Set();
       p.items = p.items.map((item, index) => {
@@ -28,11 +29,11 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         ids.add(identifier);
         return {...item, id:identifier, order:index+1, planned_start:instant(p.date,item.start), planned_end:instant(p.date,item.end)};
       });
-      return {name:p.name, date:p.date, start:p.start, end:p.end, items:p.items, team:p.team || {}};
+      return {name:p.name, date:p.date, start:p.start, end:p.end, items:p.items, team:p.team || {},...(p.template_id?{template_id:p.template_id}:{})};
     }
     function make(input, status = 'Planejamento') {
       const plan = prepare(input);
-      return {id:id(), execution_mode:input.execution_mode || 'live', plan, status, version:1, note:'', incident:'', paused:false, executions:{}, planned_start:instant(plan.date,plan.start), planned_end:instant(plan.date,plan.end)};
+      return {id:id(), execution_mode:input.execution_mode || 'live', plan, status, version:1, note:'', incident:'', paused:false, executions:{}, planned_start:plan.start?instant(plan.date,plan.start):null, planned_end:plan.end?instant(plan.date,plan.end):null};
     }
     function isTestProgram(p) {
       return p.sample_set === 'adherence-v1' ||
@@ -91,17 +92,18 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           executions[item.id]={started:instant(nextPlan.date,e.start),ended:e.end?instant(nextPlan.date,e.end):null};
         }
         const complete = p.plan.items.every(item=>details[item.id].status==='nao_realizada'||details[item.id].status==='realizada'&&executions[item.id]?.ended);
+        if(body.finalize&&!p.plan.items.length)throw Error('Adicione atividades antes de finalizar.');
         if(body.finalize && !complete) throw Error('Preencha todas as atividades antes de finalizar.');
         const extraEvents=validateExtraEvents(p,body.extra_events ?? p.extra_events ?? [],Boolean(body.finalize));
         const info=body.record_info??p.record_info??'';if(typeof info!=='string'||info.length>5000)throw Error('Informações complementares inválidas.');
-        const wasFinished=p.status==='Finalizada';p.plan=nextPlan;p.planned_start=instant(nextPlan.date,nextPlan.start);p.planned_end=instant(nextPlan.date,nextPlan.end);p.record_info=info;
+        const wasFinished=p.status==='Finalizada';p.plan=nextPlan;p.planned_start=nextPlan.start?instant(nextPlan.date,nextPlan.start):null;p.planned_end=nextPlan.end?instant(nextPlan.date,nextPlan.end):null;p.record_info=info;
         p.extra_events=extraEvents;p.executions=executions;p.actual_details=details;p.note=body.note??p.note??'';p.incident=body.incident??p.incident??'';
         p.status=body.finalize||wasFinished?'Finalizada':(Object.keys(executions).length||extraEvents.some(e=>e.start))?'Em andamento':'Planejamento';p.paused=false;
       }
       else if (route === 'notes') { p.note=body.note || ''; p.incident=body.incident || ''; }
       else if (!route && method === 'PUT') {
         if (!['Planejamento','Pronta'].includes(p.status)) throw Error('O plano fica protegido após o início.');
-        const plan=prepare({...body,execution_mode:p.execution_mode || 'live'});p.plan=plan;p.planned_start=instant(plan.date,plan.start);p.planned_end=instant(plan.date,plan.end);p.status='Planejamento';
+        const plan=prepare({...body,execution_mode:p.execution_mode || 'live'});p.plan=plan;p.planned_start=plan.start?instant(plan.date,plan.start):null;p.planned_end=plan.end?instant(plan.date,plan.end):null;p.status='Planejamento';
       } else if (route === 'action') {
         if(p.execution_mode==='manual')throw Error('Use o formulário de realizado.');
         const active = p.plan.items.find(i => p.executions[i.id] && !p.executions[i.id].ended);
