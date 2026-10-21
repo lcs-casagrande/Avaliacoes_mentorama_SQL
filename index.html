@@ -6,18 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0F4C78">
   <title>IASDPI · Programação do culto</title>
-  <link rel="stylesheet" href="styles.css?v=a08e09447946377d">
+  <link rel="stylesheet" href="styles.css?v=ad66d9aa71aac0f2">
   <script src="config.js?v=1dafbb5c4744e3d3" defer></script>
-  <script src="storage.js?v=5971af22a1384167" defer></script>
-  <script src="auth.js?v=551b94d0503c5dd4" defer></script>
-  <script src="demo.js?v=5740142994b4dddd" defer></script>
-  <script src="actuals.js?v=60506f45e89e4fd2" defer></script>
+  <script src="storage.js?v=59be9a594df6c7bb" defer></script>
+  <script src="supabase-2.118.0.js?v=ee3be8de192b97cb" defer></script>
+  <script src="auth.js?v=197e42f46976d208" defer></script>
+  <script src="demo.js?v=dfce1b5370487a8b" defer></script>
+  <script src="actuals.js?v=7664988ef21c7bc3" defer></script>
   <script src="agenda-data.js?v=2c19f262c9fcb6fc" defer></script>
   <script src="agenda.js?v=e1a2ed42bf8f702a" defer></script>
-  <script src="archive.js?v=ca35fbded68dae68" defer></script>
+  <script src="archive.js?v=202fb4f2e131a68f" defer></script>
   <script src="organization.js?v=d2ac8d1c2bb5c614" defer></script>
   <script src="users.js?v=3e3d64b5729e597a" defer></script>
-  <script src="app.js?v=fd32c161f0758c2f" defer></script>
+  <script src="app.js?v=3aa756d51c244de9" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#app">Ir para o conteúdo</a>
@@ -47,6 +48,7 @@
       <div class="actions"><button type="button" data-action="close-dialog">Cancelar</button><button class="primary" type="submit">Duplicar</button></div>
     </form>
   </dialog>
+  <dialog id="correct-date-dialog" aria-labelledby="correct-date-title"><div id="correct-date-preview"></div><div class="actions"><button type="button" id="correct-date-cancel">Cancelar</button><button type="button" class="primary" id="correct-date-confirm">Confirmar correção deste registro</button></div></dialog>
   <footer>Planejar com clareza. Acompanhar com tranquilidade.</footer>
 </body>
 </html>

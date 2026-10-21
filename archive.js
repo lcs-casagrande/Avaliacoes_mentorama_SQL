@@ -14,6 +14,7 @@ function backupValidate(data){
     for(const item of p.plan.items){if(itemIds.has(item.id)||!clock.test(item.start)||!clock.test(item.end)||typeof item.block!=='string'||!Number.isFinite(new Date(item.planned_start).getTime())||!Number.isFinite(new Date(item.planned_end).getTime()))throw Error('Atividade inválida no backup.');itemIds.add(item.id);}
     if(Array.isArray(p.executions))throw Error('Execução inválida no backup.');
     for(const [id,e] of Object.entries(p.executions)){if(!itemIds.has(id)||!e||typeof e.started!=='string'||!Number.isFinite(new Date(e.started).getTime())||(e.ended!=null&&(typeof e.ended!=='string'||!Number.isFinite(new Date(e.ended).getTime()))))throw Error('Horários realizados inválidos no backup.');}
+    for(const item of p.plan.items){const detail=p.actual_details?.[item.id];if(detail&&(detail.status!==undefined||detail.subactivities!==undefined)){const e=p.executions[item.id];validateActivityRecord({...detail,start:actualClock(e?.started),end:actualClock(e?.ended)},item.id);}}
     if(p.extra_events)validateExtraEvents(p,p.extra_events,false);
   }
   return data;
@@ -22,7 +23,8 @@ async function backupPayload(){
   await IASDPIAuth.requireAccess();
   const raw=window.IASDPIDemo?localStorage.getItem(archiveKey):null;
   const programs=window.IASDPIDemo?(raw===null?[]:JSON.parse(raw)):await api('programs');
-  return backupValidate({format:'IASDPI-backup',version:1,programs});
+  return backupValidate({format:'IASDPI-backup',version:1,programs,
+    dateCorrectionBackupsRaw:window.IASDPIDemo?localStorage.getItem(IASDPIStorage.dateCorrections):null});
 }
 const toBase64=bytes=>{let text='';for(const byte of bytes)text+=String.fromCharCode(byte);return btoa(text);};
 const fromBase64=text=>Uint8Array.from(atob(text),c=>c.charCodeAt(0));

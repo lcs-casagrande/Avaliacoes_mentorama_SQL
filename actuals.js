@@ -1,25 +1,37 @@
 'use strict';
 // Carregado somente por uma fonte autorizada, nunca incluído no HTML público.
 window.IASDPIChronogram = null;
-// Atualiza o cronograma conhecido sem alterar os horários reais dos demais itens.
-function updateCultoChronogram(p) {
-  if(p.execution_mode!=='manual' || !p.plan.items.some(i=>i.id==='culto-03102026-1'))return false;
-  let changed=false;
-  p.plan.items=p.plan.items.filter(i=>{
-    if(i.id==='culto-03102026-8' && i.activity==='Tudo Vem de Ti'){
-      delete p.executions[i.id];changed=true;return false;
-    }
-    return true;
-  });
-  p.plan.items.forEach((i,index)=>{
-    if(i.id==='culto-03102026-6' && (i.end_inferred || i.end!=='10:05')){
-      i.end='10:05';i.end_inferred=false;
-      i.planned_end=`${p.plan.date}T10:05:00-03:00`;changed=true;
-    }
-    if(i.id==='culto-03102026-9' && i.parallel){i.parallel=false;changed=true;}
-    i.order=index+1;
-  });
-  return changed;
+function cultoForDate(template,date){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+'T12:00:00Z').toISOString().slice(0,10)!==date)throw Error('Selecione uma data válida para o culto.');
+  const plan=structuredClone(template);plan.date=date;
+  plan.name=plan.name.replace(/03\/10\/2026|2026-10-03/g,'').replace(/\s*[·—-]\s*$/,'').trim()||'Culto de sábado';
+  for(const item of plan.items){delete item.planned_start;delete item.planned_end;}
+  delete plan.planned_start;delete plan.planned_end;
+  return plan;
+}
+function correctedCultoDate(original){
+  if(original.execution_mode!=='manual'||original.plan.date!=='2026-10-03')throw Error('Este registro não corresponde à correção de 03/10 para 10/10/2026.');
+  backupValidate({format:'IASDPI-backup',version:1,programs:[original]});
+  const p=structuredClone(original),zone='America/Sao_Paulo';
+  const shift=value=>{
+    if(value==null)return value;
+    if(typeof value!=='string'||!Number.isFinite(new Date(value).getTime()))throw Error('Há um horário inválido; nada será alterado.');
+    const day=new Intl.DateTimeFormat('sv-SE',{timeZone:zone}).format(new Date(value));
+    if(day==='2026-10-10')return value;
+    if(day!=='2026-10-03')throw Error('Há horários em outra data. Revise o registro antes de corrigir; nada foi alterado.');
+    const prefix=new Date(new Date(value.slice(0,10)+'T12:00:00Z').getTime()+7*86400000).toISOString().slice(0,10);
+    return prefix+value.slice(10);
+  };
+  p.plan.date='2026-10-10';
+  p.plan.name=p.plan.name.replace(/03\/10\/2026/g,'10/10/2026').replace(/2026-10-03/g,'2026-10-10');
+  for(const field of ['planned_start','planned_end'])if(p[field]!=null)p[field]=shift(p[field]);
+  for(const item of p.plan.items)for(const field of ['planned_start','planned_end'])if(item[field]!=null)item[field]=shift(item[field]);
+  for(const execution of Object.values(p.executions))for(const field of ['started','ended'])if(execution[field]!=null)execution[field]=shift(execution[field]);
+  return p;
+}
+function newCultoDateForm(){
+  return heading('REGISTRO DO CULTO','Data do novo culto','Escolha a data antes de preencher o modelo padrão. Nenhum registro será criado nesta etapa.')+
+    `${state.programs.some(p=>p.execution_mode==='manual')?`<form id="open-record-form" class="panel"><label>Registro existente<select name="record-id">${state.programs.filter(p=>p.execution_mode==='manual').map(p=>`<option value="${esc(p.id)}">${esc(p.plan.name)} · ${esc(p.plan.date)}</option>`).join('')}</select></label><button type="submit">Editar registro</button></form>`:''}<form id="new-culto-date-form" class="panel">${field('Data do culto','date','','date',true)}<button class="primary" type="submit">Usar modelo nesta data</button></form>`;
 }
 function actualClock(value) {
   return value ? new Intl.DateTimeFormat('pt-BR', {timeZone:state.zone,hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(value)) : '';
@@ -60,7 +72,7 @@ function activityDetailsField(p,item,index) {
   const defaultMinistry={'Ministério de Louvor':'Min. Louvor','Ministério Louvor':'Min. Louvor','Ministério da Mordomia':'Min. Mordomia','Ministério de Louvor e/ou Ancianato':'Min. Louvor e/ou Ancianato'}[item.responsible] || '';
   const responsible=detail.responsible ?? defaultMinistry;
   const custom=responsible && !ministryOptions.includes(responsible);
-  return `<div class="activity-details"><label>Observação<input name="activity-note" value="${esc(detail.note || '')}" maxlength="2000" placeholder="Observação da atividade" aria-label="Observação da atividade ${index+1}"></label><div><label>Responsável<select name="responsible-option" aria-label="Responsável da atividade ${index+1}"><option value="">Selecionar</option>${ministryOptions.map(name=>`<option value="${esc(name)}" ${responsible===name?'selected':''}>${esc(name)}</option>`).join('')}<option value="other" ${custom?'selected':''}>Outro responsável</option></select></label><input name="responsible-name" value="${esc(custom?responsible:'')}" maxlength="200" placeholder="Nome do responsável" aria-label="Nome do responsável da atividade ${index+1}" ${custom?'':'hidden'}></div></div>`;
+  return `<div class="activity-details"><label>Observação<textarea name="activity-note" maxlength="2000" rows="1" placeholder="Observação da atividade" aria-label="Observação da atividade ${index+1}">${esc(detail.note || '')}</textarea></label><div><label>Responsável<select name="responsible-option" aria-label="Responsável da atividade ${index+1}"><option value="">Selecionar</option>${ministryOptions.map(name=>`<option value="${esc(name)}" ${responsible===name?'selected':''}>${esc(name)}</option>`).join('')}<option value="other" ${custom?'selected':''}>Outro responsável</option></select></label><input name="responsible-name" value="${esc(custom?responsible:'')}" maxlength="200" placeholder="Nome do responsável" aria-label="Nome do responsável da atividade ${index+1}" ${custom?'':'hidden'}></div></div>`;
 }
 function validateExtraEvents(p,input,finalize) {
   if(!Array.isArray(input)||input.length+p.plan.items.length>100)throw Error('Lista de eventos inválida ou maior que 100 atividades.');
@@ -72,8 +84,9 @@ function validateExtraEvents(p,input,finalize) {
     if(!e.activity.trim())throw Error('Informe o tema do evento.');
     const valid=v=>typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v);
     if(typeof e.start!=='string'||typeof e.end!=='string'||(e.start&&!valid(e.start))||(e.end&&(!e.start||!valid(e.end)||timeSeconds(e.end)<timeSeconds(e.start))))throw Error('Informe horários reais válidos para o evento.');
-    if(finalize&&(!e.start||!e.end))throw Error('Preencha os horários dos eventos fora da liturgia para finalizar.');
-    return {id:e.id,position:e.position,activity:e.activity.trim(),start:e.start,end:e.end,note:e.note.trim(),responsible:e.responsible.trim()};
+    const detail=validateActivityRecord(e,e.id);
+    if(finalize&&detail.status==='pendente')throw Error('Resolva os eventos extras antigos antes de finalizar.');
+    return {...e,...detail,activity:e.activity,note:e.note,responsible:e.responsible};
   });
 }
 function registrationData(p) {
@@ -88,7 +101,7 @@ function actualRow(p,plan,i,index,executions) {
   const e=executions[i.id];
   const extra=(p?.extra_events || []).find(event=>event.id===i.id);
   const details=extra?{actual_details:{[i.id]:extra}}:p;
-  return `<fieldset class="actual-row" data-id="${esc(i.id)}" ${i.unplanned?'data-extra="true"':`data-planned="${minutes('2000-01-01T'+i.end+':00','2000-01-01T'+i.start+':00')}"`}><legend><span class="actual-number">${index+1}</span>. ${esc(i.block)}</legend><div class="actual-description">${i.unplanned?field('Tema do evento','extra-theme',i.activity,'text',true,'maxlength="200" placeholder="Ex.: 4ª música — tema"'):`<h3>${esc(activityLabel(plan,index))}</h3>`}<span class="muted">Previsto: ${i.unplanned?'Fora da liturgia':esc(i.start)+' → '+(i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end))}</span>${activityDetailsField(details,i,index)}</div><div class="actual-inputs">${actualTimeField('Início real','start',e?.started?actualClock(e.started):'',index)}${actualTimeField('Término real','end',e?.ended?actualClock(e.ended):'',index)}<output class="actual-difference muted">Aguardando horários</output></div><div class="actual-row-actions">${button('+ Adicionar evento após esta atividade','add-extra')}${i.unplanned?button('Remover evento','remove-extra','','class="danger-text"'):''}</div></fieldset>`;
+  return `<fieldset class="actual-row" data-id="${esc(i.id)}" ${i.unplanned?'data-extra="true"':`data-planned="${minutes('2000-01-01T'+i.end+':00','2000-01-01T'+i.start+':00')}"`}><legend><span class="actual-number">${index+1}</span>. ${esc(i.block)}</legend><div class="actual-description">${i.unplanned?field('Tema do evento','extra-theme',i.activity,'text',true,'maxlength="200" placeholder="Ex.: 4ª música — tema"'):`<h3>${esc(activityLabel(plan,index))}</h3>`}<span class="muted">Previsto: ${i.unplanned?'Fora da liturgia':esc(i.start)+' → '+(i.end_inferred?'não informado (referência: '+esc(i.end)+')':esc(i.end))}</span>${activityDetailsField(details,i,index)}</div><div class="actual-inputs">${actualTimeField('Início real','start',e?.started?actualClock(e.started):'',index)}${actualTimeField('Término real','end',e?.ended?actualClock(e.ended):'',index)}<output class="actual-difference muted">Aguardando horários</output></div><div class="actual-row-actions">${button('Adicionar subatividade','add-subactivity')}${i.unplanned?button('Remover evento','remove-extra','','class="danger-text"'):''}</div><div class="activity-status"><label>Status da atividade<select name="activity-status" data-auto="${details?.actual_details?.[i.id]?.status?'false':'true'}">${activityStatuses.map(value=>`<option value="${value}" ${activityState(details?.actual_details?.[i.id],e?.started,e?.ended)===value?'selected':''}>${{pendente:'Pendente',realizada:'Realizada',nao_realizada:'Não realizada'}[value]}</option>`).join('')}</select></label></div><div class="subactivities" aria-label="Subatividades de ${esc(i.activity)}">${(details?.actual_details?.[i.id]?.subactivities||[]).map(child=>subactivityRow(child,i.id)).join('')}</div></fieldset>`;
 }
 function addExtraEvent(target) {
   const form=document.querySelector('#actuals-form'),rows=form.querySelectorAll('.actual-row');
@@ -106,7 +119,7 @@ function summaryActivityRows(p){
   return plan.items.map((i,index)=>{
     const e=executions[i.id],extra=p.extra_events?.find(x=>x.id===i.id),details=extra||p.actual_details?.[i.id]||{};
     const planned=i.unplanned?null:minutes(i.planned_end,i.planned_start),real=e?.ended?minutes(e.ended,e.started):null;
-    return `<tr><td>${esc(activityLabel(plan,index))}${i.unplanned?'<small>Fora da liturgia</small>':''}<small>${esc(details.responsible??i.responsible??'')}</small>${details.note?`<small>${esc(details.note)}</small>`:''}</td><td>${i.unplanned?'Fora da liturgia':esc(i.start)+' → '+esc(i.end)}</td><td>${actualClock(e?.started)||'—'} → ${actualClock(e?.ended)||'—'}</td><td>${planned===null?'—':duration(planned)}</td><td>${real===null?'—':duration(real)}</td><td>${real===null||planned===null?'—':badge(real-planned,signed(real-planned))}</td></tr>`;
+    return `<tr><td>${esc(activityLabel(plan,index))}${i.unplanned?'<small>Fora da liturgia</small>':''}<small>${esc(details.responsible??i.responsible??'')}</small>${details.note?`<small>${esc(details.note)}</small>`:''}${details.status?`<small>${esc({pendente:'Pendente',realizada:'Realizada',nao_realizada:'Não realizada'}[details.status]||'')}</small>`:''}${subactivitiesSummary(details)}</td><td>${i.unplanned?'Fora da liturgia':esc(i.start)+' → '+esc(i.end)}</td><td>${actualClock(e?.started)||'—'} → ${actualClock(e?.ended)||'—'}</td><td>${planned===null?'—':duration(planned)}</td><td>${real===null?'—':duration(real)}</td><td>${real===null||planned===null?'—':badge(real-planned,signed(real-planned))}</td></tr>`;
   }).join('');
 }
 function extraEventsSummary(p) {
@@ -114,19 +127,23 @@ function extraEventsSummary(p) {
   return `<section class="section"><h2>Eventos fora da liturgia</h2><div class="table-scroll"><table><thead><tr><th>Tema</th><th>Horários reais</th><th>Responsável / observação</th></tr></thead><tbody>${p.extra_events.map(e=>`<tr><td>${esc(e.activity)}<small>Previsto: Fora da liturgia</small></td><td>${esc(e.start || '—')} → ${esc(e.end || '—')}</td><td>${esc(e.responsible)}${e.note?`<small>${esc(e.note)}</small>`:''}</td></tr>`).join('')}</tbody></table></div></section>`;
 }
 function actualsForm(p) {
+  if(!p&&!window.IASDPIChronogram)return newCultoDateForm();
   const {plan,executions}=registrationData(p);
-  return heading('REGISTRO DO CULTO', 'Registrar culto', `${esc(dateLabel(plan.date))} · ${esc(plan.name)}`, button('Voltar às programações','programs')) +
+  return heading('REGISTRO DO CULTO', 'Registrar culto', `${esc(dateLabel(plan.date))} · ${esc(plan.name)}`, `<div class="actions">${p?button('Editar registro','edit-record',p.id):''}${button('Voltar às programações','programs')}</div>`) +
     `<section class="planned-bar"><span>Previsto <strong>${esc(plan.start)} → ${esc(plan.end)}</strong></span><span class="badge neutral">Registro manual</span></section>
     <details class="panel"><summary>Equipe da programação</summary><dl class="team-read">${roles.map(role => `<div><dt>${esc(role==='Responsável pela programação'?'Ministração do Culto':role)}</dt><dd>${esc(plan.team[role] || 'Não informado')}</dd></div>`).join('')}</dl></details>
     ${plan.items.some(i=>i.end_inferred) ? '<p class="form-note">O término dos anúncios não foi informado no cronograma. A referência de 10:05, início do próximo item, será usada apenas para comparar a duração. Os itens das 10:10 são simultâneos.</p>' : ''}
     <form id="actuals-form" data-id="${esc(p?.id || '')}" data-version="${p?.version || ''}">
+      <div class="notes-grid">${field('Nome do culto','record-name',plan.name,'text',true,'maxlength="200"')}${field('Data do culto','record-date',plan.date,'date',true)}</div>
+      <p id="registration-save-status" role="status">${p?(window.IASDPIDemo?'Registro existente · salvo neste navegador.':'Registro existente · salvo no servidor local.'):'Novo registro · ainda não salvo.'}</p>
       <div class="section-heading"><h2>O que aconteceu no culto?</h2><span id="actuals-progress" class="muted"></span></div>
-      <p class="muted">Todos os horários de início e término são obrigatórios para finalizar (*). Responsável e observação são opcionais. Salvar registro permite guardar o preenchimento parcial e continuar depois.</p>
+      <p class="muted">Para finalizar, marque cada atividade como realizada (com início e término) ou não realizada. Subatividades não alteram o planejamento nem somam duração. Responsável e observação são opcionais. Salvar registro permite guardar o preenchimento parcial e continuar depois.</p>
       <div class="actuals-list">${plan.items.map((i,index)=>actualRow(p,plan,i,index,executions)).join('')}</div>
-      <div class="actions">${button('+ Adicionar evento fora da liturgia','add-extra')}</div>
+
       <div id="actual-transitions"></div>
       <section class="section"><h2>Observações</h2><div class="notes-grid"><div><label for="manual-note">Observações do culto</label><textarea id="manual-note" name="note" maxlength="5000" rows="3">${esc(p?.note || '')}</textarea></div><div><label for="manual-incident">Ocorrência não prevista</label><textarea id="manual-incident" name="incident" maxlength="5000" rows="3">${esc(p?.incident || '')}</textarea></div></div></section>
-      <div class="actions manual-actions"><button type="submit" name="save" formnovalidate>Salvar registro</button><button type="submit" class="primary" name="finalize">Finalizar e ver resumo</button></div>
+      <section class="section"><label>Informações complementares<textarea name="record-info" rows="2" maxlength="5000">${esc(p?.record_info||'')}</textarea></label></section>
+      <div class="actions manual-actions">${button('Cancelar edição','cancel-record',p?.id||'')}<button type="submit" name="save" formnovalidate>${p?'Salvar alterações':'Salvar registro'}</button><button type="submit" class="primary" name="finalize">Finalizar e ver resumo</button></div>
     </form>`;
 }
 function updateActuals() {
@@ -135,38 +152,97 @@ function updateActuals() {
   const rows=[...form.querySelectorAll('.actual-row')];
   rows.forEach(row=>{
     const start=row.querySelector('[name="start"]').value, end=row.querySelector('[name="end"]').value;
+    const status=row.querySelector('[name="activity-status"]');if(status?.dataset.auto==='true')status.value=start&&end?'realizada':'pendente';
+    row.querySelector('[name="start"]').required=status?.value!=='nao_realizada';row.querySelector('[name="end"]').required=status?.value!=='nao_realizada';
     const output=row.querySelector('output');output.className='actual-difference muted';
-    if(start && end){
+    if(status?.value==='nao_realizada'){completed++;output.textContent='Não realizada';}
+    else if(start && end){
       const real=(timeSeconds(end)-timeSeconds(start))/60;
       if(real<0){output.textContent='Término anterior ao início';output.className='actual-difference critical';}
       else if(row.dataset.extra){completed++;output.textContent=`${duration(real)} realizados · Fora da liturgia`;}
       else{completed++;const diff=real-Number(row.dataset.planned);output.textContent=`${duration(real)} realizados · ${signed(diff)} de diferença`;output.className=`actual-difference ${statusTone(diff)}`;}
     }else output.textContent=end&&!start?'Informe o início real':start?'Falta o término real':'Aguardando horários';
   });
-  const plan=structuredClone(selected()?.plan || window.IASDPIChronogram);
+  const plan=structuredClone(selected()?.plan || window.IASDPIChronogram);plan.date=form.elements['record-date'].value||plan.date;
   plan.items=rows.map(row=>plan.items.find(i=>i.id===row.dataset.id)||{id:row.dataset.id,activity:row.querySelector('[name="extra-theme"]').value || 'Novo evento',unplanned:true});
   const executions=Object.fromEntries(rows.map(row=>[row.dataset.id,Object.fromEntries([['start','started'],['end','ended']].map(([name,key])=>{const v=row.querySelector(`[name="${name}"]`).value;return [key,v?`${plan.date}T${v.length===5?v+':00':v}-03:00`:null];}))]));
   document.querySelector('#actual-transitions').innerHTML=transitionView([{plan,executions}]);
   document.querySelector('#actuals-progress').textContent=`${completed} de ${rows.length} atividades completas`;
 }
-async function saveActuals(form, finalize) {
-  const records=Object.fromEntries([...form.querySelectorAll('.actual-row')].map(row=>[row.dataset.id,{start:row.querySelector('[name="start"]').value,end:row.querySelector('[name="end"]').value,note:row.querySelector('[name="activity-note"]').value,responsible:row.querySelector('[name="responsible-option"]').value==='other'?row.querySelector('[name="responsible-name"]').value:row.querySelector('[name="responsible-option"]').value}]));
-  for(const [id,record] of Object.entries(records)){
-    const row=form.querySelector(`.actual-row[data-id="${CSS.escape(id)}"]`);
-    if(row.dataset.extra && !row.querySelector('[name="extra-theme"]').value.trim())throw fieldError(row.querySelector('[name="extra-theme"]'),'Informe o tema do evento.');
-    if(record.end && !record.start)throw fieldError(row.querySelector('[name="start"]'),'Informe o início real antes do término.');
-    if(record.start && record.end && timeSeconds(record.end)<timeSeconds(record.start))throw fieldError(row.querySelector('[name="end"]'),'O término real não pode ser anterior ao início.');
-    if(finalize && (!record.start || !record.end))throw fieldError(row.querySelector(record.start?'[name="end"]':'[name="start"]'),'Informe este horário para finalizar o culto.');
+async function saveActuals(form,finalize){
+  let p=state.programs.find(record=>record.id===form.dataset.id)||null;
+  const base=p||{plan:window.IASDPIChronogram};
+  const recordPlan=recordEditPlan(base,{record_name:form.elements['record-name'].value,record_date:form.elements['record-date'].value});
+  const records={},extra_events=[];
+  const rows=[...form.querySelectorAll('.actual-row')];
+  for(const [position,row] of rows.entries()){
+    const id=row.dataset.id;
+    const subactivities=[...row.querySelectorAll('.subactivity')].map(child=>({...((p?.actual_details?.[id]||p?.extra_events?.find(e=>e.id===id))?.subactivities?.find(s=>s.id===child.dataset.subId)||{}),id:child.dataset.subId,parent_id:child.dataset.parentId,title:child.querySelector('[name="sub-title"]').value,responsible:child.querySelector('[name="sub-responsible"]').value,note:child.querySelector('[name="sub-note"]').value,start:child.querySelector('[name="sub-start"]').value,end:child.querySelector('[name="sub-end"]').value}));
+    let record={start:row.querySelector('[name="start"]').value,end:row.querySelector('[name="end"]').value,note:row.querySelector('[name="activity-note"]').value,responsible:row.querySelector('[name="responsible-option"]').value==='other'?row.querySelector('[name="responsible-name"]').value:row.querySelector('[name="responsible-option"]').value,status:row.querySelector('[name="activity-status"]').value,subactivities};
+    if(record.end&&!record.start)throw fieldError(row.querySelector('[name="start"]'),'Informe o início real antes do término.');
+    if(record.start&&record.end&&timeSeconds(record.end)<timeSeconds(record.start))throw fieldError(row.querySelector('[name="end"]'),'O término real não pode ser anterior ao início.');
+    record=validateActivityRecord(record,id);
+    if(finalize&&record.status==='pendente')throw fieldError(row.querySelector('[name="activity-status"]'),'Resolva o status desta atividade antes de finalizar.');
+    if(row.dataset.extra){
+      const previous=p?.extra_events?.find(e=>e.id===id)||{};
+      extra_events.push({...previous,id,position,activity:row.querySelector('[name="extra-theme"]').value,...record});
+    }else records[id]=record;
   }
-  let p=selected();
+  // Todas as validações precedem a criação de um registro novo.
+  validateExtraEvents({plan:recordPlan},extra_events,finalize);
   if(!form.dataset.id){
-    p=await api('programs','POST',structuredClone(window.IASDPIChronogram));
-    replaceProgram(p);form.dataset.id=p.id;form.dataset.version=p.version;
+    p=await api('programs','POST',{...structuredClone(window.IASDPIChronogram),name:recordPlan.name,date:recordPlan.date});
+    replaceProgram(p);state.selected=p.id;form.dataset.id=p.id;form.dataset.version=p.version;
     window.history.replaceState(null,'',`#actuals/${p.id}`);
   }
-  const extra_events=[...form.querySelectorAll('.actual-row')].flatMap((row,position)=>row.dataset.extra?[{id:row.dataset.id,position,activity:row.querySelector('[name="extra-theme"]').value.trim(),...records[row.dataset.id]}]:[]);
-  for(const extra of extra_events)delete records[extra.id];
-  p=await api(`programs/${form.dataset.id}/actuals`,'PUT',{version:Number(form.dataset.version),executions:records,extra_events,note:form.elements.note.value,incident:form.elements.incident.value,finalize});
-  replaceProgram(p);navigate(finalize?'summary':'actuals',p.id);
-  toast(finalize?'Culto registrado e finalizado. Resumo disponível.':'Registro salvo. Você pode continuar depois.');
+  p=await api(`programs/${form.dataset.id}/actuals`,'PUT',{version:Number(form.dataset.version),executions:records,extra_events,record_name:recordPlan.name,record_date:recordPlan.date,record_info:form.elements['record-info'].value,note:form.elements.note.value,incident:form.elements.incident.value,finalize});
+  registrationDirty=false;replaceProgram(p);navigate(finalize?'summary':'actuals',p.id);
+  const message=window.IASDPIDemo?'Alterações salvas neste navegador. Nenhuma gravação na nuvem.':'Alterações salvas no servidor local.';
+  const status=document.querySelector('#registration-save-status');if(status)status.textContent=message;
+  toast(message);
 }
+const activityStatuses=['pendente','realizada','nao_realizada'];
+let registrationDirty=false;
+function activityState(detail,start,end){return detail?.status??(start&&end?'realizada':'pendente');}
+function validateSubactivities(input,parentId,start,end){
+  if(!Array.isArray(input)||input.length>50)throw Error('Limite de 50 subatividades por atividade.');
+  const ids=new Set();const valid=v=>typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v);
+  return input.map(s=>{
+    if(!s||typeof s.id!=='string'||!s.id||s.id.length>200||ids.has(s.id)||s.parent_id!==parentId)throw Error('Vínculo de subatividade inválido.');ids.add(s.id);
+    for(const [key,limit] of [['title',200],['responsible',200],['note',2000]])if(typeof s[key]!=='string'||s[key].length>limit)throw Error('Dados da subatividade inválidos.');
+    if(!s.title.trim())throw Error('Informe o título da subatividade.');
+    if(typeof s.start!=='string'||typeof s.end!=='string'||(s.start&&!valid(s.start))||(s.end&&!valid(s.end)))throw Error('Horários da subatividade inválidos.');
+    if((s.start||s.end)&&(!start||!end))throw Error('Preencha o intervalo real completo da atividade principal antes de informar horários da subatividade.');
+    if((s.start&&(timeSeconds(s.start)<timeSeconds(start)||timeSeconds(s.start)>timeSeconds(end)))||(s.end&&(timeSeconds(s.end)<timeSeconds(start)||timeSeconds(s.end)>timeSeconds(end)))||(s.start&&s.end&&timeSeconds(s.end)<timeSeconds(s.start)))throw Error('Os horários da subatividade devem ficar dentro do intervalo real da atividade principal.');
+    return {...s};
+  });
+}
+function validateActivityRecord(record,id){
+  const status=activityState(record,record.start,record.end);
+  if(!activityStatuses.includes(status))throw Error('Status da atividade inválido.');
+  if(status==='nao_realizada'&&(record.start||record.end))throw Error('Atividade não realizada não pode ter horários reais. Revise os campos antes de salvar.');
+  if(status==='realizada'&&(!record.start||!record.end))throw Error('Informe início e término da atividade realizada.');
+  const subactivities=validateSubactivities(record.subactivities??[],id,record.start,record.end);
+  return {...record,status,subactivities};
+}
+function recordEditPlan(p,body){
+  const plan=structuredClone(p.plan),date=body.record_date??plan.date,name=body.record_name??plan.name;
+  if(typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+'T12:00:00Z').toISOString().slice(0,10)!==date)throw Error('Data do culto inválida.');
+  if(typeof name!=='string'||!name.trim()||name.length>200)throw Error('Nome do culto inválido.');
+  if(date!==plan.date)for(const item of plan.items){item.planned_start=`${date}T${item.start}:00-03:00`;item.planned_end=`${date}T${item.end}:00-03:00`;}
+  plan.date=date;plan.name=name===p.plan.name?name:name.trim();return plan;
+}
+function subactivityRow(s={},parentId){
+  return `<fieldset class="subactivity" data-sub-id="${esc(s.id||crypto.randomUUID())}" data-parent-id="${esc(s.parent_id??parentId)}"><legend>Subatividade</legend><div class="notes-grid">${field('Título','sub-title',s.title||'','text',true,'maxlength="200"')}${field('Responsável','sub-responsible',s.responsible||'','text',false,'maxlength="200"')}${field('Início real (opcional)','sub-start',s.start||'','time',false,'step="1"')}${field('Término real (opcional)','sub-end',s.end||'','time',false,'step="1"')}</div><label>Observação<textarea name="sub-note" rows="2" maxlength="2000">${esc(s.note||'')}</textarea></label><button type="button" data-action="remove-subactivity" class="danger-text">Excluir subatividade</button></fieldset>`;
+}
+function subactivitiesSummary(detail){
+  if(!detail?.subactivities?.length)return '';
+  return `<ul class="subactivities-summary">${detail.subactivities.map(s=>`<li><strong>${esc(s.title)}</strong>${s.start||s.end?` · ${esc(s.start||'—')} → ${esc(s.end||'—')}`:''}${s.responsible?`<small>${esc(s.responsible)}</small>`:''}${s.note?`<small>${esc(s.note)}</small>`:''}</li>`).join('')}</ul>`;
+}
+function markRegistrationDirty(){registrationDirty=true;const status=document.querySelector('#registration-save-status');if(status)status.textContent='Alterações não salvas.';}
+function canLeaveRegistration(){
+  if(!registrationDirty)return true;
+  if(!window.confirm('Descartar as alterações não salvas deste registro?'))return false;
+  registrationDirty=false;return true;
+}
+window.addEventListener('beforeunload',event=>{if(registrationDirty){event.preventDefault();event.returnValue='';}});

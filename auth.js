@@ -1,6 +1,7 @@
 'use strict';
 window.IASDPIAuth = (() => {
-  let session=null, access=null, verification=null, generation=0, expiryTimer=null;
+  let client=null, session=null, access=null, verification=null, generation=0, recovery=null;
+  let phase='recovering', statusMessage='Recuperando sessão…', signingIn=false, expiryTimer=null;
   const publicPages=new Set(['organization','agendas','login','invite']);
   function config(){
     let saved={};try{saved=JSON.parse(localStorage.getItem(IASDPIStorage.cloudConfig)||'{}');}catch(_){}
@@ -12,13 +13,11 @@ window.IASDPIAuth = (() => {
     if(!value.key.startsWith('sb_publishable_')&&!value.key.startsWith('eyJ'))throw Error('Configure somente a chave pública publishable/anon.');
     if(value.key.startsWith('eyJ')){try{if(JSON.parse(atob(value.key.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).role!=='anon')throw Error();}catch(_){throw Error('Use somente a chave pública anon, nunca service_role.');}}
   }
-  function allowed(){return Boolean(session&&access&&session.expires_at*1000>Date.now());}
-  function invalidate(){generation++;session=null;access=null;verification=null;clearTimeout(expiryTimer);window.dispatchEvent(new Event('iasdpi-auth-changed'));}
   function remoteRequestAllowed(path,method='GET'){
     if(!window.IASDPIConfig?.remoteReadOnly)return true;
     if(method==='GET')return /^\/auth\/v1\/(health|settings|user)$/.test(path)||/^\/rest\/v1\/(iasdpi_access|iasdpi_templates|culto_archives)(?:\?|$)/.test(path);
     if(method!=='POST')return false;
-    return path==='/auth/v1/token?grant_type=password'||path==='/auth/v1/logout?scope=local'||
+    return path==='/auth/v1/token?grant_type=password'||path==='/auth/v1/token?grant_type=refresh_token'||path==='/auth/v1/logout?scope=local'||
       ['/rest/v1/rpc/iasdpi_list_users','/rest/v1/rpc/iasdpi_list_invites','/rest/v1/rpc/iasdpi_find_account'].includes(path);
   }
   async function jsonRequest(path,options={}){
@@ -37,8 +36,47 @@ window.IASDPIAuth = (() => {
       return response.status===204?null:await response.json();
     }finally{clearTimeout(timer);}
   }
-  async function requireAccess(){
-    if(!session||session.expires_at*1000<=Date.now()){invalidate();throw Error('Entre com uma conta autorizada.');}
+
+  function status(next,message){phase=next;statusMessage=message;window.dispatchEvent(new Event('iasdpi-session-status'));}
+  function allowed(){return Boolean(session&&access&&session.expires_at*1000>Date.now());}
+  function invalidate(next='expired',message='Sessão expirada. Entre novamente.',dropSession=false){
+    generation++;access=null;verification=null;clearTimeout(expiryTimer);
+    if(dropSession)session=null;
+    status(next,message);window.dispatchEvent(new Event('iasdpi-auth-changed'));
+  }
+  function adopt(value){
+    if(session?.access_token!==value?.access_token){generation++;verification=null;}
+    session=value;
+    clearTimeout(expiryTimer);
+    if(value)expiryTimer=setTimeout(()=>{void restore().catch(()=>{});},Math.max(100,Math.min(value.expires_at*1000-Date.now()+50,2147483647)));
+  }
+  function getClient(){
+    if(client)return client;
+    const cfg=config();validateConfig(cfg);
+    if(!window.supabase?.createClient)throw Error('Não foi possível carregar a autenticação. Recarregue a página.');
+    client=window.supabase.createClient(cfg.url,cfg.key,{
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,
+        storageKey:IASDPIStorage.authSession,flowType:'pkce'},
+      global:{fetch:async(input,options={})=>{
+        const url=new URL(typeof input==='string'?input:input.url);
+        if(url.origin!==cfg.url||!remoteRequestAllowed(url.pathname+url.search,(options.method||'GET').toUpperCase()))throw Error('Operação remota bloqueada no modo de consulta.');
+        return fetch(input,options);
+      }}
+    });
+    client.auth.onAuthStateChange((event,value)=>{
+      // Callback síncrono: chamadas Auth dentro deste callback podem bloquear o SDK.
+      if(event==='SIGNED_OUT'){
+        const existed=Boolean(session);adopt(null);
+        invalidate(existed?'expired':'anonymous',existed?'Sessão expirada. Entre novamente.':'Entre com uma conta autorizada.',true);
+      }else{
+        const changed=session?.access_token!==value?.access_token;adopt(value);
+        if(value&&changed&&!signingIn)setTimeout(()=>{void restore().catch(()=>{});},0);
+      }
+    });
+    return client;
+  }
+  async function verify(){
+    if(!session||session.expires_at*1000<=Date.now())throw Error('Sessão expirada. Entre novamente.');
     if(verification)return verification;
     const ticket=generation,token=session.access_token;
     verification=(async()=>{
@@ -48,45 +86,73 @@ window.IASDPIAuth = (() => {
         if(user.is_anonymous!==false||!user.id)throw Error('Conta sem autorização.');
         const rows=await jsonRequest('/rest/v1/iasdpi_access?user_id=eq.'+encodeURIComponent(user.id)+'&select=user_id,role,enabled&limit=1',{headers});
         if(!Array.isArray(rows)||rows.length!==1||rows[0].user_id!==user.id||rows[0].enabled!==true||!['admin','leader'].includes(rows[0].role))throw Error('Conta sem autorização. Solicite acesso à administração.');
-        if(ticket!==generation)throw Error('Sessão encerrada.');
-        const previousRole=access?.role;access=rows[0];session.user=user;
+        if(ticket!==generation)throw Error('Sessão alterada. Tente novamente.');
+        const previousRole=access?.role;access=rows[0];session.user=user;status('authenticated','Sessão ativa.');
         if(previousRole&&previousRole!==access.role)window.dispatchEvent(new Event('iasdpi-role-changed'));
         return {token,role:access.role,user};
-      }catch(error){if(ticket===generation)invalidate();throw error;}
+      }catch(error){if(ticket===generation)invalidate('unavailable',error.message);throw error;}
       finally{if(ticket===generation)verification=null;}
     })();
     return verification;
   }
+  async function restore(){
+    if(recovery)return recovery;
+    recovery=Promise.resolve().then(async()=>{
+      if(!allowed())status('recovering','Recuperando sessão…');
+      try{
+        const {data,error}=await getClient().auth.getSession();
+        if(error)throw error;
+        adopt(data.session);
+        if(!session){invalidate('anonymous','Entre com uma conta autorizada.',true);return null;}
+        return await verify();
+      }catch(error){
+        const expired=error.status===400||error.status===401||/refresh_token|expirada/i.test(error.code||error.message||'');
+        const denied=/Conta sem autorização/.test(error.message||'');
+        invalidate(denied?'unauthorized':expired?'expired':'unavailable',denied?error.message:expired?'Sessão expirada. Entre novamente.':'Não foi possível recuperar a sessão. Verifique sua conexão e tente novamente.');
+        throw error;
+      }finally{recovery=null;}
+    });
+    return recovery;
+  }
+  async function requireAccess(){
+    if(!session||session.expires_at*1000<=Date.now())await restore();
+    return verify();
+  }
   async function login(email,password,key,inviteToken){
-    invalidate();const ticket=generation;const cfg=config();if(key)cfg.key=key.trim();validateConfig(cfg);
-    // Apenas chave pública; senha e tokens nunca são persistidos.
+    const cfg=config();if(key)cfg.key=key.trim();validateConfig(cfg);
+    if(client&&cfg.key!==config().key)throw Error('Recarregue a página após alterar a chave pública.');
     localStorage.setItem(IASDPIStorage.cloudConfig,JSON.stringify(cfg));
-    const result=await jsonRequest('/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-    if(ticket!==generation)throw Error('Login cancelado.');
-    if(!result.access_token||!Number.isFinite(result.expires_in)||result.expires_in<=0)throw Error('Resposta de autenticação inválida.');
-    session={access_token:result.access_token,expires_at:Date.now()/1000+result.expires_in,user:result.user};
+    signingIn=true;status('recovering','Confirmando acesso…');
     try{
+      const {data,error}=await getClient().auth.signInWithPassword({email,password});
+      if(error)throw Error('Não foi possível entrar. Confira e-mail, senha e conexão.');
+      adopt(data.session);
       if(inviteToken)await jsonRequest('/rest/v1/rpc/iasdpi_accept_invite',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({p_token:inviteToken})});
-      await requireAccess();
-    }catch(error){if(ticket===generation)invalidate();throw error;}
-    expiryTimer=setTimeout(invalidate,Math.min(result.expires_in*1000,2147483647));
-    window.dispatchEvent(new Event('iasdpi-auth-changed'));
+      await verify();window.dispatchEvent(new Event('iasdpi-auth-changed'));
+    }catch(error){invalidate('unavailable',error.message);throw error;}
+    finally{signingIn=false;}
   }
   async function signup(email,password,key){
+    if(!remoteRequestAllowed('/auth/v1/signup','POST'))throw Error('Cadastro bloqueado no modo de consulta.');
     const cfg=config();if(key)cfg.key=key.trim();validateConfig(cfg);
     localStorage.setItem(IASDPIStorage.cloudConfig,JSON.stringify(cfg));
-    await jsonRequest('/auth/v1/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const {error}=await getClient().auth.signUp({email,password});if(error)throw Error('Não foi possível concluir o cadastro. Verifique sua conexão.');
   }
   async function logout(){
-    const token=session?.access_token;invalidate();
-    const endpoint=window.IASDPIConfig?.environment==='homologation'?'/auth/v1/logout?scope=local':'/auth/v1/logout';
-    if(token){try{await jsonRequest(endpoint,{method:'POST',headers:{Authorization:'Bearer '+token}});}catch(_){/* acesso local já encerrado */}}
+    const {error}=await getClient().auth.signOut({scope:'local'});
+    if(error)throw Error('Não foi possível encerrar a sessão. Verifique a conexão e tente novamente.');
+    adopt(null);invalidate('anonymous','Sessão encerrada.',true);
   }
   function loginPage(){
     return heading('ACESSO RESTRITO','Entrar no IASDPI','Cronogramas, registros, histórico e backups são exclusivos de administradores e líderes autorizados.')+
-      `<section class="panel auth-panel"><form id="auth-login-form">${field('E-mail','email','','email',true,'autocomplete="username"')}${field('Senha','password','','password',true,'autocomplete="current-password"')}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe a chave pública do projeto. Nunca use chave secreta ou senha do banco.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p class="muted">O cadastro de uma conta não concede acesso. A autorização depende da administração da igreja.</p></form></section>`;
+      `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${field('E-mail','email','','email',true,'autocomplete="username"')}${field('Senha','password','','password',true,'autocomplete="current-password"')}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p class="muted">A sessão é mantida pelo Supabase neste navegador. Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
   }
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&session)void requireAccess().catch(()=>{});});
-  setInterval(()=>{if(session)void requireAccess().catch(()=>{});},60000);
-  return {config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,isPublic:page=>publicPages.has(page),session:()=>allowed()?session:null};
+  document.addEventListener('visibilitychange',()=>{
+    if(!client)return;
+    if(document.hidden)client.auth.stopAutoRefresh();
+    else{client.auth.startAutoRefresh();void restore().catch(()=>{});}
+  });
+  setInterval(()=>{if(session&&!document.hidden)void requireAccess().catch(()=>{});},60000);
+  return {config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,restore,
+    status:()=>({phase,message:statusMessage}),isPublic:page=>publicPages.has(page),session:()=>allowed()?session:null};
 })();
