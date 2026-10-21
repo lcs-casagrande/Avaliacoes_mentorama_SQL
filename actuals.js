@@ -1,27 +1,6 @@
 'use strict';
-window.IASDPIChronogram = {
-  name:'Culto de sábado', date:'2026-10-03', start:'09:30', end:'11:24', execution_mode:'manual',
-  team:{'Ancião do mês':'Adriano','Recepção':'Nilce','Diácono':'Rafael Braga','Diaconisa':'Rose','Diretor de culto':'Elmo','Sonoplastia':'','Equipe de louvor':'','Responsável pela programação':'Elmo'},
-  items:[
-    ['09:30','09:35','Música Congregacional (sentados)','Ministério de Louvor'],
-    ['09:35','09:40','Música Congregacional (sentados)','Ministério de Louvor'],
-    ['09:40','09:45','Música Congregacional (em pé)','Ministério de Louvor'],
-    ['09:45','09:50','Oração Intercessora (de joelhos)','Núbia'],
-    ['09:50','10:00','Adoração Infantil','Pr. Carlos'],
-    ['10:00','10:05','Anúncios/Comunicação','Henrique'],
-    ['10:05','10:10','Provai e Vede (vídeo)','Ministério da Mordomia'],
-    ['10:10','10:15','Tudo Vem de Ti','Ministério Louvor'],
-    ['10:10','10:15','Ofertório','Alçar Ofertas'],
-    ['10:15','10:17','Oração pelas Ofertas',''],
-    ['10:17','10:22','Mensagem Musical','Priscilla'],
-    ['10:22','11:05','Sermão','Gabriel Henrique'],
-    ['11:05','11:10','Mensagem Musical','Priscilla'],
-    ['11:10','11:15','Apelo e Oração Final','Gabriel Henrique'],
-    ['11:15','11:20','Música Congregacional (em pé)','Ministério de Louvor'],
-    ['11:20','11:22','Orientações sobre a Classe','Ministério de Louvor e/ou Ancianato'],
-    ['11:22','11:24','Vídeo para a saída das pessoas','Sonoplastia']
-  ].map(([start,end,activity,responsible],index) => ({id:`culto-03102026-${index+1}`,block:'Culto',start,end,activity,responsible,note:'',parallel:false,end_inferred:false})).filter(item=>item.id!=='culto-03102026-8')
-};
+// Carregado somente por uma fonte autorizada, nunca incluído no HTML público.
+window.IASDPIChronogram = null;
 // Atualiza o cronograma conhecido sem alterar os horários reais dos demais itens.
 function updateCultoChronogram(p) {
   if(p.execution_mode!=='manual' || !p.plan.items.some(i=>i.id==='culto-03102026-1'))return false;
@@ -121,6 +100,14 @@ function addExtraEvent(target) {
   const added=row?row.nextElementSibling:form.querySelector('.actuals-list').lastElementChild;
   form.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);
   added.querySelector('[name="extra-theme"]').focus();updateActuals();
+}
+function summaryActivityRows(p){
+  const {plan,executions}=registrationData(p);
+  return plan.items.map((i,index)=>{
+    const e=executions[i.id],extra=p.extra_events?.find(x=>x.id===i.id),details=extra||p.actual_details?.[i.id]||{};
+    const planned=i.unplanned?null:minutes(i.planned_end,i.planned_start),real=e?.ended?minutes(e.ended,e.started):null;
+    return `<tr><td>${esc(activityLabel(plan,index))}${i.unplanned?'<small>Fora da liturgia</small>':''}<small>${esc(details.responsible??i.responsible??'')}</small>${details.note?`<small>${esc(details.note)}</small>`:''}</td><td>${i.unplanned?'Fora da liturgia':esc(i.start)+' → '+esc(i.end)}</td><td>${actualClock(e?.started)||'—'} → ${actualClock(e?.ended)||'—'}</td><td>${planned===null?'—':duration(planned)}</td><td>${real===null?'—':duration(real)}</td><td>${real===null||planned===null?'—':badge(real-planned,signed(real-planned))}</td></tr>`;
+  }).join('');
 }
 function extraEventsSummary(p) {
   if(!p.extra_events?.length)return '';

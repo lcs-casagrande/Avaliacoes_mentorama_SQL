@@ -2,27 +2,39 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pwbxksxxmnblqwpvlheu.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0F4C78">
   <title>IASDPI · Programação do culto</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="demo.js" defer></script>
-  <script src="actuals.js" defer></script>
-  <script src="agenda-data.js" defer></script>
-  <script src="agenda.js" defer></script>
-  <script src="app.js" defer></script>
+  <link rel="stylesheet" href="styles.css?v=a08e09447946377d">
+  <script src="config.js?v=1dafbb5c4744e3d3" defer></script>
+  <script src="storage.js?v=5971af22a1384167" defer></script>
+  <script src="auth.js?v=551b94d0503c5dd4" defer></script>
+  <script src="demo.js?v=5740142994b4dddd" defer></script>
+  <script src="actuals.js?v=60506f45e89e4fd2" defer></script>
+  <script src="agenda-data.js?v=2c19f262c9fcb6fc" defer></script>
+  <script src="agenda.js?v=e1a2ed42bf8f702a" defer></script>
+  <script src="archive.js?v=ca35fbded68dae68" defer></script>
+  <script src="organization.js?v=d2ac8d1c2bb5c614" defer></script>
+  <script src="users.js?v=3e3d64b5729e597a" defer></script>
+  <script src="app.js?v=fd32c161f0758c2f" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#app">Ir para o conteúdo</a>
   <header class="header">
-    <a class="brand" href="#home"><span class="brand-mark">I</span><span>IASDPI<small>Programação do culto</small></span></a>
+    <a class="brand" href="#organization"><span class="brand-mark">I</span><span>IASDPI<small>Programação do culto</small></span></a>
     <nav aria-label="Navegação principal">
-      <a href="#home" data-page="home">Início</a>
-      <a href="#programs" data-page="programs">Programações</a>
-      <a href="#actuals" data-page="actuals">Registrar culto</a>
-      <a href="#tracking" data-page="tracking">Acompanhar</a>
+      <a href="#home" data-page="home" hidden>Início</a>
+      <a href="#programs" data-page="programs" hidden>Programações</a>
+      <a href="#actuals" data-page="actuals" hidden>Registrar culto</a>
+      <a href="#tracking" data-page="tracking" hidden>Acompanhar</a>
       <a href="#agendas" data-page="agendas">Escalas e agendas</a>
-      <a href="#history" data-page="history">Histórico</a>
+      <a href="#organization" data-page="organization">Organograma</a>
+      <a href="#archive" data-page="archive" hidden>Arquivo e banco</a>
+      <a href="#history" data-page="history" hidden>Histórico</a>
+      <a href="#users" data-page="users" hidden>Administração · Usuários</a>
+      <a href="#login" data-page="login">Entrar</a>
+      <button type="button" id="auth-logout" hidden>Sair</button>
     </nav>
   </header>
   <main id="app" tabindex="-1"><p class="empty">Carregando programações…</p></main>

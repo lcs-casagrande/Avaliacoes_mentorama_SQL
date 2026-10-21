@@ -1,0 +1,24 @@
+{
+  "environment": "validation",
+  "site_url": "https://lcs-casagrande.github.io/Avaliacoes_mentorama_SQL/",
+  "remote_read_only": true,
+  "storage_namespace": "",
+  "source_commit": "a957164eb261539eb355c9f06e2d86d6ee4fff1e",
+  "source_has_uncommitted_changes": false,
+  "files": {
+    "index.html": "c975a21544db69a9695e05f866f70d0f036c9364872a4cf6ff090465fdbe145f",
+    "styles.css": "a08e09447946377d6c24c8d6996850650e6fb741e2b68591654f85c6ea4909ea",
+    "config.js": "1dafbb5c4744e3d34e1c385a4f074935af65ca456708c65bdecf83d8e4b4a4b4",
+    "storage.js": "5971af22a1384167a7fc26e72d3491f1cfb40536a9714c298e69e09cadddabb9",
+    "auth.js": "551b94d0503c5dd439d9db7e1b6b4af2319c6e575dd9d756dbceb0f5541e4f62",
+    "demo.js": "5740142994b4dddd11a7e5d101e78663c0b7098ed55e8f589e6318f0d9b7a54f",
+    "actuals.js": "60506f45e89e4fd2dafd84c051e587f5f67e85d3b37eff2ac0f308c52fe0a2d7",
+    "agenda-data.js": "2c19f262c9fcb6fc44d8ee5669b370ab21e22ca9d7129dd6f489e9825f00c614",
+    "agenda.js": "e1a2ed42bf8f702a81ecf6fdaae5827a0ea74505198fed8596ff3b99e4b62eac",
+    "archive.js": "ca35fbded68dae680ead77b5229be3d08561e91aa795f5d2e87cde096344aa6f",
+    "organization.js": "d2ac8d1c2bb5c6141415e8ffbcac841409a052602b8acc7a35f3d2f90dd58474",
+    "users.js": "3e3d64b5729e597aa7d51a61736914e8a5ff7a4212a44de80d3bc33293f75d7d",
+    "app.js": "fd32c161f0758c2f0879b344cfb19bc03a86102cb84ba464db8a573a4271259d",
+    ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

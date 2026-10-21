@@ -20,10 +20,13 @@ function toast(message, error = false) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { notice.hidden = true; }, 6000);
 }
 async function api(path = '', method = 'GET', body) {
-  if (window.IASDPIDemo) return window.IASDPIDemo.request(path, method, body);
-  const response = await fetch(`/api/${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const authorization=path==='health'?null:await IASDPIAuth.requireAccess();
+  if (window.IASDPIDemo){const result=await window.IASDPIDemo.request(path,method,body);if(method!=='GET'&&cloudState.session)void cloudAutoArchive();return result;}
+  const response = await fetch(`/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(authorization?{Authorization:'Bearer '+authorization.token}:{}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Não foi possível concluir a operação.');
+  if(authorization&&IASDPIAuth.session()?.access_token!==authorization.token)throw Error('Sessão encerrada.');
+  if (!response.ok) {if(response.status===401||response.status===403)void IASDPIAuth.logout();throw new Error(result.error || 'Não foi possível concluir a operação.');}
+  if(method!=='GET'&&cloudState.session)void cloudAutoArchive();
   return result;
 }
 function selected() { return state.programs.find(p => p.id === state.selected); }
@@ -200,13 +203,10 @@ function summary(p) {
   const plannedDuration = minutes(p.planned_end, p.planned_start);
   const actualDuration = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
   return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Editar registro', 'actuals', p.id) : ''}`) +
-    `<section class="summary-grid">${[['Início planejado', p.plan.start], ['Início real', clock(m.first?.started)], ['Término planejado', p.plan.end], ['Término real', clock(m.last?.ended)], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
+    `<section class="summary-grid">${[['Início planejado', p.plan.start], ['Início real', actualClock(m.first?.started)||'—'], ['Término planejado', p.plan.end], ['Término real', actualClock(m.last?.ended)||'—'], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
     <p class="muted">Desvio do término compara o relógio. Desvio da duração compara o tempo total entre o primeiro início e o último término, incluindo intervalos.</p>
     <p class="context-line">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}. Veja as observações para entender a causa.` : 'Nenhum atraso registrado.'}</p>
-    <div class="table-scroll"><table><thead><tr><th>Atividade / bloco</th><th>Horários previstos</th><th>Horários reais</th><th>Duração prevista</th><th>Duração real</th><th>Diferença de duração</th></tr></thead><tbody>${p.plan.items.map((i,index) => {
-      const e = p.executions[i.id]; const planned = minutes(i.planned_end, i.planned_start); const real = e?.ended ? minutes(e.ended, e.started) : null;
-      return `<tr><td><strong>${esc(activityLabel(p.plan,index))}</strong><small>${esc(i.block)} · ${esc(p.actual_details?.[i.id]?.responsible ?? i.responsible)}</small>${p.actual_details?.[i.id]?.note?`<small>${esc(p.actual_details[i.id].note)}</small>`:''}</td><td>${esc(i.start)} → ${esc(i.end)}${i.end_inferred ? ' (referência)' : ''}</td><td>${actualClock(e?.started) || '—'} → ${actualClock(e?.ended) || '—'}</td><td>${duration(planned)}</td><td>${real === null ? '—' : duration(real)}</td><td>${real === null ? '—' : badge(real - planned, signed(real - planned))}</td></tr>`;
-    }).join('')}</tbody></table></div>${extraEventsSummary(p)}${transitionView([p])}${notes(p)}`;
+    <div class="table-scroll"><table><thead><tr><th>Atividade / bloco</th><th>Horários previstos</th><th>Horários reais</th><th>Duração prevista</th><th>Duração real</th><th>Diferença de duração</th></tr></thead><tbody>${summaryActivityRows(p)}</tbody></table></div>${transitionView([p])}${notes(p)}`;
 }
 const adherenceTolerance = 2;
 function adherence(p) {
@@ -261,9 +261,14 @@ function historyPage() {
   return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
 }
 function render() {
+  const allowed=IASDPIAuth.allowed();
+  if(!allowed&&!IASDPIAuth.isPublic(state.page))state.page='login';
+  document.querySelectorAll('nav a').forEach(a=>{a.hidden=a.dataset.page==='users'?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
+  document.querySelector('#auth-logout').hidden=!allowed;
+
   const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':state.page==='edit'?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  app.innerHTML = ({home, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
+  app.innerHTML = ({home, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
 function navigate(page, id) { if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
@@ -291,7 +296,13 @@ function tick() {
 }
 async function handleAction(target) {
   const {action, id} = target.dataset;
-  if(action==='agenda-current'){selectAgendaMonth(today().slice(0,7));document.querySelector('[data-action="agenda-current"]').focus();}
+  if(!action.startsWith('agenda-'))await IASDPIAuth.requireAccess();
+  if(action.startsWith('users-')){await handleUsersAction(action,id);return;}
+  if(action==='cloud-save')await cloudSave();
+  else if(action==='cloud-list'){cloudState.archives=await cloudRequest('/rest/v1/culto_archives?select=id,created_at&order=created_at.desc&limit=30');render();}
+  else if(action==='cloud-signout'){await IASDPIAuth.logout();}
+  else if(action==='cloud-restore'){const [row]=await cloudRequest('/rest/v1/culto_archives?id=eq.'+encodeURIComponent(id)+'&select=payload');if(!row)throw Error('Arquivo não encontrado.');const result=await restoreBackup(row.payload);render();toast(`${result.added} registros restaurados sem substituir os atuais.`);}
+  else if(action==='agenda-current'){selectAgendaMonth(today().slice(0,7));document.querySelector('[data-action="agenda-current"]').focus();}
   else if(action==='agenda-calendar'||action==='agenda-list'){agendaState.view=action==='agenda-calendar'?'calendar':'list';render();document.querySelector(`[data-action="${action}"]`).focus();}
   else if(action==='agenda-previous'||action==='agenda-next')changeAgendaMonth(action==='agenda-next'?1:-1);
   else if(action==='agenda-day'){agendaState.day=id;render();document.querySelector(`.calendar-day[data-id="${id}"]`)?.focus();}
@@ -303,6 +314,7 @@ async function handleAction(target) {
   }
   else if (action === 'chronogram') {
     const existing = state.programs.find(p => p.execution_mode === 'manual' && p.plan.date === '2026-10-03' && p.plan.items.some(i => i.id === 'culto-03102026-1'));
+    if(!existing)window.IASDPIChronogram=await api('chronogram');
     state.selected = existing?.id || null; navigate('actuals', existing?.id);
   }
   else if (action === 'actuals') navigate('actuals', id);
@@ -359,11 +371,30 @@ app.addEventListener('toggle',event=>{if(event.target.matches('.item-details'))e
 app.addEventListener('input', event => {clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form'))updateActuals();const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
  document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.validationMessage);}},true);
 app.addEventListener('change', event => {if(['agenda-area','agenda-department','agenda-show-people','agenda-month-picker'].includes(event.target.id)){const id=event.target.id;if(id==='agenda-area')agendaState.area=event.target.value;else if(id==='agenda-department')agendaState.department=event.target.value;else if(id==='agenda-show-people')agendaState.showPeople=event.target.checked;else if(event.target.value)selectAgendaMonth(event.target.value);render();document.getElementById(id)?.focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
-document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) handleAction(target); });
+document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(()=>handleAction(target),target); });
 app.addEventListener('submit', event => {
   event.preventDefault(); const form = event.target;
   const finalize = event.submitter?.name === 'finalize';
   guarded(async () => {
+    if(form.id==='invite-signup-form'){
+      const password=form.elements.password.value;form.elements.password.value='';
+      await IASDPIAuth.signup(form.elements.email.value,password,form.elements['public-key']?.value);
+      toast('Se o cadastro puder ser concluído, siga as instruções do e-mail. Após confirmar, reabra o convite e entre.');return;
+    }
+    if(form.id==='invite-login-form'){
+      const password=form.elements.password.value;form.elements.password.value='';
+      await IASDPIAuth.login(form.elements.email.value,password,form.elements['public-key']?.value,usersState.inviteToken);
+      usersState.inviteToken='';cloudState.session=IASDPIAuth.session();navigate('home');await boot();return;
+    }
+    if(form.id==='auth-login-form'){
+      const password=form.elements.password.value;form.elements.password.value='';
+      await IASDPIAuth.login(form.elements.email.value,password,form.elements['public-key']?.value);
+      cloudState.session=IASDPIAuth.session();state.page='home';await boot();return;
+    }
+    await IASDPIAuth.requireAccess();
+    if(form.id.startsWith('users-')||form.classList.contains('user-access-form')){await submitUsersForm(form);return;}
+    if(form.id==='backup-export-form'){if(form.elements.password.value!==form.elements.repeat.value)throw fieldError(form.elements.repeat,'As senhas devem ser iguais.');await downloadBackup(await encryptBackup(await backupPayload(),form.elements.password.value));form.reset();toast('Backup preparado para download. Confira o arquivo na pasta Downloads.');return;}
+    if(form.id==='backup-restore-form'){const file=form.elements.file.files[0];if(!file||file.size>20971520)throw Error('Escolha um backup JSON de até 20 MB.');const data=await decryptBackup(JSON.parse(await file.text()),form.elements.password.value);const result=await restoreBackup(data);render();toast(`${result.added} registros restaurados; ${result.copies} cópias diferentes preservadas.`);return;}
     if (form.id === 'actuals-form') { await saveActuals(form, finalize); return; }
     const id = form.dataset.id;
     if (form.id === 'program-form') {
@@ -387,20 +418,43 @@ document.querySelector('#duplicate-form').addEventListener('submit', event => {
     document.querySelector('#duplicate-dialog').close(); replaceProgram(p); navigate('edit', p.id); toast('Planejamento duplicado.');
   }, event.submitter);
 });
-document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') handleAction({dataset:{action:'chronogram'}}); else navigate(link.dataset.page); } });
-window.addEventListener('hashchange', () => { const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas'].includes(page)) navigate(page, id); });
+document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') guarded(()=>handleAction({dataset:{action:'chronogram'}})); else {navigate(link.dataset.page);if(link.dataset.page==='users'&&IASDPIAuth.isAdmin())guarded(()=>refreshUsers());} } });
+window.addEventListener('hashchange', () => { captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite'].includes(page)) navigate(page, id); });
 async function boot() {
+  if(window.IASDPIConfig?.environment==='validation'&&!document.querySelector('#validation-banner')){
+    const banner=document.createElement('aside');banner.id='validation-banner';banner.className='demo-banner';
+    banner.textContent='VALIDAÇÃO DO LOGIN · Supabase somente para login e consultas. Registros continuam neste navegador; exporte um backup em Arquivo e banco.';
+    document.querySelector('.header').after(banner);
+  }
+  if(window.IASDPIConfig?.environment==='homologation'&&!document.querySelector('#homologation-banner')){
+    const banner=document.createElement('aside');banner.id='homologation-banner';banner.className='demo-banner';
+    banner.textContent='HOMOLOGAÇÃO · Login e consultas. Alterações no Supabase bloqueadas nesta interface; registros locais separados do site principal.';
+    document.querySelector('.header').after(banner);
+  }
   try {
     const health = await api('health'); state.zone = health.timezone; state.offset = new Date(health.server_time).getTime() - Date.now();
-    state.programs = await api('programs');
+    state.programs = IASDPIAuth.allowed()?await api('programs'):[];
     state.selected = state.programs.find(p => p.status === 'Em andamento')?.id || state.programs.find(p => p.status === 'Pronta')?.id || null;
-    const [page,id] = location.hash.slice(1).split('/');
+    captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/');
     if (id && state.programs.some(p => p.id === id)) state.selected = id;
     if (page === 'actuals' && !id) state.selected = null;
-    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas'].includes(page) ? page : 'home'; render();
+    if(page==='actuals'&&IASDPIAuth.allowed()&&!state.selected)window.IASDPIChronogram=await api('chronogram');
+    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; render();
   } catch (error) {
     app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
   }
 }
+window.addEventListener('iasdpi-auth-changed',()=>{
+  cloudState.session=IASDPIAuth.session();cloudState.archives=[];resetUsers();
+  if(!IASDPIAuth.allowed()){
+    state.programs=[];state.selected=null;state.duplicate=null;window.IASDPIChronogram=null;
+    document.querySelector('#duplicate-dialog').close();
+    render();
+  }
+});
+window.addEventListener('iasdpi-role-changed',()=>{resetUsers();render();});
+document.querySelector('#auth-logout').addEventListener('click',()=>{
+  void IASDPIAuth.logout();state.page='organization';navigate('organization');
+});
 setInterval(tick, 1000);
 boot();
