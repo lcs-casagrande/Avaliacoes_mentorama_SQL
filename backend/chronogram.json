@@ -1,0 +1,195 @@
+{
+  "name": "Culto de sábado",
+  "date": "2026-10-03",
+  "start": "09:30",
+  "end": "11:24",
+  "execution_mode": "manual",
+  "team": {
+    "Ancião do mês": "Adriano",
+    "Recepção": "Nilce",
+    "Diácono": "Rafael Braga",
+    "Diaconisa": "Rose",
+    "Diretor de culto": "Elmo",
+    "Sonoplastia": "",
+    "Equipe de louvor": "",
+    "Responsável pela programação": "Elmo"
+  },
+  "items": [
+    {
+      "id": "culto-03102026-1",
+      "block": "Culto",
+      "start": "09:30",
+      "end": "09:35",
+      "activity": "Música Congregacional (sentados)",
+      "responsible": "Ministério de Louvor",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-2",
+      "block": "Culto",
+      "start": "09:35",
+      "end": "09:40",
+      "activity": "Música Congregacional (sentados)",
+      "responsible": "Ministério de Louvor",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-3",
+      "block": "Culto",
+      "start": "09:40",
+      "end": "09:45",
+      "activity": "Música Congregacional (em pé)",
+      "responsible": "Ministério de Louvor",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-4",
+      "block": "Culto",
+      "start": "09:45",
+      "end": "09:50",
+      "activity": "Oração Intercessora (de joelhos)",
+      "responsible": "Núbia",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-5",
+      "block": "Culto",
+      "start": "09:50",
+      "end": "10:00",
+      "activity": "Adoração Infantil",
+      "responsible": "Pr. Carlos",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-6",
+      "block": "Culto",
+      "start": "10:00",
+      "end": "10:05",
+      "activity": "Anúncios/Comunicação",
+      "responsible": "Henrique",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-7",
+      "block": "Culto",
+      "start": "10:05",
+      "end": "10:10",
+      "activity": "Provai e Vede (vídeo)",
+      "responsible": "Ministério da Mordomia",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-9",
+      "block": "Culto",
+      "start": "10:10",
+      "end": "10:15",
+      "activity": "Ofertório",
+      "responsible": "Alçar Ofertas",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-10",
+      "block": "Culto",
+      "start": "10:15",
+      "end": "10:17",
+      "activity": "Oração pelas Ofertas",
+      "responsible": "",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-11",
+      "block": "Culto",
+      "start": "10:17",
+      "end": "10:22",
+      "activity": "Mensagem Musical",
+      "responsible": "Priscilla",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-12",
+      "block": "Culto",
+      "start": "10:22",
+      "end": "11:05",
+      "activity": "Sermão",
+      "responsible": "Gabriel Henrique",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-13",
+      "block": "Culto",
+      "start": "11:05",
+      "end": "11:10",
+      "activity": "Mensagem Musical",
+      "responsible": "Priscilla",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-14",
+      "block": "Culto",
+      "start": "11:10",
+      "end": "11:15",
+      "activity": "Apelo e Oração Final",
+      "responsible": "Gabriel Henrique",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-15",
+      "block": "Culto",
+      "start": "11:15",
+      "end": "11:20",
+      "activity": "Música Congregacional (em pé)",
+      "responsible": "Ministério de Louvor",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-16",
+      "block": "Culto",
+      "start": "11:20",
+      "end": "11:22",
+      "activity": "Orientações sobre a Classe",
+      "responsible": "Ministério de Louvor e/ou Ancianato",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    },
+    {
+      "id": "culto-03102026-17",
+      "block": "Culto",
+      "start": "11:22",
+      "end": "11:24",
+      "activity": "Vídeo para a saída das pessoas",
+      "responsible": "Sonoplastia",
+      "note": "",
+      "parallel": false,
+      "end_inferred": false
+    }
+  ]
+}

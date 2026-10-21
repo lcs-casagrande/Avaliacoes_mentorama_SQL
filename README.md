@@ -2,6 +2,10 @@
 
 MVP para cadastrar uma programação e acompanhar o planejado × realizado, com prioridade para celular e tablet.
 
+**Administração de usuários:** interface e migração incremental em [Gestão de usuários](docs/user-management.md). Requer aprovação e aplicação da migração 002; não é ativada automaticamente.
+
+**Acesso:** organograma e agenda são públicos. Planejamento, acompanhamento, realizado, histórico e backups exigem login Supabase e autorização `admin` ou `leader`. Veja [configuração e limites de segurança](docs/access-control.md). Sem configuração, o acesso privado permanece bloqueado; os dados existentes não são apagados.
+
 ## Executar
 
 Requer Python 3.11+ e a base de fusos horários do sistema. Não há pacotes externos para instalar.
@@ -37,7 +41,7 @@ Os indicadores são arredondados ao minuto. Adiantamento e atraso de até 1 minu
 
 ## Limites desta versão
 
-Aplicação local, sem autenticação. Antes de disponibilizar acesso compartilhado por celular/tablet ou implantar em servidor corporativo, implemente autenticação, HTTPS e controle de acesso. O servidor de desenvolvimento não deve ser publicado diretamente na Internet. Comandos usam controle de versão para impedir avanços repetidos e alterações concorrentes; use **Atualizar** para carregar ações feitas por outro operador.
+API protegida por Supabase Auth e lista de usuários autorizados, consultada em cada requisição. Antes de disponibilizar acesso compartilhado, configure as autorizações, HTTPS e valide a integração real. O servidor de desenvolvimento não deve ser publicado diretamente na Internet. Comandos usam controle de versão para impedir avanços repetidos e alterações concorrentes; use **Atualizar** para carregar ações feitas por outro operador.
 
 A demonstração no GitHub Pages utiliza dados fictícios e armazenamento local do navegador, sem API ou banco corporativo. Para testar esse modo localmente, acrescente `?demo=1` ao endereço. Os dados da demonstração não são compartilhados entre dispositivos. GitHub Pages pode hospedar apenas o frontend; esta versão depende de uma API e não funciona integralmente no Pages sem um backend separado. Uma demonstração pública deve usar somente dados fictícios.
 
@@ -79,6 +83,6 @@ Duplicações exatamente iguais são removidas. Dias inteiros consecutivos com t
 
 Os registros do Pages continuam na chave `iasdpi-demo-v1`; leituras não removem exemplos nem modificam registros antigos. Antes de cada escrita local, `iasdpi-last-safety-copy-v1` recebe o estado anterior. Essa cópia também é local: limpar o navegador pode removê-la. Um erro de espaço impede a nova escrita e mantém os registros existentes.
 
-Para arquivar em banco privado, crie um projeto Supabase, execute `database/supabase-archives.sql` e crie uma conta em Supabase Auth. Na página, informe URL do projeto, chave pública publishable/anon e credenciais da conta. Nunca use service_role, chave secreta ou senha do banco. O site grava versões imutáveis e confirma a existência de cada arquivo depois da inserção. Políticas RLS limitam leitura/inserção ao usuário autenticado, sem permissão de alteração/exclusão. A sessão fica apenas em memória; a senha não é persistida. Escritas locais continuam funcionando sem banco, e falhas remotas não apagam dados locais.
+Para arquivar em banco privado, crie um projeto Supabase, revise `database/001_single_church_access.sql` e crie uma conta em Supabase Auth. O SQL depende de aprovação e execução administrativa; a conta também precisa ser autorizada em `iasdpi_access`. Na página, informe URL do projeto, chave pública publishable/anon e credenciais da conta. Nunca use service_role, chave secreta ou senha do banco. O site grava versões imutáveis e confirma a existência de cada arquivo depois da inserção. O roteiro de RLS limita leitura/inserção às contas autorizadas da única igreja, sem permissão de alteração/exclusão. A sessão fica apenas em memória; a senha não é persistida. Escritas locais continuam funcionando sem banco, e falhas remotas não apagam dados locais.
 
 A integração Supabase precisa ser configurada e validada no projeto real antes de ser considerada ativa. O esquema SQL e o cliente foram preparados; nenhum banco externo é criado automaticamente e nenhum registro de um navegador é migrado sem conexão autenticada. A restauração no SQLite não é feita pelo cliente de backup; preserve também o arquivo do banco do servidor.

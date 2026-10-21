@@ -9,6 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
+from access_control import AccessDenied, authorize, project_url
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = Path(os.environ.get('IASDPI_DB', str(ROOT / 'data' / 'iasdpi.sqlite3')))
@@ -279,7 +280,7 @@ class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'same-origin')
-        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+        self.send_header('Content-Security-Policy', "connect-src 'self' " + project_url() + "; default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
         self.send_header('Cache-Control', 'no-store')
         super().end_headers()
 
@@ -308,8 +309,12 @@ class Handler(SimpleHTTPRequestHandler):
         method = self.command
         if path == ['api', 'health'] and method == 'GET':
             return dict(status='ok', timezone=str(TZ), server_time=now())
+        if path == ['api', 'chronogram'] and method == 'GET':
+            authorize(self.headers)
+            return json.loads((ROOT / 'backend' / 'chronogram.json').read_text(encoding='utf-8'))
         if len(path) < 2 or path[:2] != ['api', 'programs']:
             raise Problem('Rota não encontrada.', 404)
+        authorize(self.headers)  # Antes do corpo e de qualquer acesso ao SQLite.
         body = {} if method == 'GET' else self.body()
         with database() as con:
             if len(path) == 2:
@@ -375,7 +380,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
                     raise Problem('Use application/json.', 415)
             self.json_response(self.route())
-        except Problem as exc:
+        except (Problem, AccessDenied) as exc:
             self.json_response(dict(error=str(exc)), exc.status)
         except sqlite3.Error:
             self.json_response(dict(error='Falha no banco. Consulte o terminal do servidor.'), 500)
@@ -386,13 +391,13 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path.startswith('/api/'):
             self.dispatch()
-        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/styles.css'):
+        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/users.js', '/styles.css'):
             super().do_GET()
         else:
             self.json_response(dict(error='Arquivo não encontrado.'), 404)
 
     def do_HEAD(self):
-        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/styles.css'):
+        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/users.js', '/styles.css'):
             super().do_HEAD()
         else:
             self.send_error(404)

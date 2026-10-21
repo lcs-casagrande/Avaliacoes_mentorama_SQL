@@ -6,25 +6,34 @@
   <meta name="theme-color" content="#0F4C78">
   <title>IASDPI · Programação do culto</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="config.js" defer></script>
+  <script src="storage.js" defer></script>
+  <script src="auth.js" defer></script>
   <script src="demo.js" defer></script>
   <script src="actuals.js" defer></script>
   <script src="agenda-data.js" defer></script>
   <script src="agenda.js" defer></script>
   <script src="archive.js" defer></script>
+  <script src="organization.js" defer></script>
+  <script src="users.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#app">Ir para o conteúdo</a>
   <header class="header">
-    <a class="brand" href="#home"><span class="brand-mark">I</span><span>IASDPI<small>Programação do culto</small></span></a>
+    <a class="brand" href="#organization"><span class="brand-mark">I</span><span>IASDPI<small>Programação do culto</small></span></a>
     <nav aria-label="Navegação principal">
-      <a href="#home" data-page="home">Início</a>
-      <a href="#programs" data-page="programs">Programações</a>
-      <a href="#actuals" data-page="actuals">Registrar culto</a>
-      <a href="#tracking" data-page="tracking">Acompanhar</a>
+      <a href="#home" data-page="home" hidden>Início</a>
+      <a href="#programs" data-page="programs" hidden>Programações</a>
+      <a href="#actuals" data-page="actuals" hidden>Registrar culto</a>
+      <a href="#tracking" data-page="tracking" hidden>Acompanhar</a>
       <a href="#agendas" data-page="agendas">Escalas e agendas</a>
-      <a href="#archive" data-page="archive">Arquivo e banco</a>
-      <a href="#history" data-page="history">Histórico</a>
+      <a href="#organization" data-page="organization">Organograma</a>
+      <a href="#archive" data-page="archive" hidden>Arquivo e banco</a>
+      <a href="#history" data-page="history" hidden>Histórico</a>
+      <a href="#users" data-page="users" hidden>Administração · Usuários</a>
+      <a href="#login" data-page="login">Entrar</a>
+      <button type="button" id="auth-logout" hidden>Sair</button>
     </nav>
   </header>
   <main id="app" tabindex="-1"><p class="empty">Carregando programações…</p></main>

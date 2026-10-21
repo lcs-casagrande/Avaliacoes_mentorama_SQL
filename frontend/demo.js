@@ -1,8 +1,8 @@
 'use strict';
 // Adaptador exclusivo da demonstração estática. Nenhum dado é enviado a um servidor.
-if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.search).get('demo') === '1') {
+if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.search).get('demo') === '1' || window.IASDPIConfig?.storageMode === 'browser') {
   window.IASDPIDemo = (() => {
-    const key = 'iasdpi-demo-v1';
+    const key = IASDPIStorage.programs;
     const zone = 'America/Sao_Paulo';
     const clone = data => JSON.parse(JSON.stringify(data));
     const date = time => new Intl.DateTimeFormat('sv-SE', { timeZone: zone }).format(new Date(time));
@@ -38,18 +38,10 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       return p.sample_set === 'adherence-v1' ||
         ['Culto · demonstração', 'Próximo culto · exemplo', 'Culto de sábado · exemplo'].includes(p.plan?.name);
     }
-    let memory, needsInitialSave = false, initialReadError = null;
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw === null) { memory = []; needsInitialSave = true; }
-      else {
-        memory = JSON.parse(raw);
-        if (!Array.isArray(memory)) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
-      }
-    } catch (error) { initialReadError = error; memory = []; }
-    let storageAvailable = initialReadError === null;
+    // Não carregar nem modificar registros antes da autorização.
+    let memory = [], storageAvailable = true;
     function save() {
-      try { const previous=localStorage.getItem(key);if(previous!==null)localStorage.setItem('iasdpi-last-safety-copy-v1',previous);localStorage.setItem(key,JSON.stringify(memory)); storageAvailable=true; }
+      try { const previous=localStorage.getItem(key);if(previous!==null)localStorage.setItem(IASDPIStorage.safety,previous);localStorage.setItem(key,JSON.stringify(memory)); storageAvailable=true; }
       catch (_) { throw Error('O navegador não permitiu salvar a demonstração. Libere o armazenamento local.'); }
     }
     function performRequest(path, method, body = {}) {
@@ -113,6 +105,12 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
     }
     async function request(path, method, body = {}) {
       if (path === 'health') return performRequest(path, method, body);
+      await window.IASDPIAuth.requireAccess();
+      if(path==='chronogram'&&method==='GET'){
+        const rows=await window.IASDPIAuth.jsonRequest('/rest/v1/iasdpi_templates?id=eq.culto-03102026&select=plan',{headers:{Authorization:'Bearer '+window.IASDPIAuth.session().access_token}});
+        if(!rows[0]?.plan)throw Error('Cronograma não configurado. Os registros existentes permanecem preservados.');
+        return rows[0].plan;
+      }
       let before;
       try {
         const raw = localStorage.getItem(key);
@@ -130,12 +128,13 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         throw error;
       }
     }
-    if (needsInitialSave) { try { save(); } catch (_) { storageAvailable = false; } }
+
     document.addEventListener('DOMContentLoaded', () => {
       const banner=document.createElement('aside');banner.className='demo-banner';
       banner.textContent='ARMAZENAMENTO LOCAL · Os registros permanecem neste navegador. Guarde uma cópia em Arquivo e banco.' + (storageAvailable ? '' : ' O salvamento está bloqueado neste navegador.');
       document.querySelector('.header').after(banner);
     });
+    window.addEventListener('iasdpi-auth-changed',()=>{if(!window.IASDPIAuth.allowed())memory=[];});
     return {request};
   })();
 }
