@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <script src="config.js" defer></script>
   <script src="storage.js" defer></script>
+  <script src="supabase-2.118.0.js" defer></script>
   <script src="auth.js" defer></script>
   <script src="demo.js" defer></script>
   <script src="actuals.js" defer></script>
@@ -46,6 +47,7 @@
       <div class="actions"><button type="button" data-action="close-dialog">Cancelar</button><button class="primary" type="submit">Duplicar</button></div>
     </form>
   </dialog>
+  <dialog id="correct-date-dialog" aria-labelledby="correct-date-title"><div id="correct-date-preview"></div><div class="actions"><button type="button" id="correct-date-cancel">Cancelar</button><button type="button" class="primary" id="correct-date-confirm">Confirmar correção deste registro</button></div></dialog>
   <footer>Planejar com clareza. Acompanhar com tranquilidade.</footer>
 </body>
 </html>

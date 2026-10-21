@@ -11,7 +11,7 @@ frontend = root / 'frontend'
 html = (frontend / 'index.html').read_text(encoding='utf-8')
 css = (frontend / 'styles.css').read_text(encoding='utf-8')
 html = html.replace('<link rel="stylesheet" href="styles.css">', f'<style>\n{css}\n</style>')
-for name in ('config.js', 'storage.js', 'auth.js', 'demo.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js', 'organization.js', 'users.js', 'app.js'):
+for name in ('config.js', 'storage.js', 'supabase-2.118.0.js', 'auth.js', 'demo.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js', 'organization.js', 'users.js', 'app.js'):
     script = (frontend / name).read_text(encoding='utf-8')
     if name == 'demo.js':
         # A prévia sempre usa o navegador, inclusive quando aberta via file://.

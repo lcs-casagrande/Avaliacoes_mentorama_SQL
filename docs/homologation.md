@@ -1,3 +1,6 @@
+> Plano histórico: o repositório separado foi abandonado. A publicação atual usa
+> o Pages existente, conforme [pages-release.md](pages-release.md).
+
 # Homologação no GitHub Pages — plano sujeito à aprovação
 
 ## Estado observado em 21/10/2026

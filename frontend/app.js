@@ -2,6 +2,7 @@
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
 const state = { programs: [], selected: null, page: 'home', busy: false, zone: 'America/Sao_Paulo', offset: 0, duplicate: null };
+let bootInProgress=false,sessionWasAuthorized=false;
 const thresholds = { onTime: 1, attention: 5 };
 const roles = ['Ancião do mês', 'Recepção', 'Diácono', 'Diaconisa', 'Diretor de culto', 'Sonoplastia', 'Equipe de louvor', 'Responsável pela programação'];
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
@@ -25,7 +26,7 @@ async function api(path = '', method = 'GET', body) {
   const response = await fetch(`/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(authorization?{Authorization:'Bearer '+authorization.token}:{}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   const result = await response.json();
   if(authorization&&IASDPIAuth.session()?.access_token!==authorization.token)throw Error('Sessão encerrada.');
-  if (!response.ok) {if(response.status===401||response.status===403)void IASDPIAuth.logout();throw new Error(result.error || 'Não foi possível concluir a operação.');}
+  if (!response.ok) {if(response.status===401||response.status===403)void IASDPIAuth.restore().catch(()=>{});throw new Error(result.error || 'Não foi possível concluir a operação.');}
   if(method!=='GET'&&cloudState.session)void cloudAutoArchive();
   return result;
 }
@@ -92,13 +93,13 @@ function home() {
   const running = state.programs.find(p => p.status === 'Em andamento');
   const featured = running || upcoming;
   const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date)).slice(0, 5);
-  return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto · 03/10/2026', 'chronogram')}</div>`) +
+  return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
     (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMO CULTO'}</p><h2>${esc(featured.plan.name)}</h2><div class="featured-meta"><p class="date">${esc(programDate(featured.plan.date))}</p>${programStatus(featured)}</div><p class="large-time">${esc(featured.plan.start)} <span>→</span> ${esc(featured.plan.end)}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(featured.execution_mode==='manual'?'Registrar culto':running?'Continuar acompanhamento':'Acompanhar culto', featured.execution_mode==='manual'?'actuals':'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Use Nova programação para planejar ou Registrar culto para informar o que aconteceu.')) +
     `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
 }
 function programsPage() {
   const list = [...state.programs].sort((a,b) => b.plan.date.localeCompare(a.plan.date));
-  return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto · 03/10/2026', 'chronogram')}</div>`) +
+  return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
     (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Use Nova programação para cadastrar os horários e as atividades.'));
 }
 function field(label, name, value = '', type = 'text', required = false, extra = '') {
@@ -202,7 +203,7 @@ function summary(p) {
   const m = executionInfo(p);
   const plannedDuration = minutes(p.planned_end, p.planned_start);
   const actualDuration = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
-  return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Editar registro', 'actuals', p.id) : ''}`) +
+  return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Editar registro', 'actuals', p.id) : ''} ${window.IASDPIDemo&&p.execution_mode==='manual'&&p.plan.date==='2026-10-03'?button('Conferir correção para 10/10/2026','correct-date',p.id):''}`) +
     `<section class="summary-grid">${[['Início planejado', p.plan.start], ['Início real', actualClock(m.first?.started)||'—'], ['Término planejado', p.plan.end], ['Término real', actualClock(m.last?.ended)||'—'], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
     <p class="muted">Desvio do término compara o relógio. Desvio da duração compara o tempo total entre o primeiro início e o último término, incluindo intervalos.</p>
     <p class="context-line">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}. Veja as observações para entender a causa.` : 'Nenhum atraso registrado.'}</p>
@@ -271,7 +272,7 @@ function render() {
   app.innerHTML = ({home, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
-function navigate(page, id) { if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
+function navigate(page, id) { if(!canLeaveRegistration()){window.history.replaceState(null,'',`#${state.page}${state.selected?'/'+state.selected:''}`);return false;} if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
 function updateWeekday() {
   const form = document.querySelector('#program-form');
   const target = document.querySelector('#weekday');
@@ -296,6 +297,7 @@ function tick() {
 }
 async function handleAction(target) {
   const {action, id} = target.dataset;
+  if(['chronogram','new','actuals','summary','programs','edit','track','duplicate','correct-date'].includes(action)&&!canLeaveRegistration())return;
   if(!action.startsWith('agenda-'))await IASDPIAuth.requireAccess();
   if(action.startsWith('users-')){await handleUsersAction(action,id);return;}
   if(action==='cloud-save')await cloudSave();
@@ -306,18 +308,36 @@ async function handleAction(target) {
   else if(action==='agenda-calendar'||action==='agenda-list'){agendaState.view=action==='agenda-calendar'?'calendar':'list';render();document.querySelector(`[data-action="${action}"]`).focus();}
   else if(action==='agenda-previous'||action==='agenda-next')changeAgendaMonth(action==='agenda-next'?1:-1);
   else if(action==='agenda-day'){agendaState.day=id;render();document.querySelector(`.calendar-day[data-id="${id}"]`)?.focus();}
-  else if(action==='add-extra')addExtraEvent(target);
-  else if(action==='remove-extra'){target.closest('.actual-row').remove();document.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);updateActuals();}
+  else if(action==='add-subactivity'){
+    const row=target.closest('.actual-row'),list=row.querySelector('.subactivities');
+    if(list.children.length>=50)throw Error('Limite de 50 subatividades por atividade.');
+    list.insertAdjacentHTML('beforeend',subactivityRow({},row.dataset.id));markRegistrationDirty();list.lastElementChild.querySelector('input').focus();
+  }
+  else if(action==='remove-subactivity'){
+    if(window.confirm('Excluir esta subatividade? A exclusão só será aplicada ao salvar o registro.')){target.closest('.subactivity').remove();markRegistrationDirty();}
+  }
+  else if(action==='edit-record'){document.querySelector('#actuals-form [name="record-name"]')?.focus();}
+  else if(action==='cancel-record'){
+    if(!canLeaveRegistration())return;
+    if(id){replaceProgram(await api('programs/'+id));navigate('summary',id);}else navigate('programs');
+  }
+  else if(action==='add-extra')throw Error('Novos detalhes devem ser adicionados como subatividades.');
+  else if(action==='remove-extra'){if(!window.confirm('Remover esta atividade extra antiga ao salvar?'))return;target.closest('.actual-row').remove();markRegistrationDirty();document.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);updateActuals();}
   else if (action === 'time-now') {
     target.closest('.actual-row').querySelector(`[name="${target.dataset.field}"]`).value=actualClock(currentTime());
-    updateActuals();
+    markRegistrationDirty();updateActuals();
   }
   else if (action === 'chronogram') {
-    const existing = state.programs.find(p => p.execution_mode === 'manual' && p.plan.date === '2026-10-03' && p.plan.items.some(i => i.id === 'culto-03102026-1'));
-    if(!existing)window.IASDPIChronogram=await api('chronogram');
-    state.selected = existing?.id || null; navigate('actuals', existing?.id);
+    window.IASDPIChronogram=null;state.selected=null;navigate('actuals');
   }
   else if (action === 'actuals') navigate('actuals', id);
+  else if(action==='correct-date'){
+    if(!window.IASDPIDemo)throw Error('A correção está disponível apenas para registros locais deste navegador.');
+    const original=await api('programs/'+id),corrected=correctedCultoDate(original);
+    dateCorrection={id:original.id,version:original.version,expected:JSON.stringify(original)};
+    document.querySelector('#correct-date-preview').innerHTML=`<h2 id="correct-date-title">Conferir correção de data</h2><p>Origem: localStorage deste navegador. Somente este registro será alterado.</p><p><strong>${esc(original.plan.name)}</strong> · ID: ${esc(original.id)}</p><p>03/10/2026 → <strong>10/10/2026</strong> · ${original.plan.items.length} atividades e ${original.extra_events?.length||0} eventos extras. Horários, responsáveis e observações preservados. Não cria cópia nem altera o Supabase.</p><details><summary>Ver todos os dados atuais do registro afetado</summary><pre class="date-correction-json">${esc(JSON.stringify(original,null,2))}</pre></details><h3>Prévia das atividades após a correção</h3><div class="table-scroll"><table><tbody>${summaryActivityRows(corrected)}</tbody></table></div>`;
+    document.querySelector('#correct-date-dialog').showModal();
+  }
   else if (action === 'new') { state.selected = null; navigate('edit'); }
   else if (action === 'programs') navigate('programs');
   else if (['edit','summary','track'].includes(action)) navigate(action === 'track' ? 'tracking' : action, id);
@@ -368,9 +388,9 @@ async function guarded(task, trigger) {
 }
 app.addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(() => handleAction(target), target); });
 app.addEventListener('toggle',event=>{if(event.target.matches('.item-details'))event.target.querySelector('.item-edit-label').textContent=event.target.open?'Recolher':'Editar';},true);
-app.addEventListener('input', event => {clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form'))updateActuals();const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
+app.addEventListener('input', event => {clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form')){if(event.target.name==='activity-status')event.target.dataset.auto='false';markRegistrationDirty();updateActuals();}const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
  document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.validationMessage);}},true);
-app.addEventListener('change', event => {if(['agenda-area','agenda-department','agenda-show-people','agenda-month-picker'].includes(event.target.id)){const id=event.target.id;if(id==='agenda-area')agendaState.area=event.target.value;else if(id==='agenda-department')agendaState.department=event.target.value;else if(id==='agenda-show-people')agendaState.showPeople=event.target.checked;else if(event.target.value)selectAgendaMonth(event.target.value);render();document.getElementById(id)?.focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
+app.addEventListener('change', event => {if(event.target.closest('#actuals-form')){if(event.target.name==='activity-status')event.target.dataset.auto='false';markRegistrationDirty();updateActuals();}if(['agenda-area','agenda-department','agenda-show-people','agenda-month-picker'].includes(event.target.id)){const id=event.target.id;if(id==='agenda-area')agendaState.area=event.target.value;else if(id==='agenda-department')agendaState.department=event.target.value;else if(id==='agenda-show-people')agendaState.showPeople=event.target.checked;else if(event.target.value)selectAgendaMonth(event.target.value);render();document.getElementById(id)?.focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
 document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(()=>handleAction(target),target); });
 app.addEventListener('submit', event => {
   event.preventDefault(); const form = event.target;
@@ -395,6 +415,12 @@ app.addEventListener('submit', event => {
     if(form.id.startsWith('users-')||form.classList.contains('user-access-form')){await submitUsersForm(form);return;}
     if(form.id==='backup-export-form'){if(form.elements.password.value!==form.elements.repeat.value)throw fieldError(form.elements.repeat,'As senhas devem ser iguais.');await downloadBackup(await encryptBackup(await backupPayload(),form.elements.password.value));form.reset();toast('Backup preparado para download. Confira o arquivo na pasta Downloads.');return;}
     if(form.id==='backup-restore-form'){const file=form.elements.file.files[0];if(!file||file.size>20971520)throw Error('Escolha um backup JSON de até 20 MB.');const data=await decryptBackup(JSON.parse(await file.text()),form.elements.password.value);const result=await restoreBackup(data);render();toast(`${result.added} registros restaurados; ${result.copies} cópias diferentes preservadas.`);return;}
+    if(form.id==='open-record-form'){navigate('actuals',form.elements['record-id'].value);return;}
+    if(form.id==='new-culto-date-form'){
+      const template=await api('chronogram');
+      window.IASDPIChronogram=cultoForDate(template,form.elements.date.value);
+      state.selected=null;navigate('actuals');return;
+    }
     if (form.id === 'actuals-form') { await saveActuals(form, finalize); return; }
     const id = form.dataset.id;
     if (form.id === 'program-form') {
@@ -421,6 +447,12 @@ document.querySelector('#duplicate-form').addEventListener('submit', event => {
 document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') guarded(()=>handleAction({dataset:{action:'chronogram'}})); else {navigate(link.dataset.page);if(link.dataset.page==='users'&&IASDPIAuth.isAdmin())guarded(()=>refreshUsers());} } });
 window.addEventListener('hashchange', () => { captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite'].includes(page)) navigate(page, id); });
 async function boot() {
+  if(bootInProgress)return;
+  bootInProgress=true;
+  if(!IASDPIAuth.allowed()){
+    const requested=location.hash.slice(1).split('/')[0]||'organization';
+    state.page=IASDPIAuth.isPublic(requested)?requested:'login';render();
+  }
   if(window.IASDPIConfig?.environment==='validation'&&!document.querySelector('#validation-banner')){
     const banner=document.createElement('aside');banner.id='validation-banner';banner.className='demo-banner';
     banner.textContent='VALIDAÇÃO DO LOGIN · Supabase somente para login e consultas. Registros continuam neste navegador; exporte um backup em Arquivo e banco.';
@@ -432,29 +464,48 @@ async function boot() {
     document.querySelector('.header').after(banner);
   }
   try {
+    try{await IASDPIAuth.restore();}catch(_){}
     const health = await api('health'); state.zone = health.timezone; state.offset = new Date(health.server_time).getTime() - Date.now();
     state.programs = IASDPIAuth.allowed()?await api('programs'):[];
     state.selected = state.programs.find(p => p.status === 'Em andamento')?.id || state.programs.find(p => p.status === 'Pronta')?.id || null;
     captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/');
     if (id && state.programs.some(p => p.id === id)) state.selected = id;
     if (page === 'actuals' && !id) state.selected = null;
-    if(page==='actuals'&&IASDPIAuth.allowed()&&!state.selected)window.IASDPIChronogram=await api('chronogram');
+    // Um novo culto sempre começa pela seleção explícita da data.
     state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; render();
   } catch (error) {
     app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
-  }
+  } finally {bootInProgress=false;}
 }
 window.addEventListener('iasdpi-auth-changed',()=>{
   cloudState.session=IASDPIAuth.session();cloudState.archives=[];resetUsers();
   if(!IASDPIAuth.allowed()){
-    state.programs=[];state.selected=null;state.duplicate=null;window.IASDPIChronogram=null;
+    registrationDirty=false;state.programs=[];state.selected=null;state.duplicate=null;window.IASDPIChronogram=null;
+    dateCorrection=null;document.querySelector('#correct-date-dialog').close();document.querySelector('#correct-date-preview').replaceChildren();
     document.querySelector('#duplicate-dialog').close();
     render();
   }
 });
 window.addEventListener('iasdpi-role-changed',()=>{resetUsers();render();});
 document.querySelector('#auth-logout').addEventListener('click',()=>{
-  void IASDPIAuth.logout();state.page='organization';navigate('organization');
+  if(!canLeaveRegistration())return;
+  guarded(async()=>{await IASDPIAuth.logout();state.page='organization';navigate('organization');});
 });
 setInterval(tick, 1000);
+let dateCorrection=null;
+document.querySelector('#correct-date-dialog').addEventListener('close',()=>{dateCorrection=null;document.querySelector('#correct-date-preview').replaceChildren();});
+document.querySelector('#correct-date-cancel').addEventListener('click',()=>{dateCorrection=null;document.querySelector('#correct-date-dialog').close();});
+document.querySelector('#correct-date-confirm').addEventListener('click',()=>guarded(async()=>{
+  if(!dateCorrection||!window.IASDPIDemo)throw Error('Reabra a prévia do registro local.');
+  const p=await api('programs/'+dateCorrection.id+'/correct-date','PUT',dateCorrection);
+  dateCorrection=null;document.querySelector('#correct-date-dialog').close();replaceProgram(p);navigate('summary',p.id);
+  toast('Data corrigida para 10/10/2026 neste navegador. Nenhum culto foi duplicado. Exporte um novo backup.');
+}));
+window.addEventListener('iasdpi-session-status',()=>{
+  let banner=document.querySelector('#session-status');
+  if(!banner){banner=document.createElement('aside');banner.id='session-status';banner.className='demo-banner';banner.setAttribute('role','status');document.querySelector('.header').after(banner);}
+  const status=IASDPIAuth.status();banner.hidden=status.phase==='authenticated'||status.phase==='anonymous';banner.textContent=status.message;
+  const recovered=IASDPIAuth.allowed()&&!sessionWasAuthorized;sessionWasAuthorized=IASDPIAuth.allowed();
+  if(recovered&&!state.busy&&!bootInProgress)void boot();
+});
 boot();

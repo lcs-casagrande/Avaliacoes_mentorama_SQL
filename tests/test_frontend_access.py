@@ -75,10 +75,12 @@ class FrontendAccessTests(unittest.TestCase):
     def supabase(self, route):
         url = route.request.url
         if '/auth/v1/token' in url:
-            if json.loads(route.request.post_data)['password'] == 'wrong':
+            if 'grant_type=refresh_token' in url and self.expiry==1:
+                route.fulfill(status=400,json={'code':'refresh_token_not_found','message':'Invalid Refresh Token'})
+            elif json.loads(route.request.post_data).get('password') == 'wrong':
                 route.fulfill(status=400, json={'error': 'invalid_credentials'})
             else:
-                route.fulfill(json={'access_token': 'valid.test.token', 'expires_in': self.expiry,
+                route.fulfill(json={'access_token': 'valid.test.token', 'refresh_token': 'refresh-test-not-real', 'token_type': 'bearer', 'expires_in': self.expiry,
                                     'user': {'id': USER, 'email': 'test@example.invalid'}})
         elif '/auth/v1/user' in url:
             route.fulfill(json={'id': USER, 'email': 'test@example.invalid', 'is_anonymous': False,
@@ -124,7 +126,7 @@ class FrontendAccessTests(unittest.TestCase):
         self.login()
         self.page.wait_for_function("() => IASDPIAuth.allowed() && state.programs.length===1")
         self.assertTrue(self.page.locator('nav [data-page="history"]').is_visible())
-        self.page.locator('nav [data-page="actuals"]').click()
+        self.page.evaluate('navigate("actuals","test-program")')
         self.page.wait_for_selector('#actuals-form')
         self.page.locator('.actual-row [name="start"]').first.fill('09:32:18')
         self.page.locator('.actual-row [name="end"]').first.fill('09:37:16')
@@ -158,11 +160,13 @@ class FrontendAccessTests(unittest.TestCase):
         self.assertEqual(self.page.evaluate("localStorage.getItem('iasdpi-demo-v1')"), self.raw)
 
     def test_session_expiry_hides_private_content(self):
-        self.expiry = 1
         self.open()
         self.login()
         self.page.wait_for_function('() => IASDPIAuth.allowed() && state.programs.length===1')
-        self.page.wait_for_function('() => !IASDPIAuth.allowed() && state.programs.length===0', timeout=5000)
+        self.expiry=1
+        self.page.evaluate('''()=>{const key=IASDPIStorage.authSession;const session=JSON.parse(localStorage.getItem(key));session.expires_at=1;localStorage.setItem(key,JSON.stringify(session));}''')
+        self.page.reload()
+        self.page.wait_for_function('() => !IASDPIAuth.allowed() && state.programs.length===0 && IASDPIAuth.status().phase!=="recovering"', timeout=5000)
         self.assertFalse(self.page.locator('nav [data-page="history"]').is_visible())
 
     def test_admin_and_mobile_navigation(self):
@@ -173,7 +177,7 @@ class FrontendAccessTests(unittest.TestCase):
         self.page.wait_for_function('() => IASDPIAuth.allowed() && state.programs.length===1')
         self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
         self.assertNotIn('correct-password', self.page.evaluate('JSON.stringify(localStorage)'))
-        self.assertNotIn('valid.test.token', self.page.evaluate('JSON.stringify(localStorage)'))
+        self.assertEqual(self.page.evaluate("JSON.parse(localStorage.getItem(IASDPIStorage.authSession)).access_token"), 'valid.test.token')
 
     def test_new_manual_record_loads_protected_template(self):
         self.open()
@@ -182,6 +186,10 @@ class FrontendAccessTests(unittest.TestCase):
         self.login()
         self.page.wait_for_function('() => IASDPIAuth.allowed()')
         self.page.locator('nav [data-page="actuals"]').click()
+        self.page.wait_for_selector('#new-culto-date-form')
+        self.assertEqual(self.page.locator('#new-culto-date-form [name="date"]').input_value(), '')
+        self.page.locator('#new-culto-date-form [name="date"]').fill('2026-10-24')
+        self.page.locator('#new-culto-date-form button').click()
         self.page.wait_for_selector('#actuals-form')
         self.assertEqual(self.page.locator('.actual-row').count(), 16)
         self.page.locator('.actual-row [name="start"]').first.fill('09:32:18')
@@ -189,6 +197,9 @@ class FrontendAccessTests(unittest.TestCase):
         self.page.locator('#actuals-form [name="save"]').click()
         self.page.wait_for_function("() => JSON.parse(localStorage.getItem('iasdpi-demo-v1'))[0]?.version===2")
         self.assertEqual(self.page.evaluate("JSON.parse(localStorage.getItem('iasdpi-demo-v1')).length"), 1)
+        self.assertEqual(self.page.evaluate("JSON.parse(localStorage.getItem('iasdpi-demo-v1'))[0].plan.date"), '2026-10-24')
+        self.assertTrue(self.page.evaluate("JSON.parse(localStorage.getItem('iasdpi-demo-v1'))[0].plan.items.every(i=>i.planned_start.startsWith('2026-10-24')&&i.planned_end.startsWith('2026-10-24'))"))
+        self.assertTrue(self.page.evaluate("Object.values(JSON.parse(localStorage.getItem('iasdpi-demo-v1'))[0].executions).every(e=>e.started.startsWith('2026-10-24'))"))
 
     def test_wrong_password_cannot_load_saved_records(self):
         self.open('#history')

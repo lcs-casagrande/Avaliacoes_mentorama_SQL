@@ -106,7 +106,7 @@ class HomologationBrowserTests(unittest.TestCase):
     def supabase(self, route):
         url = route.request.url
         if '/auth/v1/token' in url:
-            route.fulfill(json={'access_token': 'valid.test.token', 'expires_in': 3600, 'user': {'id': base.USER}})
+            route.fulfill(json={'access_token': 'valid.test.token', 'refresh_token': 'refresh-test-not-real', 'token_type': 'bearer', 'expires_in': 3600, 'user': {'id': base.USER}})
         elif '/auth/v1/user' in url:
             route.fulfill(json={'id': base.USER, 'email': 'test@example.invalid', 'is_anonymous': False})
         elif '/iasdpi_access?' in url:

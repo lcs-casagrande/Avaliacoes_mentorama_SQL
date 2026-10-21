@@ -40,8 +40,8 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
     }
     // Não carregar nem modificar registros antes da autorização.
     let memory = [], storageAvailable = true;
-    function save() {
-      try { const previous=localStorage.getItem(key);if(previous!==null)localStorage.setItem(IASDPIStorage.safety,previous);localStorage.setItem(key,JSON.stringify(memory)); storageAvailable=true; }
+    function save(writeSafety=true) {
+      try { const previous=localStorage.getItem(key);if(writeSafety&&previous!==null)localStorage.setItem(IASDPIStorage.safety,previous);localStorage.setItem(key,JSON.stringify(memory)); storageAvailable=true; }
       catch (_) { throw Error('O navegador não permitiu salvar a demonstração. Libere o armazenamento local.'); }
     }
     function performRequest(path, method, body = {}) {
@@ -60,27 +60,43 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         const copy=make(plan); memory.unshift(copy); save(); return clone(copy);
       }
       if (body.version !== p.version) throw Error('Esta programação mudou. Atualize antes de continuar.');
+      if (route === 'correct-date') {
+        if(body.expected!==JSON.stringify(p))throw Error('O registro mudou após a conferência. Reabra a prévia antes de confirmar.');
+        const corrected=correctedCultoDate(p);corrected.version++;
+        const raw=localStorage.getItem(IASDPIStorage.dateCorrections);
+        const backups=raw===null?{version:1,records:[]}:JSON.parse(raw);
+        if(backups?.version!==1||!Array.isArray(backups.records))throw Error('Cópia de segurança de data inválida. Nada foi alterado.');
+        if(!backups.records.some(entry=>entry.id===p.id)){
+          backups.records.push({id:p.id,captured_at:stamp(),program:clone(p)});
+          localStorage.setItem(IASDPIStorage.dateCorrections,JSON.stringify(backups));
+        }
+        memory[memory.indexOf(p)]=corrected;save(false);return clone(corrected);
+      }
       if (route === 'actuals') {
         if (p.execution_mode !== 'manual') throw Error('Use uma programação de registro manual.');
         const records = body.executions;
         if (!records || Object.keys(records).length !== p.plan.items.length) throw Error('Envie todos os itens.');
-        const executions = {}, details = {};
+        const nextPlan=recordEditPlan(p,body);
+        const executions = {}, details = structuredClone(p.actual_details||{});
         for (const item of p.plan.items) {
           const e=records[item.id];
           if(!e || typeof e.start!=='string' || typeof e.end!=='string') throw Error('Registro de horário inválido.');
           const note=e.note ?? p.actual_details?.[item.id]?.note ?? '', responsible=e.responsible ?? p.actual_details?.[item.id]?.responsible ?? '';
           if(typeof note!=='string'||note.length>2000||typeof responsible!=='string'||responsible.length>200)throw Error('Observação ou responsável inválido.');
-          details[item.id]={note:note.trim(),responsible:responsible.trim()};
+          const checked=validateActivityRecord({...e,status:e.status??activityState(p.actual_details?.[item.id],e.start,e.end),subactivities:e.subactivities??p.actual_details?.[item.id]?.subactivities??[]},item.id);
+          details[item.id]={...(p.actual_details?.[item.id]||{}),note,responsible,status:checked.status,subactivities:checked.subactivities};
           if(!e.start && !e.end) continue;
           const valid=v=>/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v);
           if(!valid(e.start) || (e.end && (!valid(e.end) || timeSeconds(e.end)<timeSeconds(e.start)))) throw Error('Informe início e término reais válidos.');
-          executions[item.id]={started:instant(p.plan.date,e.start),ended:e.end?instant(p.plan.date,e.end):null};
+          executions[item.id]={started:instant(nextPlan.date,e.start),ended:e.end?instant(nextPlan.date,e.end):null};
         }
-        const complete = Object.keys(executions).length === p.plan.items.length && Object.values(executions).every(e=>e.ended);
+        const complete = p.plan.items.every(item=>details[item.id].status==='nao_realizada'||details[item.id].status==='realizada'&&executions[item.id]?.ended);
         if(body.finalize && !complete) throw Error('Preencha todas as atividades antes de finalizar.');
         const extraEvents=validateExtraEvents(p,body.extra_events ?? p.extra_events ?? [],Boolean(body.finalize));
-        p.extra_events=extraEvents;p.executions=executions;p.actual_details=details;p.note=body.note || '';p.incident=body.incident || '';
-        p.status=body.finalize?'Finalizada':(Object.keys(executions).length||extraEvents.some(e=>e.start))?'Em andamento':'Planejamento';p.paused=false;
+        const info=body.record_info??p.record_info??'';if(typeof info!=='string'||info.length>5000)throw Error('Informações complementares inválidas.');
+        const wasFinished=p.status==='Finalizada';p.plan=nextPlan;p.planned_start=instant(nextPlan.date,nextPlan.start);p.planned_end=instant(nextPlan.date,nextPlan.end);p.record_info=info;
+        p.extra_events=extraEvents;p.executions=executions;p.actual_details=details;p.note=body.note??p.note??'';p.incident=body.incident??p.incident??'';
+        p.status=body.finalize||wasFinished?'Finalizada':(Object.keys(executions).length||extraEvents.some(e=>e.start))?'Em andamento':'Planejamento';p.paused=false;
       }
       else if (route === 'notes') { p.note=body.note || ''; p.incident=body.incident || ''; }
       else if (!route && method === 'PUT') {
@@ -111,6 +127,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         if(!rows[0]?.plan)throw Error('Cronograma não configurado. Os registros existentes permanecem preservados.');
         return rows[0].plan;
       }
+      const apply=()=>{
       let before;
       try {
         const raw = localStorage.getItem(key);
@@ -118,7 +135,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           const stored = JSON.parse(raw);
           if (!Array.isArray(stored)) throw Error('Os dados salvos estão inválidos. Não serão sobrescritos.');
           memory = stored;
-        }
+        }else memory=[];
         before = clone(memory);
         return performRequest(path, method, body);
       } catch (error) {
@@ -127,6 +144,9 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         if (error.name === 'SecurityError') throw Error('O navegador bloqueou o armazenamento local. Libere-o para salvar os dados.');
         throw error;
       }
+      };
+      if(method!=='GET'&&navigator.locks)return navigator.locks.request('iasdpi-records:'+key,apply);
+      return apply();
     }
 
     document.addEventListener('DOMContentLoaded', () => {

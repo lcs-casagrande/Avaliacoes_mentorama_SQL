@@ -79,7 +79,7 @@ o código, usar atualização da página/recarga forçada sem remover armazename
 
 ## Pacote e segurança
 
-Gerar somente os 15 arquivos estáticos pelo comando:
+Gerar somente os 17 arquivos estáticos pelo comando:
 
 ```sh
 python -B scripts/build_pages.py --output dist/pages
@@ -120,3 +120,7 @@ Rollback do código, se necessário, deve publicar um NOVO commit baseado na bra
 de backup do Pages, preservando o histórico. Nunca reset/force-push nem restaurar
 o armazenamento dos usuários automaticamente. Dados locais e cópias externas
 precisam de recuperação independente do Git.
+
+A evolução de datas e persistência de sessão está em [session-and-date.md](session-and-date.md).
+O bundle do SDK e sua licença integram os 17 arquivos. A renovação de tokens Auth
+é permitida no modo de consulta; escritas de dados/autorizações permanecem bloqueadas.

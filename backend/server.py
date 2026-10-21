@@ -139,21 +139,11 @@ def load(con, identifier):
     result['plan'] = json.loads(result['plan'])
     result['actual_details'] = json.loads(result['actual_details'])
     result['extra_events'] = result['actual_details'].pop('_extra_events', [])
+    result['record_info'] = result['actual_details'].pop('_record_info', '')
     result['paused'] = bool(result['paused'])
     result['executions'] = {r['item_id']: dict(r) for r in con.execute(
         'SELECT item_id, started, ended FROM executions WHERE program_id=?', (identifier,))}
     p = result['plan']
-    if result['execution_mode'] == 'manual' and any(i['id'] == 'culto-03102026-1' for i in p['items']):
-        removed = [i['id'] for i in p['items'] if i['id'] == 'culto-03102026-8' and i['activity'] == 'Tudo Vem de Ti']
-        p['items'] = [i for i in p['items'] if i['id'] not in removed]
-        for item_id in removed:
-            result['executions'].pop(item_id, None)
-        for index, item in enumerate(p['items']):
-            item['order'] = index + 1
-            if item['id'] == 'culto-03102026-6':
-                item['end'], item['end_inferred'] = '10:05', False
-            if item['id'] == 'culto-03102026-9':
-                item['parallel'] = False
     result['planned_start'] = planned(p['date'], p['start'])
     result['planned_end'] = planned(p['date'], p['end'])
     for item in p['items']:
@@ -201,6 +191,53 @@ def mutate(con, identifier, body):
     return load(con, identifier)
 
 
+def validate_record_detail(record, identifier, date, previous=None):
+    previous = previous or {}
+    start, end = record.get('start', ''), record.get('end', '')
+    if not isinstance(start, str) or not isinstance(end, str):
+        raise Problem('Horários reais inválidos.')
+    first = planned(date, start, seconds=True) if start else None
+    last = planned(date, end, seconds=True) if end else None
+    if last and (not first or last < first):
+        raise Problem('Horários reais inválidos.')
+    status = record.get('status', 'realizada' if first and last else 'pendente')
+    if status not in ('pendente', 'realizada', 'nao_realizada'):
+        raise Problem('Status da atividade inválido.')
+    if status == 'realizada' and (not first or not last):
+        raise Problem('Informe início e término da atividade realizada.')
+    if status == 'nao_realizada' and (first or last):
+        raise Problem('Atividade não realizada não pode ter horários reais.')
+    children = record.get('subactivities', previous.get('subactivities', []))
+    if not isinstance(children, list) or len(children) > 50:
+        raise Problem('Lista de subatividades inválida.')
+    seen, validated = set(), []
+    for child in children:
+        if not isinstance(child, dict):
+            raise Problem('Subatividade inválida.')
+        key = child.get('id')
+        if not isinstance(key, str) or not key or len(key) > 200 or key in seen or child.get('parent_id') != identifier:
+            raise Problem('Vínculo de subatividade inválido.')
+        seen.add(key)
+        title, note, responsible = child.get('title'), child.get('note', ''), child.get('responsible', '')
+        text(title, 'Título da subatividade', 200, required=True)
+        text(note, 'Observação da subatividade', 2000)
+        text(responsible, 'Responsável', 200)
+        sub_start, sub_end = child.get('start', ''), child.get('end', '')
+        if not isinstance(sub_start, str) or not isinstance(sub_end, str):
+            raise Problem('Horários da subatividade inválidos.')
+        a = planned(date, sub_start, seconds=True) if sub_start else None
+        b = planned(date, sub_end, seconds=True) if sub_end else None
+        if (a or b) and (not first or not last):
+            raise Problem('Preencha o intervalo real da atividade principal.')
+        if (a and not first <= a <= last) or (b and not first <= b <= last) or (a and b and b < a):
+            raise Problem('Horários da subatividade fora da atividade principal.')
+        validated.append(dict(child, title=title, note=note, responsible=responsible, start=sub_start, end=sub_end))
+    note, responsible = record.get('note', previous.get('note', '')), record.get('responsible', previous.get('responsible', ''))
+    text(note, 'Nota', 2000)
+    text(responsible, 'Responsável', 200)
+    return dict(previous, status=status, subactivities=validated, note=note, responsible=responsible)
+
+
 def validate_extra_events(program, events, finalize):
     if not isinstance(events, list) or len(events) + len(program['plan']['items']) > 100:
         raise Problem('Lista de eventos inválida ou maior que 100 atividades.')
@@ -216,9 +253,11 @@ def validate_extra_events(program, events, finalize):
             raise Problem('Posição de evento inválida.')
         ids.add(identifier)
         positions.add(position)
-        activity = text(event.get('activity'), 'Tema do evento', 200, required=True)
-        note = text(event.get('note', ''), 'Observação do evento', 2000)
-        responsible = text(event.get('responsible', ''), 'Responsável do evento', 200)
+        activity = event.get('activity')
+        text(activity, 'Tema do evento', 200, required=True)
+        note, responsible = event.get('note', ''), event.get('responsible', '')
+        text(note, 'Observação do evento', 2000)
+        text(responsible, 'Responsável do evento', 200)
         start, end = event.get('start', ''), event.get('end', '')
         if not isinstance(start, str) or not isinstance(end, str) or (end and not start):
             raise Problem('Informe horários reais válidos para o evento.')
@@ -226,9 +265,10 @@ def validate_extra_events(program, events, finalize):
         last = planned(program['plan']['date'], end, seconds=True) if end else None
         if last and last < first:
             raise Problem('O término do evento não pode ser anterior ao início.')
-        if finalize and (not first or not last):
+        detail = validate_record_detail(event, identifier, program['plan']['date'])
+        if finalize and detail['status'] == 'pendente':
             raise Problem('Preencha os horários dos eventos fora da liturgia para finalizar.')
-        result.append(dict(id=identifier, position=position, activity=activity, start=start, end=end, note=note, responsible=responsible))
+        result.append(dict(event, **dict(detail, id=identifier, position=position, activity=activity, start=start, end=end, note=note, responsible=responsible)))
     return result
 
 
@@ -239,14 +279,25 @@ def save_actuals(con, program, body):
     records = body.get('executions')
     if not isinstance(records, dict) or set(records) != {i['id'] for i in program['plan']['items']}:
         raise Problem('Envie os horários de todos os itens, deixando vazios os não preenchidos.')
-    values, details = [], {}
+    program = json.loads(json.dumps(program))
+    original_date=program['plan']['date']
+    name=body.get('record_name', program['plan']['name'])
+    text(name, 'Nome do culto', required=True)
+    date = body.get('record_date', program['plan']['date'])
+    planned(date, '12:00')
+    program['plan']['name'], program['plan']['date'] = name, date
+    if date != original_date:
+        for item in program['plan']['items']:
+            item['planned_start'],item['planned_end']=planned(date,item['start']),planned(date,item['end'])
+    info = body.get('record_info', program.get('record_info', ''))
+    text(info, 'Informações complementares', 5000)
+    values, details = [], dict(program.get('actual_details', {}))
     for item in program['plan']['items']:
         record = records[item['id']]
         if not isinstance(record, dict):
             raise Problem('Registro de horário inválido.')
         previous = program.get('actual_details', {}).get(item['id'], {})
-        details[item['id']] = dict(note=text(record.get('note', previous.get('note', '')), 'Nota da atividade', 2000),
-                                   responsible=text(record.get('responsible', previous.get('responsible', '')), 'Responsável', 200))
+        details[item['id']] = validate_record_detail(record, item['id'], date, previous)
         start, end = record.get('start', ''), record.get('end', '')
         if not start and not end:
             continue
@@ -257,19 +308,21 @@ def save_actuals(con, program, body):
         if last and last < first:
             raise Problem(f"{item['activity']}: término real não pode ser anterior ao início.")
         values.append((program['id'], item['id'], first, last))
-    complete = len(values) == len(program['plan']['items']) and all(v[3] for v in values)
+    complete = all(details[item['id']]['status'] in ('realizada', 'nao_realizada') for item in program['plan']['items'])
     if body.get('finalize') is True and not complete:
         raise Problem('Preencha início e término de todas as atividades para finalizar.')
     extra_events = validate_extra_events(program, body.get('extra_events', program.get('extra_events', [])), body.get('finalize') is True)
     details['_extra_events'] = extra_events
-    note = text(body.get('note', ''), 'Observações', 5000)
-    incident = text(body.get('incident', ''), 'Ocorrência não prevista', 5000)
+    details['_record_info'] = info
+    note, incident = body.get('note', program.get('note', '')), body.get('incident', program.get('incident', ''))
+    text(note, 'Observações', 5000)
+    text(incident, 'Ocorrência não prevista', 5000)
     # Validação completa antes de substituir registros; tudo na mesma transação.
     con.execute('DELETE FROM executions WHERE program_id=?', (program['id'],))
     con.executemany('INSERT INTO executions VALUES (?,?,?,?)', values)
-    status = 'Finalizada' if body.get('finalize') is True else ('Em andamento' if values or any(e['start'] for e in extra_events) else 'Planejamento')
-    con.execute('UPDATE programs SET status=?,note=?,incident=?,actual_details=?,paused=0,version=version+1 WHERE id=?',
-                (status, note, incident, json.dumps(details, ensure_ascii=False), program['id']))
+    status = 'Finalizada' if body.get('finalize') is True or program['status'] == 'Finalizada' else ('Em andamento' if values or any(e['start'] for e in extra_events) else 'Planejamento')
+    con.execute('UPDATE programs SET status=?,note=?,incident=?,actual_details=?,plan=?,paused=0,version=version+1 WHERE id=?',
+                (status, note, incident, json.dumps(details, ensure_ascii=False), json.dumps(program['plan'], ensure_ascii=False), program['id']))
     return load(con, program['id'])
 
 
@@ -391,13 +444,13 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path.startswith('/api/'):
             self.dispatch()
-        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/users.js', '/styles.css'):
+        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
             super().do_GET()
         else:
             self.json_response(dict(error='Arquivo não encontrado.'), 404)
 
     def do_HEAD(self):
-        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/users.js', '/styles.css'):
+        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
             super().do_HEAD()
         else:
             self.send_error(404)

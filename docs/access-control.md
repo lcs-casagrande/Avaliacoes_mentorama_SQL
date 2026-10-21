@@ -56,8 +56,10 @@ de autorização. Não usar o SQL multi-igreja discutido no chat para esta taref
 - O frontend verifica a autorização antes de operações, inclusive chamadas diretas
   ao adaptador e exportação/restauração. Revê o acesso ao voltar à aba e a cada
   minuto. Expiração/revogação limpa somente memória e tela, nunca registros locais.
-- Senhas e tokens não são persistidos. Não há renovação silenciosa: sessão expirada
-  exige novo login. Sair também tenta revogar a sessão no Supabase.
+- Senhas e chaves administrativas nunca são persistidas. A sessão comum é mantida
+  pelo SDK oficial Supabase, com renovação e recuperação; não há armazenamento
+  manual de tokens pela aplicação. Ver [sessão e datas](session-and-date.md).
+  Sair encerra a sessão local pelo SDK, preservando outras sessões do usuário.
 - O cronograma predefinido saiu do bundle público: o backend o entrega somente na
   rota protegida `/api/chronogram`; Pages/prévia o obtêm de `iasdpi_templates` por RLS.
 - A CSP do servidor permite conexões somente à própria origem e ao projeto
