@@ -11,14 +11,14 @@
   <script src="storage.js?v=59be9a594df6c7bb" defer></script>
   <script src="supabase-2.118.0.js?v=ee3be8de192b97cb" defer></script>
   <script src="auth.js?v=197e42f46976d208" defer></script>
-  <script src="demo.js?v=dfce1b5370487a8b" defer></script>
-  <script src="actuals.js?v=7664988ef21c7bc3" defer></script>
-  <script src="agenda-data.js?v=2c19f262c9fcb6fc" defer></script>
+  <script src="demo.js?v=44ad42eb4e3d5389" defer></script>
+  <script src="actuals.js?v=3f9f1ef71552d59f" defer></script>
+  <script src="agenda-data.js?v=94678cad9a2a7409" defer></script>
   <script src="agenda.js?v=e1a2ed42bf8f702a" defer></script>
-  <script src="archive.js?v=202fb4f2e131a68f" defer></script>
+  <script src="archive.js?v=15e1bff6bab82f3c" defer></script>
   <script src="organization.js?v=d2ac8d1c2bb5c614" defer></script>
   <script src="users.js?v=3e3d64b5729e597a" defer></script>
-  <script src="app.js?v=3aa756d51c244de9" defer></script>
+  <script src="app.js?v=20317e3e70d2944d" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#app">Ir para o conteúdo</a>
@@ -44,7 +44,7 @@
     <form id="duplicate-form">
       <h2>Duplicar programação</h2>
       <p>Copiar o planejamento e a equipe, sem registros de execução.</p>
-      <label><span class="field-label">Data da nova programação <span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (obrigatório)</span></span><input type="date" name="date" required></label>
+      <label><span class="field-label">Data da nova programação <span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (obrigatório)</span></span><input type="text" name="date" data-date-input inputmode="numeric" placeholder="dd/mm/aaaa" required></label>
       <div class="actions"><button type="button" data-action="close-dialog">Cancelar</button><button class="primary" type="submit">Duplicar</button></div>
     </form>
   </dialog>

@@ -12,7 +12,7 @@ const clock = value => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: stat
 const dateLabel = value => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T12:00:00Z`));
 const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: state.zone }).format(currentTime());
 const signed = value => { const n = Math.round(value); return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)} min`; };
-const duration = value => `${Math.round(value)} min`;
+const duration = value => value==null?'—':`${Math.round(value)} min`;
 const elapsed = start => { const seconds = Math.max(0, Math.floor((currentTime() - new Date(start)) / 1000)); return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2, '0')}`; };
 function statusTone(value) { const n = Math.round(value); return n <= thresholds.onTime ? 'good' : n <= thresholds.attention ? 'warning' : 'critical'; }
 function delayLabel(value) { const n = Math.round(value); return n < 0 ? `${Math.abs(n)} min adiantado` : n <= 1 ? 'No horário' : `${n} min de atraso`; }
@@ -58,7 +58,7 @@ function executionInfo(p) {
     return e && (minutes(e.started, i.planned_start) > thresholds.onTime || (e.ended && minutes(e.ended, i.planned_end) > thresholds.onTime));
   }) || (active && shift > thresholds.onTime ? active : null);
   const expected = items.find(i => currentTime() >= new Date(i.planned_start) && currentTime() < new Date(i.planned_end));
-  const forecast = new Date(new Date(p.planned_end).getTime() + shift * 60000);
+  const forecast = p.planned_end?new Date(new Date(p.planned_end).getTime() + shift * 60000):null;
   return { active, pending, finished, first, last, shift, origin, expected, forecast };
 }
 function badge(value, label = delayLabel(value)) { return `<span class="badge ${statusTone(value)}">${esc(label)}</span>`; }
@@ -77,10 +77,10 @@ function programStatus(p) {
 }
 function programRow(p, historic = false) {
   const m = executionInfo(p);
-  const planned = minutes(p.planned_end, p.planned_start);
+  const planned = p.planned_start&&p.planned_end?minutes(p.planned_end,p.planned_start):null;
   const actual = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
   return `<tr><td><strong>${esc(p.plan.name)}</strong><small>${esc(programDate(p.plan.date))}</small></td>
-    <td>${esc(p.plan.start)} → ${esc(p.plan.end)}${historic ? `<small>${duration(planned)} previstos · ${actual === null ? '—' : duration(actual)} realizados</small>` : ''}</td>
+    <td>${esc(p.plan.start||'—')} → ${esc(p.plan.end||'—')}${historic ? `<small>${duration(planned)} previstos · ${actual === null ? '—' : duration(actual)} realizados</small>` : ''}</td>
     <td>${historic ? badge(m.shift, signed(m.shift)) : `${programStatus(p)}`}</td>
     <td class="row-actions">${button(historic || p.status==='Finalizada' ? 'Ver resumo' : ['Planejamento','Pronta'].includes(p.status) ? 'Editar' : 'Ver programação', historic || p.status==='Finalizada' ? 'summary' : 'edit', p.id)}${button('Duplicar', 'duplicate', p.id)}${!historic ? button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"') : ''}</td></tr>`;
 }
@@ -94,7 +94,7 @@ function home() {
   const featured = running || upcoming;
   const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date)).slice(0, 5);
   return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
-    (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMO CULTO'}</p><h2>${esc(featured.plan.name)}</h2><div class="featured-meta"><p class="date">${esc(programDate(featured.plan.date))}</p>${programStatus(featured)}</div><p class="large-time">${esc(featured.plan.start)} <span>→</span> ${esc(featured.plan.end)}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(featured.execution_mode==='manual'?'Registrar culto':running?'Continuar acompanhamento':'Acompanhar culto', featured.execution_mode==='manual'?'actuals':'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Use Nova programação para planejar ou Registrar culto para informar o que aconteceu.')) +
+    (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMO CULTO'}</p><h2>${esc(featured.plan.name)}</h2><div class="featured-meta"><p class="date">${esc(programDate(featured.plan.date))}</p>${programStatus(featured)}</div><p class="large-time">${esc(featured.plan.start||'—')} <span>→</span> ${esc(featured.plan.end||'—')}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(featured.execution_mode==='manual'?'Registrar culto':running?'Continuar acompanhamento':'Acompanhar culto', featured.execution_mode==='manual'?'actuals':'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Use Nova programação para planejar ou Registrar culto para informar o que aconteceu.')) +
     `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
 }
 function programsPage() {
@@ -102,7 +102,15 @@ function programsPage() {
   return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
     (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Use Nova programação para cadastrar os horários e as atividades.'));
 }
+function displayDate(iso){return /^\d{4}-\d{2}-\d{2}$/.test(iso||'')?iso.split('-').reverse().join('/'):iso||'';}
+function readDate(value){
+  const iso=/^\d{2}\/\d{2}\/\d{4}$/.test(value)?value.split('/').reverse().join('-'):value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)||new Date(iso+'T12:00:00Z').toISOString().slice(0,10)!==iso)throw Error('Informe uma data válida no formato dd/mm/aaaa.');
+  return iso;
+}
+function tryReadDate(value){try{return readDate(value);}catch(_){return '';}}
 function field(label, name, value = '', type = 'text', required = false, extra = '') {
+  if(type==='date'){value=displayDate(value);type='text';extra+=' data-date-input inputmode="numeric" placeholder="dd/mm/aaaa"';}
   return `<label><span class="field-label">${label}${required?' <span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (obrigatório)</span>':''}</span><input name="${esc(name)}" type="${type}" value="${esc(value)}" ${required ? 'required' : ''} ${extra}></label>`;
 }
 function itemEditor(i = {}, index = 0) {
@@ -132,11 +140,12 @@ function clearFieldError(input) {
   if(error){input.removeAttribute('aria-describedby');error.remove();}
 }
 function validateProgramForm(form,plan) {
+  if(plan.template_id==='free'&&!plan.items.length&&!plan.start&&!plan.end)return;
   const check=(input,message)=>{throw fieldError(input,message);};
   if(plan.end<=plan.start)check(form.querySelector('.form-grid [name="end"]'),'O término deve ser depois do início.');
   if(!plan.name.trim())check(form.querySelector('[name="name"]'),'Informe o nome da programação.');
   const rows=[...form.querySelectorAll('.item-editor')];
-  if(!rows.length){form.querySelector('[data-action="add-item"]').focus();throw Error('Adicione pelo menos uma atividade.');}
+  if(!rows.length&&plan.template_id!=='free'){form.querySelector('[data-action="add-item"]').focus();throw Error('Adicione pelo menos uma atividade.');}
   let previous=plan.start;
   plan.items.forEach((item,index)=>{
     const row=rows[index];
@@ -147,23 +156,23 @@ function validateProgramForm(form,plan) {
     previous=item.end;
   });
 }
-function editor(p) {
-  if (p?.execution_mode === 'manual') return actualsForm(p);
+function editor(p,plannedOnly=false) {
+  if (p?.execution_mode === 'manual'&&!plannedOnly) return actualsForm(p);
   if (p && !['Planejamento', 'Pronta'].includes(p.status)) return planView(p);
   const plan = p?.plan || { name: 'Culto de sábado', date: today(), start: '09:30', end: '12:25', team: {}, items: [] };
   return heading('PLANEJAMENTO', p ? 'Editar programação' : 'Nova programação', 'Planeje os horários. Campos com * são obrigatórios; a equipe é opcional.', button('Voltar', 'programs')) +
     `<form id="program-form" data-id="${esc(p?.id || '')}" data-version="${p?.version || ''}">
-      <section class="panel form-grid">${field('Nome da programação', 'name', plan.name, 'text', true, 'maxlength="200"')}${field('Data', 'date', plan.date, 'date', true)}${field('Início previsto', 'start', plan.start, 'time', true)}${field('Término previsto', 'end', plan.end, 'time', true)}<p id="weekday" class="muted"></p></section>
+      <section class="panel form-grid">${field('Nome da programação', 'name', plan.name, 'text', true, 'maxlength="200"')}${field('Data', 'date', plan.date, 'date', true)}${field('Início previsto', 'start', plan.start, 'time', !(plan.template_id==='free'&&!plan.items.length))}${field('Término previsto', 'end', plan.end, 'time', !(plan.template_id==='free'&&!plan.items.length))}<p id="weekday" class="muted"></p></section>
       <details class="panel"><summary>Equipe <span class="muted">· preenchimento opcional</span></summary><div class="form-grid team">${roles.map((role,i) => field(role, `team-${i}`, plan.team[role], 'text', false, 'maxlength="200"')).join('')}</div></details>
       <div class="section-heading"><h2>Itens da programação</h2>${button('+ Adicionar atividade', 'add-item')}</div><p class="muted">A ordem deve acompanhar os horários. Intervalos são permitidos; sobreposições, não.</p>
       <datalist id="blocks"><option value="Culto"><option value="Escola Sabatina"></datalist>
-      <div id="items-editor">${(plan.items.length ? plan.items : [{}]).map(itemEditor).join('')}</div>
-      <div class="actions form-footer"><button class="primary" type="submit">Salvar programação</button><label class="checkbox"><input name="ready" type="checkbox" ${p?.status === 'Pronta' ? 'checked' : ''}> Liberar para acompanhamento após salvar</label><p class="muted ready-help">Ao marcar, o sistema salva o planejamento e depois altera o status para Pronta.</p></div>
+      <div id="items-editor">${(plan.items.length ? plan.items : plan.template_id==='free'?[]:[{}]).map(itemEditor).join('')}</div>
+      <div class="actions form-footer"><button class="primary" type="submit">Salvar programação</button><label class="checkbox" ${p?.execution_mode==='manual'?'hidden':''}><input name="ready" type="checkbox" ${p?.status === 'Pronta'&&p.execution_mode!=='manual' ? 'checked' : ''}> Liberar para acompanhamento após salvar</label><p class="muted ready-help" ${p?.execution_mode==='manual'?'hidden':''}>Ao marcar, o sistema salva o planejamento e depois altera o status para Pronta.</p></div>
     </form>`;
 }
 function planView(p) {
   return heading('PROGRAMAÇÃO', esc(p.plan.name), esc(dateLabel(p.plan.date)), `${button('Duplicar', 'duplicate', p.id)} ${button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"')}`) +
-    `<p class="muted">Planejamento protegido após o início. Horário previsto: ${esc(p.plan.start)} → ${esc(p.plan.end)}.</p>` + timeline(p) +
+    `<p class="muted">Planejamento protegido após o início. Horário previsto: ${esc(p.plan.start||'—')} → ${esc(p.plan.end||'—')}.</p>` + timeline(p) +
     `<details class="panel"><summary>Equipe</summary><dl class="team-read">${roles.map(role => `<div><dt>${esc(role)}</dt><dd>${esc(p.plan.team[role] || 'Não informado')}</dd></div>`).join('')}</dl></details>`;
 }
 function timeline(p) {
@@ -190,7 +199,7 @@ function tracking(p) {
   const e = focus && p.executions[focus.id];
   const dateMismatch = p.plan.date !== today();
   return heading('EXECUÇÃO', 'Acompanhar culto', `${esc(dateLabel(p.plan.date))} · ${esc(p.plan.name)} · Controle durante a execução.`, button('Atualizar', 'refresh')) +
-    `<div class="planned-bar"><span>Previsto <strong>${esc(p.plan.start)} → ${esc(p.plan.end)}</strong></span>${programStatus(p)}</div>
+    `<div class="planned-bar"><span>Previsto <strong>${esc(p.plan.start||'—')} → ${esc(p.plan.end||'—')}</strong></span>${programStatus(p)}</div>
     <section class="metrics" aria-label="Situação da programação"><div><span>HORÁRIO ATUAL</span><strong data-live="clock">${clock(currentTime())}</strong></div><div><span>DESVIO DO HORÁRIO</span><strong data-live="shift" class="${statusTone(m.shift)}">${signed(m.shift)}</strong><small data-live="status">${delayLabel(m.shift)}</small></div><div><span>PREVISÃO DE TÉRMINO</span><strong data-live="forecast">${p.status === 'Planejamento' ? '—' : clock(m.forecast)}</strong></div></section>
     <p class="context-line">Pelo plano, agora: <strong data-live="expected">${esc(m.expected?.activity || (dateMismatch ? 'outra data' : 'intervalo ou fora da programação'))}</strong></p>
     <section class="current-activity"><p class="eyebrow" data-live="focus-label">${m.active ? 'EM ANDAMENTO' : m.expected ? 'AGORA · PELO PLANEJAMENTO' : 'PRIMEIRA ATIVIDADE'}</p><h2 data-live="activity">${esc(focus?.activity || 'Sem atividades')}</h2><p class="responsible" data-live="responsible">${esc(focus?.responsible || 'Responsável não informado')}</p><div class="current-details"><div><span>Planejado</span><strong data-live="period">${esc(focus?.start || '—')} → ${esc(focus?.end || '—')}</strong></div><div><span>Início real</span><strong>${clock(e?.started)}</strong></div><div><span>Tempo transcorrido</span><strong data-live="elapsed">${e ? elapsed(e.started) : '—'}</strong></div></div><p data-live="item-note">${esc(focus?.note || '')}</p><p class="muted" data-live="origin">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}.` : 'Nenhum atraso registrado.'}</p></section>
@@ -201,7 +210,7 @@ function tracking(p) {
 }
 function summary(p) {
   const m = executionInfo(p);
-  const plannedDuration = minutes(p.planned_end, p.planned_start);
+  const plannedDuration = p.planned_start&&p.planned_end?minutes(p.planned_end,p.planned_start):null;
   const actualDuration = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
   return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Editar registro', 'actuals', p.id) : ''} ${window.IASDPIDemo&&p.execution_mode==='manual'&&p.plan.date==='2026-10-03'?button('Conferir correção para 10/10/2026','correct-date',p.id):''}`) +
     `<section class="summary-grid">${[['Início planejado', p.plan.start], ['Início real', actualClock(m.first?.started)||'—'], ['Término planejado', p.plan.end], ['Término real', actualClock(m.last?.ended)||'—'], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
@@ -267,16 +276,16 @@ function render() {
   document.querySelectorAll('nav a').forEach(a=>{a.hidden=a.dataset.page==='users'?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
   document.querySelector('#auth-logout').hidden=!allowed;
 
-  const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':state.page==='edit'?'programs':state.page;
+  const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':['edit','plan-edit'].includes(state.page)?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  app.innerHTML = ({home, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
+  app.innerHTML = ({home, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
-function navigate(page, id) { if(!canLeaveRegistration()){window.history.replaceState(null,'',`#${state.page}${state.selected?'/'+state.selected:''}`);return false;} if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
+function navigate(page, id) { if(!canLeaveRegistration()){window.history.replaceState(null,'',`#${state.page}${state.selected?'/'+state.selected:''}`);return false;} if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals','plan-edit'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
 function updateWeekday() {
   const form = document.querySelector('#program-form');
   const target = document.querySelector('#weekday');
-  if (form && target) { const value = form.elements.date.value; target.textContent = value ? dateLabel(value) : ''; }
+  if (form && target) { const value = tryReadDate(form.elements.date.value); target.textContent = value ? dateLabel(value) : ''; }
 }
 function tick() {
   const p = selected(); if (!p || state.page !== 'tracking' || p.status === 'Finalizada') return;
@@ -297,7 +306,7 @@ function tick() {
 }
 async function handleAction(target) {
   const {action, id} = target.dataset;
-  if(['chronogram','new','actuals','summary','programs','edit','track','duplicate','correct-date'].includes(action)&&!canLeaveRegistration())return;
+  if(['chronogram','new','actuals','summary','programs','edit','track','duplicate','correct-date','edit-record-plan'].includes(action)&&!canLeaveRegistration())return;
   if(!action.startsWith('agenda-'))await IASDPIAuth.requireAccess();
   if(action.startsWith('users-')){await handleUsersAction(action,id);return;}
   if(action==='cloud-save')await cloudSave();
@@ -315,6 +324,11 @@ async function handleAction(target) {
   }
   else if(action==='remove-subactivity'){
     if(window.confirm('Excluir esta subatividade? A exclusão só será aplicada ao salvar o registro.')){target.closest('.subactivity').remove();markRegistrationDirty();}
+  }
+  else if(action==='edit-record-plan'){
+    const form=document.querySelector('#actuals-form');
+    if(!form.dataset.id)await saveActuals(form,false);
+    navigate('plan-edit',selected().id);
   }
   else if(action==='edit-record'){document.querySelector('#actuals-form [name="record-name"]')?.focus();}
   else if(action==='cancel-record'){
@@ -343,12 +357,13 @@ async function handleAction(target) {
   else if (['edit','summary','track'].includes(action)) navigate(action === 'track' ? 'tracking' : action, id);
   else if (action === 'duplicate') {
     state.duplicate = id;
-    document.querySelector('#duplicate-form').elements.date.value = today();
+    document.querySelector('#duplicate-form').elements.date.value = displayDate(today());
     document.querySelector('#duplicate-dialog').showModal();
   } else if (action === 'close-dialog') document.querySelector('#duplicate-dialog').close();
   else if (action === 'add-item') {
     const container = document.querySelector('#items-editor');
     container.insertAdjacentHTML('beforeend', itemEditor({}, container.children.length));
+    document.querySelectorAll('#program-form .form-grid [name="start"],#program-form .form-grid [name="end"]').forEach(input=>input.required=true);
     container.lastElementChild.querySelector('[name="activity"]').focus();
   } else if (['remove-item','up','down'].includes(action)) {
     const row = target.closest('.item-editor');
@@ -416,21 +431,20 @@ app.addEventListener('submit', event => {
     if(form.id==='backup-export-form'){if(form.elements.password.value!==form.elements.repeat.value)throw fieldError(form.elements.repeat,'As senhas devem ser iguais.');await downloadBackup(await encryptBackup(await backupPayload(),form.elements.password.value));form.reset();toast('Backup preparado para download. Confira o arquivo na pasta Downloads.');return;}
     if(form.id==='backup-restore-form'){const file=form.elements.file.files[0];if(!file||file.size>20971520)throw Error('Escolha um backup JSON de até 20 MB.');const data=await decryptBackup(JSON.parse(await file.text()),form.elements.password.value);const result=await restoreBackup(data);render();toast(`${result.added} registros restaurados; ${result.copies} cópias diferentes preservadas.`);return;}
     if(form.id==='open-record-form'){navigate('actuals',form.elements['record-id'].value);return;}
-    if(form.id==='new-culto-date-form'){
-      const template=await api('chronogram');
-      window.IASDPIChronogram=cultoForDate(template,form.elements.date.value);
+    if(form.id==='new-record-form'){
+      window.IASDPIChronogram=await draftFromTemplate(form.elements['template-id'].value);
       state.selected=null;navigate('actuals');return;
     }
     if (form.id === 'actuals-form') { await saveActuals(form, finalize); return; }
     const id = form.dataset.id;
     if (form.id === 'program-form') {
       const get = name => form.querySelector(`[name="${name}"]`).value;
-      const plan = {name:get('name'), date:get('date'), start:get('start'), end:get('end'), team:Object.fromEntries(roles.map((role,i) => [role,get(`team-${i}`)])), items: [...form.querySelectorAll('.item-editor')].map(row => ({id:row.dataset.itemId, ...Object.fromEntries([...row.querySelectorAll('input')].map(input => [input.name,input.value]))}))};
+      const plan = {name:get('name'), date:readDate(get('date')),template_id:selected()?.plan.template_id, start:get('start'), end:get('end'), team:Object.fromEntries(roles.map((role,i) => [role,get(`team-${i}`)])), items: [...form.querySelectorAll('.item-editor')].map(row => ({id:row.dataset.itemId, ...Object.fromEntries([...row.querySelectorAll('input')].map(input => [input.name,input.value]))}))};
       validateProgramForm(form,plan);
       if (id) plan.version = Number(form.dataset.version);
       let p = await api(id ? `programs/${id}` : 'programs', id ? 'PUT' : 'POST', plan);
       if (form.elements.ready.checked) p = await api(`programs/${p.id}/action`, 'POST', {action:'ready', version:p.version});
-      replaceProgram(p); navigate('programs'); toast('Programação salva.');
+      replaceProgram(p); navigate(p.execution_mode==='manual'?'actuals':'programs',p.id); toast('Programação salva.');
     } else if (form.id === 'notes-form') {
       const p = await api(`programs/${id}/notes`, 'PUT', {version:Number(form.dataset.version), note:form.elements.note.value, incident:form.elements.incident.value});
       replaceProgram(p); form.dataset.version = p.version; toast('Observações salvas.');
@@ -440,12 +454,12 @@ app.addEventListener('submit', event => {
 document.querySelector('#duplicate-form').addEventListener('submit', event => {
   event.preventDefault();
   guarded(async () => {
-    const p = await api(`programs/${state.duplicate}/duplicate`, 'POST', {date:event.target.elements.date.value});
+    const p = await api(`programs/${state.duplicate}/duplicate`, 'POST', {date:readDate(event.target.elements.date.value)});
     document.querySelector('#duplicate-dialog').close(); replaceProgram(p); navigate('edit', p.id); toast('Planejamento duplicado.');
   }, event.submitter);
 });
 document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') guarded(()=>handleAction({dataset:{action:'chronogram'}})); else {navigate(link.dataset.page);if(link.dataset.page==='users'&&IASDPIAuth.isAdmin())guarded(()=>refreshUsers());} } });
-window.addEventListener('hashchange', () => { captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite'].includes(page)) navigate(page, id); });
+window.addEventListener('hashchange', () => { captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit'].includes(page)) navigate(page, id); });
 async function boot() {
   if(bootInProgress)return;
   bootInProgress=true;
@@ -472,7 +486,7 @@ async function boot() {
     if (id && state.programs.some(p => p.id === id)) state.selected = id;
     if (page === 'actuals' && !id) state.selected = null;
     // Um novo culto sempre começa pela seleção explícita da data.
-    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; render();
+    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; render();
   } catch (error) {
     app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
   } finally {bootInProgress=false;}
@@ -509,3 +523,5 @@ window.addEventListener('iasdpi-session-status',()=>{
   if(recovered&&!state.busy&&!bootInProgress)void boot();
 });
 boot();
+
+document.addEventListener('focusout',event=>{if(event.target.matches('[data-date-input]')){const iso=tryReadDate(event.target.value);if(iso)event.target.value=displayDate(iso);}});
