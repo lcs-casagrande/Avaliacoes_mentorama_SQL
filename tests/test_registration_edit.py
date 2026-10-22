@@ -150,15 +150,80 @@ class RegistrationEditTests(unittest.TestCase):
         outcome=self.page.evaluate('''async()=>{const data=await backupPayload();const secured=await encryptBackup(data,'backup-password-test');const restored=await decryptBackup(secured,'backup-password-test');const valid=JSON.stringify(data)===JSON.stringify(restored);const child=restored.programs[0].actual_details[restored.programs[0].plan.items[0].id].subactivities[0];child.parent_id='other-parent';let denied=false;try{backupValidate(restored);}catch(_){denied=true;}return {valid,denied};}''')
         self.assertEqual(outcome,{'valid':True,'denied':True})
 
-    def test_not_performed_status_can_finalize_without_fake_times(self):
+    def test_status_removed_partial_save_and_finalize_validation(self):
+        self.open_record();row=self.page.locator('.actual-row').first
+        self.assertEqual(self.page.locator('[name="activity-status"]').count(),0)
+        row.locator('[name="start"]').fill('');row.locator('[name="end"]').fill('09:35:00')
+        self.save()
+        p=self.record();parent=p['plan']['items'][0]['id']
+        self.assertNotIn(parent,p['executions'])
+        self.assertEqual(p['actual_details'][parent]['partial_end'],'09:35:00')
+        self.page.reload();self.page.wait_for_selector('#actuals-form')
+        self.assertEqual(self.page.locator('.actual-row').first.locator('[name="end"]').input_value(),'09:35:00')
+        version=self.record()['version']
+        self.page.locator('#actuals-form [name="finalize"]').click()
+        self.page.wait_for_selector('.field-error')
+        self.assertEqual(self.record()['version'],version)
+
+    def test_24_hour_fields_preserve_exact_old_precision_and_status(self):
+        self.open_record()
+        self.page.evaluate("""()=>{const p=selected(),id=p.plan.items[0].id;
+          p.executions[id].started='2026-10-10T12:30:00.123456Z';
+          p.executions[id].ended='2026-10-10T09:35:00.654321-03:00';
+          p.actual_details[id].status='nao_realizada';
+          p.actual_details[id].subactivities=[{id:'old-child',parent_id:id,title:'Legado',responsible:'',note:'',start:'09:31:12.123456',end:'09:34:13.654321'}];
+          p.extra_events[0].start='09:40:00.123456';p.extra_events[0].end='09:41:00.654321';
+          localStorage.setItem(IASDPIStorage.programs,JSON.stringify([p]));render();} """)
+        before=self.record()
+        baseline=self.page.evaluate('JSON.stringify(executionInfo(selected()))')
+        row=self.page.locator('.actual-row').first
+        self.assertEqual(row.locator('[name="start"]').input_value(),'09:30:00')
+        self.assertEqual(row.locator('[name="end"]').input_value(),'09:35:00')
+        self.assertEqual(row.locator('[name="sub-start"]').input_value(),'09:31:12')
+        values=self.page.locator('[data-real-time]').evaluate_all('(fields)=>fields.map(f=>({type:f.type,value:f.value,required:f.required}))')
+        for value in values:
+            self.assertEqual(value['type'],'text');self.assertFalse(value['required'])
+            self.assertNotIn('.',value['value']);self.assertNotIn('M',value['value'])
+        row.locator('[name="activity-note"]').fill('Nota alterada sem editar horários')
+        self.save();after=self.record()
+        self.assertEqual(after['executions'],before['executions'])
+        self.assertEqual([{k:e[k] for k in old} for e,old in zip(after['extra_events'],before['extra_events'])],before['extra_events'])
+        key=before['plan']['items'][0]['id']
+        self.assertEqual(after['actual_details'][key]['status'],'nao_realizada')
+        self.assertEqual(after['actual_details'][key]['subactivities'],before['actual_details'][key]['subactivities'])
+        self.assertEqual(self.page.evaluate('JSON.stringify(executionInfo(selected()))'),baseline)
+        self.assertTrue(self.page.evaluate('async()=>{const data=await backupPayload();return JSON.stringify(backupValidate(data))===JSON.stringify(data);}'))
+        self.page.reload();self.page.wait_for_selector('#actuals-form')
+        self.assertEqual(self.record(),after)
+        self.assertEqual(self.page.locator('.actual-row').first.locator('[name="start"]').input_value(),'09:30:00')
+
+    def test_now_sao_paulo_for_parent_and_child_and_manual_24_hour_validation(self):
+        self.open_record()
+        self.page.evaluate("state.offset=new Date('2026-10-22T17:05:35.100Z').getTime()-Date.now()")
+        row=self.page.locator('.actual-row').first
+        row.locator('[data-action="time-now"][data-field="start"]').click()
+        self.page.wait_for_function('() => !state.busy')
+        self.assertEqual(row.locator('[name="start"]').input_value(),'14:05:35')
+        child=self.add_child()
+        child.locator('[data-action="time-now"][data-field="sub-start"]').click()
+        self.page.wait_for_function('() => !state.busy')
+        self.assertEqual(child.locator('[name="sub-start"]').input_value(),'14:05:35')
+        row.locator('[name="start"]').fill('09:30:00')
+        child.locator('[name="sub-start"]').fill('09:31:00')
+        row.locator('[name="end"]').fill('25:00:00')
+        version=self.record()['version']
+        self.page.locator('#actuals-form [name="save"]').click()
+        self.page.wait_for_selector('.field-error');self.assertEqual(self.record()['version'],version)
+        row.locator('[name="end"]').fill('09:35:00')
+        self.save()
+
+    def test_blank_partial_fields_save_without_required_errors(self):
         self.open_record();row=self.page.locator('.actual-row').first
         row.locator('[name="start"]').fill('');row.locator('[name="end"]').fill('')
-        row.locator('[name="activity-status"]').select_option('nao_realizada')
-        self.page.locator('#actuals-form [name="finalize"]').click()
-        self.page.wait_for_function('() => !state.busy && state.page==="summary"')
-        p=self.record();parent=p['plan']['items'][0]['id']
-        self.assertEqual(p['actual_details'][parent]['status'],'nao_realizada')
-        self.assertNotIn(parent,p['executions']);self.assertEqual(len(p['plan']['items']),16)
+        self.assertEqual(self.page.locator('.field-error').count(),0)
+        self.save();key=self.record()['plan']['items'][0]['id']
+        self.assertNotIn(key,self.record()['executions'])
+        self.assertEqual(self.page.locator('.field-error').count(),0)
 
     def test_concurrent_edits_use_same_identifier_and_reject_stale_version(self):
         self.open_record()

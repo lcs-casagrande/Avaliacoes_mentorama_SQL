@@ -15,7 +15,7 @@ function backupValidate(data){
     for(const item of p.plan.items){if(itemIds.has(item.id)||!clock.test(item.start)||!clock.test(item.end)||typeof item.block!=='string'||!Number.isFinite(new Date(item.planned_start).getTime())||!Number.isFinite(new Date(item.planned_end).getTime()))throw Error('Atividade inválida no backup.');itemIds.add(item.id);}
     if(Array.isArray(p.executions))throw Error('Execução inválida no backup.');
     for(const [id,e] of Object.entries(p.executions)){if(!itemIds.has(id)||!e||typeof e.started!=='string'||!Number.isFinite(new Date(e.started).getTime())||(e.ended!=null&&(typeof e.ended!=='string'||!Number.isFinite(new Date(e.ended).getTime()))))throw Error('Horários realizados inválidos no backup.');}
-    for(const item of p.plan.items){const detail=p.actual_details?.[item.id];if(detail&&(detail.status!==undefined||detail.subactivities!==undefined)){const e=p.executions[item.id];validateActivityRecord({...detail,start:actualClock(e?.started),end:actualClock(e?.ended)},item.id);}}
+    for(const item of p.plan.items){const detail=p.actual_details?.[item.id];if(detail&&(detail.status!==undefined||detail.subactivities!==undefined||detail.partial_end!==undefined)){const e=p.executions[item.id];validateActivityRecord({...detail,start:storedActualClock(e?.started),end:storedActualClock(e?.ended)||detail.partial_end||''},item.id);}}
     if(p.extra_events)validateExtraEvents(p,p.extra_events,false);
   }
   return data;
@@ -53,6 +53,7 @@ async function downloadBackup(data){
 async function restoreBackup(data){
   await IASDPIAuth.requireAccess();
   backupValidate(data);
+  if(window.IASDPIOperational)return IASDPIOperational.importDocuments(data.programs);
   if(!window.IASDPIDemo)throw Error('A restauração pelo navegador está disponível no Pages/HTML local. A base SQLite não foi alterada.');
   const raw=localStorage.getItem(archiveKey),current=raw?JSON.parse(raw):[];
   backupValidate({format:'IASDPI-backup',version:1,programs:current});
@@ -66,10 +67,11 @@ function cloudConfig(){return IASDPIAuth.config();}
 function archivePage(){
   const account=IASDPIAuth.session();
   if(!account)return IASDPIAuth.loginPage();
-  return heading('PROTEÇÃO DOS REGISTROS','Arquivo e banco','Guarde uma cópia fora do celular. Os registros existentes permanecem no navegador.')+
-  `<section class="panel"><h2>Baixar backup protegido</h2><p class="muted">Inclui programações, horários, atividades extras, responsáveis e observações. Guarde o arquivo no Drive/OneDrive e mantenha a senha em local separado. Sem essa senha, o arquivo não poderá ser recuperado.</p><form id="backup-export-form"><div class="notes-grid">${field('Senha do backup','password','','password',true,'minlength="10" autocomplete="new-password"')}${field('Repetir senha','repeat','','password',true,'minlength="10" autocomplete="new-password"')}</div><button type="submit" class="primary">Baixar backup</button></form></section>
-  <section class="panel"><h2>Restaurar uma cópia</h2><p class="muted">Os registros atuais não são substituídos. Versões diferentes do mesmo culto entram como cópias identificadas.</p><form id="backup-restore-form"><label>Arquivo de backup<input type="file" name="file" accept=".json,application/json" required></label>${field('Senha do arquivo protegido','password','','password',false,'autocomplete="off"')}<button type="submit">Restaurar sem substituir registros</button></form></section>
-  <section class="panel"><h2>Banco privado · Supabase</h2><p class="muted">Conecte um projeto com a tabela culto_archives e políticas de acesso instaladas. Administradores e líderes autorizados acessam as cópias da igreja; as versões arquivadas não podem ser alteradas ou apagadas pelo site.</p><p>Conectado como ${esc(account.user.email)}.</p><div class="actions">${button('Arquivar registros no banco','cloud-save','','class="primary"')}${button('Consultar arquivos','cloud-list')}${button('Sair','cloud-signout')}</div><div class="section">${cloudState.archives.length?`<ul class="agenda-list">${cloudState.archives.map(row=>`<li>${button('Restaurar cópia de '+new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(row.created_at)),'cloud-restore',row.id)}</li>`).join('')}</ul>`:''}</div></section>`;
+  return heading('PROTEÇÃO DOS REGISTROS','Arquivo e banco',window.IASDPIOperational?'Supabase é a fonte principal. Publicações do site não substituem os registros do banco.':'Guarde uma cópia fora do celular. Os registros existentes permanecem no navegador.')+
+  (window.IASDPIOperational?IASDPIOperational.panel():'')+
+  `<section class="panel"><h2>${window.IASDPIOperational?'Backup adicional opcional':'Baixar backup protegido'}</h2><p class="muted">Inclui programações, horários, atividades extras, responsáveis e observações. Guarde o arquivo no Drive/OneDrive e mantenha a senha em local separado. Sem essa senha, o arquivo não poderá ser recuperado.</p><form id="backup-export-form"><div class="notes-grid">${field('Senha do backup','password','','password',true,'minlength="10" autocomplete="new-password"')}${field('Repetir senha','repeat','','password',true,'minlength="10" autocomplete="new-password"')}</div><button type="submit" class="primary">Baixar backup</button></form></section>
+  <section class="panel"><h2>Restaurar uma cópia</h2><p class="muted">${window.IASDPIOperational?'Registros existentes no Supabase nunca serão substituídos pela restauração; conflitos serão informados.':'Os registros atuais não são substituídos. Versões diferentes do mesmo culto entram como cópias identificadas.'}</p><form id="backup-restore-form"><label>Arquivo de backup<input type="file" name="file" accept=".json,application/json" required></label>${field('Senha do arquivo protegido','password','','password',false,'autocomplete="off"')}<button type="submit">Restaurar sem substituir registros</button></form></section>
+  <section class="panel"><h2>Arquivos históricos · Supabase</h2><p class="muted">${window.IASDPIOperational?'Cópias imutáveis adicionais em culto_archives, independentes do banco operacional. Não é necessário arquivar manualmente cada edição ou publicação.':'Conecte um projeto com a tabela culto_archives e políticas de acesso instaladas. Administradores e líderes autorizados acessam as cópias da igreja; as versões arquivadas não podem ser alteradas ou apagadas pelo site.'}</p><p>Conectado como ${esc(account.user.email)}.</p><div class="actions">${button('Arquivar registros no banco','cloud-save','','class="primary"')}${button('Consultar arquivos','cloud-list')}${button('Sair','cloud-signout')}</div><div class="section">${cloudState.archives.length?`<ul class="agenda-list">${cloudState.archives.map(row=>`<li>${button('Restaurar cópia de '+new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(row.created_at)),'cloud-restore',row.id)}</li>`).join('')}</ul>`:''}</div></section>`;
 }
 async function cloudRequest(path,options={}){
   const authorization=await IASDPIAuth.requireAccess();
@@ -90,7 +92,7 @@ async function cloudSave(){
   localStorage.removeItem(IASDPIStorage.pending);toast('Cópia arquivada e confirmada no banco.');
 }
 async function cloudAutoArchive(){
-  if(!cloudState.session||window.IASDPIConfig?.remoteReadOnly)return;cloudState.dirty=true;if(cloudState.busy)return;cloudState.busy=true;
+  if(window.IASDPIOperational||!cloudState.session||window.IASDPIConfig?.remoteReadOnly)return;cloudState.dirty=true;if(cloudState.busy)return;cloudState.busy=true;
   try{while(cloudState.dirty){cloudState.dirty=false;await cloudSave();}}
   catch(_){try{localStorage.setItem(IASDPIStorage.pending,'true');}catch(_){}toast('Registro local preservado. Arquivamento no banco pendente; tente novamente em Arquivo e banco.',true);}
   finally{cloudState.busy=false;}

@@ -21,7 +21,7 @@ carregado, incluindo Doxologia I quando presente. Não inventa posição ou hor�
 1. Entrar > Registrar culto: escolher um registro existente e Editar registro.
    Também é possível abrir Histórico > Ver resumo > Editar registro.
 2. Os campos anteriores aparecem preenchidos. É possível editar nome, data,
-   horários reais, responsáveis, notas, ocorrências, status e informações complementares.
+   horários reais, responsáveis, notas, ocorrências e informações complementares.
    Os horários previstos aparecem como texto, sem campos de edição da programação.
 3. Adicionar subatividade dentro da atividade desejada. Editar seus campos ali.
    Excluir subatividade exige confirmação e só persiste ao salvar o registro.
@@ -35,10 +35,18 @@ Navegação e recarga avisam sobre alterações não salvas. O aviso de saída d
 depende do suporte e das regras do Chrome; encerrar à força um aplicativo pode não
 emitir beforeunload. Não há promessa de salvamento automático de rascunhos.
 
-Atividades antigas sem status explícito são exibidas como realizadas quando têm
-início/término, ou pendentes em caso contrário. Não realizada não recebe horários
-fictícios. Finalizar exige que cada principal esteja resolvida; subatividades não
-exigem horários. Salvar alterações preserva o status global de um culto já finalizado.
+A interface não exige status de atividade: a conclusão depende dos dois horários reais.
+Valores históricos de status permanecem como metadados e não dispensam horários
+na finalização. Salvar alterações aceita horários em branco, inclusive somente término;
+esse rascunho usa `actual_details[id].partial_end`, sem inventar início ou duração.
+Subatividades mantêm horários opcionais dentro do intervalo completo da principal.
+Salvar alterações preserva o status global de um culto já finalizado.
+
+Os campos reais são texto validado em 24 horas HH:mm:ss, com botão Agora em São Paulo.
+HH:mm também é aceito na digitação e completado com :00. Frações antigas ficam ocultas
+apenas na exibição: horários não editados mantêm a string original, inclusive fuso e
+frações. Alterar explicitamente um horário grava a nova precisão em segundos.
+Não há conversão automática ao abrir, nem troca de chaves, IDs ou formato de backup.
 
 ## Contrato de dados compatível
 
@@ -66,7 +74,7 @@ Extensão opcional do formato anterior, sem alterar IDs ou a versão 1 dos backu
 }
 ```
 
-Status aceitos: `pendente`, `realizada`, `nao_realizada`. As duas horas do filho
+Status históricos (`pendente`, `realizada`, `nao_realizada`) são preservados, sem seletor. As duas horas do filho
 são opcionais independentemente; qualquer hora informada exige intervalo real
 completo da principal e deve estar dentro dele. Se ambas existem, término >= início.
 O vínculo parent_id e a unicidade do ID dentro da principal são validados. Limite:
@@ -144,3 +152,22 @@ continuam incluídas no pacote, com seus testes de regressão.
 Ao voltar a uma versão anterior do código, exportar o backup antes de editar.
 Versões antigas que não conhecem subatividades podem descartá-las ao salvar;
 um rollback de emergência deve priorizar consulta/exportação até uma versão compatível.
+
+## Ajuste de horários — publicação pendente
+
+Validar com cópias em perfis descartáveis. Não foram alterados dados reais ou SQL.
+Antes da publicação, exportar Arquivo e banco > backup e guardar fora do navegador;
+Git só preserva código. O Pages anterior é o commit a34e2e1b2ef62cd643f2970b3f5ea561a35d955c
+e a fonte 8b17f3d. Preservar essas referências antes de publicar; não sobrescrever
+as tags/branches de backup já existentes. O pacote preparado fica em
+`dist/pages-real-times/`, sem bancos nem registros de usuários.
+Rollback deve manter exportação prévia e priorizar leitura: versões anteriores podem
+não reconhecer rascunhos com somente término ou exigir os status antigos.
+
+Validação deste ajuste: 95 testes descobertos, 79 passaram e 16 testes PostgreSQL
+foram ignorados (banco isolado não ativado). Os 21 testes de registro passaram.
+Incluem frações/fusos originais, status legado, Agora em São Paulo, horários
+inválidos, salvamento parcial, recarga, backups e indicadores sem contagem dupla.
+Tags locais de preparação: `backup-pre-real-times` e
+`backup-pre-real-times-source`. Não houve commit, push, deploy ou operação remota
+no Supabase nesta tarefa.

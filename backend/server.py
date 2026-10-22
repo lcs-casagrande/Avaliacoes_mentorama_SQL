@@ -1,6 +1,7 @@
 """API local de programação e execução. Apenas biblioteca padrão do Python."""
 import json
 import os
+import re
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -197,22 +198,34 @@ def mutate(con, identifier, body):
     return load(con, identifier)
 
 
+def actual_instant(date, clock):
+    # Aceita precisão legada sem normalizar o texto original.
+    if not isinstance(clock, str) or not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?', clock):
+        raise Problem('Horário real inválido. Use HH:mm:ss.')
+    planned(date, '12:00')
+    return f"{date}T{clock + ':00' if len(clock) == 5 else clock}-03:00"
+
+
+def preserve_actual(date, clock, original, original_date):
+    if original and date == original_date:
+        stamp = datetime.fromisoformat(original.replace('Z', '+00:00')).astimezone(TZ)
+        fraction = re.search(r'T\d{2}:\d{2}:\d{2}(\.\d+)', original)
+        raw = stamp.strftime('%H:%M:%S') + (fraction[1] if fraction else '')
+        if clock == raw:
+            return original
+    return actual_instant(date, clock)
+
+
 def validate_record_detail(record, identifier, date, previous=None):
     previous = previous or {}
     start, end = record.get('start', ''), record.get('end', '')
     if not isinstance(start, str) or not isinstance(end, str):
         raise Problem('Horários reais inválidos.')
-    first = planned(date, start, seconds=True) if start else None
-    last = planned(date, end, seconds=True) if end else None
-    if last and (not first or last < first):
+    first = actual_instant(date, start) if start else None
+    last = actual_instant(date, end) if end else None
+    if first and last and datetime.fromisoformat(last) < datetime.fromisoformat(first):
         raise Problem('Horários reais inválidos.')
-    status = record.get('status', 'realizada' if first and last else 'pendente')
-    if status not in ('pendente', 'realizada', 'nao_realizada'):
-        raise Problem('Status da atividade inválido.')
-    if status == 'realizada' and (not first or not last):
-        raise Problem('Informe início e término da atividade realizada.')
-    if status == 'nao_realizada' and (first or last):
-        raise Problem('Atividade não realizada não pode ter horários reais.')
+    status = previous.get('status', record.get('status'))
     children = record.get('subactivities', previous.get('subactivities', []))
     if not isinstance(children, list) or len(children) > 50:
         raise Problem('Lista de subatividades inválida.')
@@ -231,17 +244,20 @@ def validate_record_detail(record, identifier, date, previous=None):
         sub_start, sub_end = child.get('start', ''), child.get('end', '')
         if not isinstance(sub_start, str) or not isinstance(sub_end, str):
             raise Problem('Horários da subatividade inválidos.')
-        a = planned(date, sub_start, seconds=True) if sub_start else None
-        b = planned(date, sub_end, seconds=True) if sub_end else None
+        a = actual_instant(date, sub_start) if sub_start else None
+        b = actual_instant(date, sub_end) if sub_end else None
         if (a or b) and (not first or not last):
             raise Problem('Preencha o intervalo real da atividade principal.')
-        if (a and not first <= a <= last) or (b and not first <= b <= last) or (a and b and b < a):
+        if (a and not datetime.fromisoformat(first) <= datetime.fromisoformat(a) <= datetime.fromisoformat(last)) or (b and not datetime.fromisoformat(first) <= datetime.fromisoformat(b) <= datetime.fromisoformat(last)) or (a and b and datetime.fromisoformat(b) < datetime.fromisoformat(a)):
             raise Problem('Horários da subatividade fora da atividade principal.')
         validated.append(dict(child, title=title, note=note, responsible=responsible, start=sub_start, end=sub_end))
     note, responsible = record.get('note', previous.get('note', '')), record.get('responsible', previous.get('responsible', ''))
     text(note, 'Nota', 2000)
     text(responsible, 'Responsável', 200)
-    return dict(previous, status=status, subactivities=validated, note=note, responsible=responsible)
+    result = dict(previous, subactivities=validated, note=note, responsible=responsible)
+    if status is not None:
+        result['status'] = status
+    return result
 
 
 def validate_extra_events(program, events, finalize):
@@ -265,14 +281,14 @@ def validate_extra_events(program, events, finalize):
         text(note, 'Observação do evento', 2000)
         text(responsible, 'Responsável do evento', 200)
         start, end = event.get('start', ''), event.get('end', '')
-        if not isinstance(start, str) or not isinstance(end, str) or (end and not start):
+        if not isinstance(start, str) or not isinstance(end, str):
             raise Problem('Informe horários reais válidos para o evento.')
-        first = planned(program['plan']['date'], start, seconds=True) if start else None
-        last = planned(program['plan']['date'], end, seconds=True) if end else None
-        if last and last < first:
+        first = actual_instant(program['plan']['date'], start) if start else None
+        last = actual_instant(program['plan']['date'], end) if end else None
+        if first and last and datetime.fromisoformat(last) < datetime.fromisoformat(first):
             raise Problem('O término do evento não pode ser anterior ao início.')
         detail = validate_record_detail(event, identifier, program['plan']['date'])
-        if finalize and detail['status'] == 'pendente':
+        if finalize and (not start or not end):
             raise Problem('Preencha os horários dos eventos fora da liturgia para finalizar.')
         result.append(dict(event, **dict(detail, id=identifier, position=position, activity=activity, start=start, end=end, note=note, responsible=responsible)))
     return result
@@ -307,16 +323,18 @@ def save_actuals(con, program, body):
         previous = program.get('actual_details', {}).get(item['id'], {})
         details[item['id']] = validate_record_detail(record, item['id'], date, previous)
         start, end = record.get('start', ''), record.get('end', '')
-        if not start and not end:
-            continue
+        details[item['id']].pop('partial_end', None)
         if not start:
-            raise Problem(f"{item['activity']}: informe o início real antes do término.")
-        first = planned(program['plan']['date'], start, seconds=True)
-        last = planned(program['plan']['date'], end, seconds=True) if end else None
-        if last and last < first:
+            if end:
+                details[item['id']]['partial_end'] = end
+            continue
+        old = program.get('executions', {}).get(item['id'], {})
+        first = preserve_actual(date, start, old.get('started'), original_date)
+        last = preserve_actual(date, end, old.get('ended'), original_date) if end else None
+        if last and datetime.fromisoformat(last) < datetime.fromisoformat(first):
             raise Problem(f"{item['activity']}: término real não pode ser anterior ao início.")
         values.append((program['id'], item['id'], first, last))
-    complete = all(details[item['id']]['status'] in ('realizada', 'nao_realizada') for item in program['plan']['items'])
+    complete = all(records[item['id']].get('start') and records[item['id']].get('end') for item in program['plan']['items'])
     if body.get('finalize') is True and not complete:
         raise Problem('Preencha início e término de todas as atividades para finalizar.')
     extra_events = validate_extra_events(program, body.get('extra_events', program.get('extra_events', [])), body.get('finalize') is True)
@@ -452,13 +470,13 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path.startswith('/api/'):
             self.dispatch()
-        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
+        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/operational.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
             super().do_GET()
         else:
             self.json_response(dict(error='Arquivo não encontrado.'), 404)
 
     def do_HEAD(self):
-        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
+        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/operational.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
             super().do_HEAD()
         else:
             self.send_error(404)

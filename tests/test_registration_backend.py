@@ -75,10 +75,38 @@ class RegistrationBackendTests(unittest.TestCase):
 
     def test_not_performed_and_optional_child_times(self):
         self.body['executions'][self.parent]={'start':'','end':'','status':'nao_realizada','subactivities':[dict(self.child,start='',end='')]}
+        with self.assertRaises(server.Problem):self.save(self.body)
+        self.body['finalize']=False
         saved=self.save(self.body)
         self.assertNotIn(self.parent,saved['executions'])
         self.assertEqual(saved['actual_details'][self.parent]['status'],'nao_realizada')
-        self.assertEqual(saved['status'],'Finalizada')
+        self.assertEqual(saved['status'],'Em andamento')
+
+    def test_exact_fractional_timestamps_status_and_children_survive_unrelated_save(self):
+        saved=self.save(self.body)
+        first='2026-10-10T12:30:00.123456Z';last='2026-10-10T09:35:00.654321-03:00'
+        with server.database() as con:
+            con.execute('UPDATE executions SET started=?,ended=? WHERE program_id=? AND item_id=?',(first,last,'record-10',self.parent))
+            details=saved['actual_details'];details[self.parent]['status']='nao_realizada'
+            con.execute('UPDATE programs SET actual_details=? WHERE id=?',(json.dumps(details),'record-10'))
+        self.body['version']=saved['version']
+        self.body['executions'][self.parent].update(start='09:30:00.123456',end='09:35:00.654321',note='Edição')
+        self.body['executions'][self.parent]['subactivities']=[dict(self.child,start='09:31:17.123456',end='09:34:18.654321')]
+        saved=self.save(self.body)
+        self.assertEqual(saved['executions'][self.parent],{'item_id':self.parent,'started':first,'ended':last})
+        self.assertEqual(saved['actual_details'][self.parent]['status'],'nao_realizada')
+        self.assertEqual(saved['actual_details'][self.parent]['subactivities'][0]['start'],'09:31:17.123456')
+
+    def test_end_only_partial_record_survives_reload_without_fake_start(self):
+        self.body['finalize']=False
+        self.body['executions'][self.parent]={'start':'','end':'09:35:17'}
+        saved=self.save(self.body)
+        self.assertNotIn(self.parent,saved['executions'])
+        self.assertEqual(saved['actual_details'][self.parent]['partial_end'],'09:35:17')
+        self.assertEqual(self.read(),saved)
+        self.body.update(version=saved['version'],finalize=True)
+        with self.assertRaises(server.Problem):self.save(self.body)
+        self.assertEqual(self.read(),saved)
 
     def test_free_empty_program_can_save_but_cannot_finalize(self):
         body={'name':'Livre','date':'2026-10-21','execution_mode':'manual','template_id':'free','start':'','end':'','items':[],'team':{}}

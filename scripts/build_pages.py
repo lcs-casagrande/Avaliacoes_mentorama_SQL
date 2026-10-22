@@ -1,4 +1,4 @@
-"""Gera o Pages atual com Auth, sem migração local nem gravações Supabase."""
+"""Gera o Pages atual com persistência operacional Supabase (requer migração 003)."""
 import argparse
 from pathlib import Path
 
@@ -10,7 +10,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / 'dist/pages')
     parser.add_argument('--agenda-data', type=Path)
+    parser.add_argument('--operational', action='store_true', help='Compatibilidade: Supabase operacional já é o padrão deste gerador')
     args = parser.parse_args()
-    build(args.output, SITE_URL, args.agenda_data, preserve_local=True)
+    build(args.output, SITE_URL, args.agenda_data, preserve_local=True, operational=True)
     print('Pages preparado:', args.output)
-    print('Chaves locais originais preservadas; escritas remotas bloqueadas.')
+    print('Pacote Supabase operacional preparado; não publicado.')

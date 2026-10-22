@@ -8,12 +8,12 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ('index.html', 'styles.css', 'config.js', 'storage.js', 'supabase-2.118.0.js', 'supabase.LICENSE', 'auth.js',
-          'demo.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js',
+          'demo.js', 'operational.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js',
           'organization.js', 'users.js', 'app.js', '.nojekyll')
 DEFAULT_URL = 'https://lcs-casagrande.github.io/IASDPI-homologacao/'
 
 
-def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False):
+def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, operational=False):
     output = Path(output).resolve()
     if output.exists() and any(output.iterdir()):
         raise ValueError('Destino não vazio. Escolha outra pasta; nenhum arquivo será substituído.')
@@ -33,6 +33,10 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False):
     cfg.update(environment='validation' if preserve_local else 'homologation', storageMode='browser',
                storageNamespace='' if preserve_local else 'iasdpi-homologacao-v1',
                remoteReadOnly=True, siteUrl=site_url)
+    if operational:
+        if not preserve_local:
+            raise ValueError('Modo operacional exige o destino Pages principal.')
+        cfg.update(environment='production', storageMode='supabase', remoteReadOnly=False)
     contents = {name: (ROOT / 'frontend' / name).read_bytes() for name in ASSETS}
     contents['config.js'] = ("'use strict';\n// Configuração PÚBLICA da homologação; sem segredos administrativos.\nwindow.IASDPIConfig = Object.freeze(" + json.dumps(cfg, ensure_ascii=False, indent=2) + ');\n').encode()
     if agenda:
@@ -63,7 +67,7 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False):
             html = html.replace('"' + name + '"', '"' + name + '?v=' + version + '"')
     contents['index.html'] = html.encode()
     manifest = {'environment': cfg['environment'], 'site_url': site_url,
-                'remote_read_only': True, 'storage_namespace': cfg['storageNamespace'],
+                'remote_read_only': cfg['remoteReadOnly'], 'storage_namespace': cfg['storageNamespace'],
                 'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                 'source_has_uncommitted_changes': bool(subprocess.check_output(['git', '--no-optional-locks', 'status', '--porcelain'], cwd=ROOT)),
                 'files': {name: hashlib.sha256(value).hexdigest() for name, value in contents.items()}}

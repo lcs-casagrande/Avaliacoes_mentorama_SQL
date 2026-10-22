@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import shutil
 import tempfile
+import subprocess
+import sys
 import threading
 import unittest
 from unittest.mock import patch
@@ -19,6 +21,16 @@ spec.loader.exec_module(builder)
 
 
 class PackageTests(unittest.TestCase):
+    def test_default_pages_generator_never_reverts_to_local_storage(self):
+        with tempfile.TemporaryDirectory(prefix='iasdpi-default-pages-') as directory:
+            output=Path(directory)/'site'
+            subprocess.run([sys.executable,str(ROOT/'scripts/build_pages.py'),'--output',str(output)],capture_output=True,text=True,check=True)
+            config=(output/'config.js').read_text()
+            self.assertIn('"storageMode": "supabase"',config)
+            self.assertIn('"remoteReadOnly": false',config)
+            manifest=json.loads((output/'manifest.json').read_text())
+            self.assertEqual(manifest['environment'],'production')
+
     def test_static_allowlist_and_readonly_configuration(self):
         with tempfile.TemporaryDirectory(prefix='iasdpi-package-') as directory:
             manifest = builder.build(Path(directory) / 'site')

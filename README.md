@@ -86,3 +86,13 @@ Os registros do Pages continuam na chave `iasdpi-demo-v1`; leituras não removem
 Para arquivar em banco privado, crie um projeto Supabase, revise `database/001_single_church_access.sql` e crie uma conta em Supabase Auth. O SQL depende de aprovação e execução administrativa; a conta também precisa ser autorizada em `iasdpi_access`. Na página, informe URL do projeto, chave pública publishable/anon e credenciais da conta. Nunca use service_role, chave secreta ou senha do banco. O site grava versões imutáveis e confirma a existência de cada arquivo depois da inserção. O roteiro de RLS limita leitura/inserção às contas autorizadas da única igreja, sem permissão de alteração/exclusão. A sessão fica apenas em memória; a senha não é persistida. Escritas locais continuam funcionando sem banco, e falhas remotas não apagam dados locais.
 
 A integração Supabase precisa ser configurada e validada no projeto real antes de ser considerada ativa. O esquema SQL e o cliente foram preparados; nenhum banco externo é criado automaticamente e nenhum registro de um navegador é migrado sem conexão autenticada. A restauração no SQLite não é feita pelo cliente de backup; preserve também o arquivo do banco do servidor.
+
+### Supabase como banco operacional
+
+O modo centralizado, a migração SQL 003 e a importação opcional de dados locais
+estão descritos em [docs/supabase-operational.md](docs/supabase-operational.md).
+O proprietário confirmou 001/002/003 instaladas; não reaplicá-las. O comando
+`python3 scripts/build_pages.py` gera Supabase operacional por padrão. Horários
+reais usam HH:mm:ss e previstos HH:mm. Segredos administrativos não são enviados
+ao navegador. O modo local permanece somente para compatibilidade e testes.
+Nenhum SQL de produção é executado por deploy ou inicialização do site.
