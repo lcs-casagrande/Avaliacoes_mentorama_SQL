@@ -21,13 +21,19 @@ Nenhum documento ou dado pessoal foi retornado ou exposto. Não foram chamadas
 RPCs de gravação, exclusão ou restauração em produção. As duas RPCs consultadas
 são de leitura, embora o transporte PostgREST utilize POST.
 
-## Verificação ainda necessária para publicar
+## Conferência concluída e publicação autorizada
 
-Falta executar **o arquivo original database/check_culto_trash.sql**, como
-postgres no SQL Editor, e conferir sua saída. Este ambiente não possui conexão
-PostgreSQL nem acesso administrativo à API de gerenciamento. A chave publishable
-não concede acesso a pg_proc, ACLs e políticas via SQL. Não fornecer senhas nem
-chaves administrativas ao navegador para contornar essa restrição.
+O proprietário executou check_culto_trash.sql sem erros e confirmou 2 cultos
+ativos e 0 na lixeira. Depois conferiu owners/SECURITY DEFINER/search_path,
+ACLs de funções/tabelas e as três políticas RLS. A última consulta de
+irregularidades de RLS, owners e schemas privados retornou
+**Success. No rows returned**, segundo confirmação do proprietário.
+A publicação foi explicitamente autorizada após essa conferência.
+
+O Codex realizou somente as consultas anônimas de leitura registradas acima;
+não possui conexão SQL administrativa. Atestação de produção fornecida pelo
+proprietário, separada dos testes locais e dos bloqueios observados pela API.
+Nenhum teste ou publicação move, restaura, edita ou finaliza cultos reais.
 
 Resultados esperados:
 
@@ -35,7 +41,7 @@ Resultados esperados:
 - RLS habilitada nas três tabelas públicas e na auditoria privada.
 - SELECT dos programas somente ativos e autorizados; atividades/subatividades
   dependem do programa ativo, sem política adicional que amplie o acesso.
-- As seis RPCs públicas e os três helpers listados: owner postgres, SECURITY
+- As seis RPCs públicas e os helpers privados listados: owner postgres, SECURITY
   DEFINER e search_path vazio. EXECUTE anon=false; authenticated=true somente
   nas RPCs públicas, false nos helpers privados.
 - USAGE de authenticated no schema operacional privado: false.
@@ -44,11 +50,6 @@ Resultados esperados:
   anon=false em todas. SELECT ainda se submete à RLS.
 - Contagens de ativos/lixeira devem corresponder à situação conhecida pelo
   proprietário; a verificação não move nem finaliza cultos.
-
-Até receber essa saída, os bloqueios anônimos estão confirmados, mas não é
-possível declarar auditadas as permissões instaladas para admin e leader.
-A autorização de publicação já foi dada pelo proprietário e será usada após
-concluir esta conferência, sem exigir nova aprovação para o mesmo escopo.
 
 ## Testes e pacote
 
@@ -67,3 +68,9 @@ conferindo data/nome/ID na confirmação. Detalhes e Restaurar ficam na Lixeira.
 Para 10/10: Programações → Registrar culto → corrigir manualmente o horário
 inconsistente → Salvar alterações → Finalizar e ver resumo → Histórico.
 A edição preserva o mesmo ID; nenhuma dessas ações foi executada em produção.
+
+A consulta consolidada foi validada em transação read only de um PostgreSQL
+descartável com 001–004, incluindo os privilégios por coluna. Não cria objetos,
+não chama RPCs de mutação e não modifica os cultos. O arquivo check_culto_trash.sql
+original permanece sem alterações. A nova conferência remota repetiu os cinco
+bloqueios HTTP 401/42501 da tabela acima; nenhum culto foi alterado.

@@ -1,9 +1,11 @@
 # Correção de horários importados e lixeira — implantação
 
-O proprietário confirmou a 004 aplicada no Supabase. Não reaplicar a migração.
-O frontend está preparado; a publicação aguarda a conferência administrativa de
-`database/check_culto_trash.sql` em produção. O ambiente Codex tem somente chave
-pública e não consegue executar essa consulta SQL diretamente.
+O proprietário confirmou a 004 aplicada e concluiu a conferência administrativa
+de permissões, RLS, owners e schemas privados sem divergências. A consulta final
+de irregularidades retornou “Success. No rows returned”. Publicação autorizada
+pelo proprietário; não reaplicar as migrações nem alterar cultos na implantação.
+O Codex verificou os bloqueios anônimos pela API; a conferência SQL de produção
+foi executada pelo proprietário, não pela chave pública do frontend.
 
 ## Diagnóstico e limites
 
