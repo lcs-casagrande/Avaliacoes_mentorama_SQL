@@ -1,4 +1,4 @@
-"""Gera o Pages atual com persistência operacional Supabase (requer migração 003)."""
+"""Gera o Pages atual com persistência operacional Supabase (requer migrações 003 e 004)."""
 import argparse
 from pathlib import Path
 

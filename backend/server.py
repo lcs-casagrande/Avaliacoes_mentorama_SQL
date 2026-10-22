@@ -470,13 +470,13 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path.startswith('/api/'):
             self.dispatch()
-        elif path in ('/', '/index.html', '/app.js', '/demo.js', '/operational.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
+        elif path in ('/', '/index.html', '/app.js', '/record-time.js', '/demo.js', '/operational.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/trash.js', '/styles.css'):
             super().do_GET()
         else:
             self.json_response(dict(error='Arquivo não encontrado.'), 404)
 
     def do_HEAD(self):
-        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/demo.js', '/operational.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/styles.css'):
+        if urlsplit(self.path).path in ('/', '/index.html', '/app.js', '/record-time.js', '/demo.js', '/operational.js', '/actuals.js', '/agenda.js', '/agenda-data.js', '/archive.js', '/organization.js', '/config.js', '/auth.js', '/storage.js', '/supabase-2.118.0.js', '/supabase.LICENSE', '/users.js', '/trash.js', '/styles.css'):
             super().do_HEAD()
         else:
             self.send_error(404)

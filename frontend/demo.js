@@ -6,7 +6,7 @@ window.IASDPILocalAdapter = (() => {
     const clone = data => JSON.parse(JSON.stringify(data));
     const date = time => new Intl.DateTimeFormat('sv-SE', { timeZone: zone }).format(new Date(time));
     const time = stamp => new Intl.DateTimeFormat('pt-BR', { timeZone: zone, hour:'2-digit', minute:'2-digit' }).format(new Date(stamp));
-    const instant = (day, clock) => `${day}T${clock.length===5?clock+':00':clock}-03:00`;
+    const instant = (day, clock) => recordInstant(day,clock);
     const stamp = () => new Date().toISOString();
     const id = () => crypto.randomUUID();
     function prepare(input) {
@@ -93,7 +93,7 @@ window.IASDPILocalAdapter = (() => {
           delete details[item.id].partial_end;
           if(!e.start){if(e.end)details[item.id].partial_end=e.end;continue;}
           const prior=p.executions?.[item.id];
-          const preserve=(clock,raw)=>raw&&nextPlan.date===p.plan.date&&clock===storedActualClock(raw)?raw:instant(nextPlan.date,clock);
+          const preserve=(clock,raw)=>raw&&recordDay(nextPlan.date)===recordDay(p.plan.date)&&inspectRecordTime(raw,nextPlan.date).absolute&&inspectRecordTime(raw,nextPlan.date).day===nextPlan.date&&clock===storedActualClock(raw)?raw:instant(nextPlan.date,clock);
           executions[item.id]={...(prior||{}),started:preserve(e.start,prior?.started),ended:e.end?preserve(e.end,prior?.ended):null};
         }
         const complete = p.plan.items.every(item=>executions[item.id]?.started&&executions[item.id]?.ended);

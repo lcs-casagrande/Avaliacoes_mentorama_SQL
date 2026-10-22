@@ -8,8 +8,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ('index.html', 'styles.css', 'config.js', 'storage.js', 'supabase-2.118.0.js', 'supabase.LICENSE', 'auth.js',
-          'demo.js', 'operational.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js',
-          'organization.js', 'users.js', 'app.js', '.nojekyll')
+          'record-time.js', 'demo.js', 'operational.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js',
+          'organization.js', 'users.js', 'trash.js', 'app.js', '.nojekyll')
 DEFAULT_URL = 'https://lcs-casagrande.github.io/IASDPI-homologacao/'
 
 

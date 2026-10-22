@@ -1,5 +1,9 @@
 # Supabase operacional — IASD Parada Inglesa
 
+A atualização preparada para horários importados e lixeira está em
+[culto-trash.md](culto-trash.md). Ela requer a migração complementar 004 antes
+de publicar o novo frontend; a 003 instalada não deve ser reaplicada.
+
 ## Estado da entrega
 
 O proprietário confirmou a migração 003 aplicada em produção e os modelos
