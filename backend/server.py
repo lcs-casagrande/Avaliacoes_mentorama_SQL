@@ -203,7 +203,9 @@ def actual_instant(date, clock):
     if not isinstance(clock, str) or not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?', clock):
         raise Problem('Horário real inválido. Use HH:mm:ss.')
     planned(date, '12:00')
-    return f"{date}T{clock + ':00' if len(clock) == 5 else clock}-03:00"
+    civil = f"{date}T{clock + ':00' if len(clock) == 5 else clock}"
+    offset = datetime.fromisoformat(civil).replace(tzinfo=TZ).strftime('%z')
+    return civil + offset[:3] + ':' + offset[3:]
 
 
 def preserve_actual(date, clock, original, original_date):
