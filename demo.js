@@ -5,7 +5,7 @@ window.IASDPILocalAdapter = (() => {
     const zone = 'America/Sao_Paulo';
     const clone = data => JSON.parse(JSON.stringify(data));
     const date = time => new Intl.DateTimeFormat('sv-SE', { timeZone: zone }).format(new Date(time));
-    const time = stamp => new Intl.DateTimeFormat('pt-BR', { timeZone: zone, hour:'2-digit', minute:'2-digit' }).format(new Date(stamp));
+    const time = stamp => new Intl.DateTimeFormat('pt-BR', { timeZone: zone, hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).format(new Date(stamp));
     const instant = (day, clock) => recordInstant(day,clock);
     const stamp = () => new Date().toISOString();
     const id = () => crypto.randomUUID();

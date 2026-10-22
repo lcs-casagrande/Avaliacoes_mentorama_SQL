@@ -76,3 +76,13 @@ function importedTimeWarning(value,day){
   if(parsed.day&&recordDay(day)&&parsed.day!==recordDay(day))return 'Horário em outra data. Confira a data do culto e corrija este horário manualmente.';
   return '';
 }
+
+// Formatação de apresentação: nunca altera os documentos ou sua precisão original.
+function displayPlannedTime(value){
+  const parsed=inspectRecordTime(value);
+  return parsed.empty?'':parsed.valid?parsed.clock.slice(0,5):String(value);
+}
+function displayRecordTimestamp(value){
+  const parsed=inspectRecordTime(value);
+  return parsed.valid&&parsed.day?parsed.day.split('-').reverse().join('/')+' '+parsed.clock.slice(0,8):'Data não informada';
+}
