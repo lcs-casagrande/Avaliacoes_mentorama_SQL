@@ -1,7 +1,6 @@
 'use strict';
-// Adaptador exclusivo da demonstração estática. Nenhum dado é enviado a um servidor.
-if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.search).get('demo') === '1' || window.IASDPIConfig?.storageMode === 'browser') {
-  window.IASDPIDemo = (() => {
+// Motor compartilhado de regras; o adaptador local continua disponível para rollback.
+window.IASDPILocalAdapter = (() => {
     const key = IASDPIStorage.programs;
     const zone = 'America/Sao_Paulo';
     const clone = data => JSON.parse(JSON.stringify(data));
@@ -40,8 +39,9 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         ['Culto · demonstração', 'Próximo culto · exemplo', 'Culto de sábado · exemplo'].includes(p.plan?.name);
     }
     // Não carregar nem modificar registros antes da autorização.
-    let memory = [], storageAvailable = true;
+    let memory = [], storageAvailable = true, simulation=false;
     function save(writeSafety=true) {
+      if(simulation)return;
       try { const previous=localStorage.getItem(key);if(writeSafety&&previous!==null)localStorage.setItem(IASDPIStorage.safety,previous);localStorage.setItem(key,JSON.stringify(memory)); storageAvailable=true; }
       catch (_) { throw Error('O navegador não permitiu salvar a demonstração. Libere o armazenamento local.'); }
     }
@@ -62,6 +62,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
       }
       if (body.version !== p.version) throw Error('Esta programação mudou. Atualize antes de continuar.');
       if (route === 'correct-date') {
+        if(simulation)throw Error('Corrija a data pela edição do registro.');
         if(body.expected!==JSON.stringify(p))throw Error('O registro mudou após a conferência. Reabra a prévia antes de confirmar.');
         const corrected=correctedCultoDate(p);corrected.version++;
         const raw=localStorage.getItem(IASDPIStorage.dateCorrections);
@@ -84,14 +85,18 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
           if(!e || typeof e.start!=='string' || typeof e.end!=='string') throw Error('Registro de horário inválido.');
           const note=e.note ?? p.actual_details?.[item.id]?.note ?? '', responsible=e.responsible ?? p.actual_details?.[item.id]?.responsible ?? '';
           if(typeof note!=='string'||note.length>2000||typeof responsible!=='string'||responsible.length>200)throw Error('Observação ou responsável inválido.');
-          const checked=validateActivityRecord({...e,status:e.status??activityState(p.actual_details?.[item.id],e.start,e.end),subactivities:e.subactivities??p.actual_details?.[item.id]?.subactivities??[]},item.id);
-          details[item.id]={...(p.actual_details?.[item.id]||{}),note,responsible,status:checked.status,subactivities:checked.subactivities};
-          if(!e.start && !e.end) continue;
-          const valid=v=>/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v);
-          if(!valid(e.start) || (e.end && (!valid(e.end) || timeSeconds(e.end)<timeSeconds(e.start)))) throw Error('Informe início e término reais válidos.');
-          executions[item.id]={started:instant(nextPlan.date,e.start),ended:e.end?instant(nextPlan.date,e.end):null};
+          const old=p.actual_details?.[item.id]||{};
+          const checked=validateActivityRecord({...e,subactivities:e.subactivities??old.subactivities??[]},item.id);
+          details[item.id]={...old,note,responsible,subactivities:checked.subactivities};
+          // Status histórico é metadado, nunca requisito ou critério de conclusão.
+          if(old.status===undefined&&e.status!==undefined)details[item.id].status=e.status;
+          delete details[item.id].partial_end;
+          if(!e.start){if(e.end)details[item.id].partial_end=e.end;continue;}
+          const prior=p.executions?.[item.id];
+          const preserve=(clock,raw)=>raw&&nextPlan.date===p.plan.date&&clock===storedActualClock(raw)?raw:instant(nextPlan.date,clock);
+          executions[item.id]={...(prior||{}),started:preserve(e.start,prior?.started),ended:e.end?preserve(e.end,prior?.ended):null};
         }
-        const complete = p.plan.items.every(item=>details[item.id].status==='nao_realizada'||details[item.id].status==='realizada'&&executions[item.id]?.ended);
+        const complete = p.plan.items.every(item=>executions[item.id]?.started&&executions[item.id]?.ended);
         if(body.finalize&&!p.plan.items.length)throw Error('Adicione atividades antes de finalizar.');
         if(body.finalize && !complete) throw Error('Preencha todas as atividades antes de finalizar.');
         const extraEvents=validateExtraEvents(p,body.extra_events ?? p.extra_events ?? [],Boolean(body.finalize));
@@ -100,7 +105,7 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
         p.extra_events=extraEvents;p.executions=executions;p.actual_details=details;p.note=body.note??p.note??'';p.incident=body.incident??p.incident??'';
         p.status=body.finalize||wasFinished?'Finalizada':(Object.keys(executions).length||extraEvents.some(e=>e.start))?'Em andamento':'Planejamento';p.paused=false;
       }
-      else if (route === 'notes') { p.note=body.note || ''; p.incident=body.incident || ''; }
+      else if (route === 'notes') { p.note=body.note ?? p.note ?? ''; p.incident=body.incident ?? p.incident ?? ''; }
       else if (!route && method === 'PUT') {
         if (!['Planejamento','Pronta'].includes(p.status)) throw Error('O plano fica protegido após o início.');
         const plan=prepare({...body,execution_mode:p.execution_mode || 'live'});p.plan=plan;p.planned_start=plan.start?instant(plan.date,plan.start):null;p.planned_end=plan.end?instant(plan.date,plan.end):null;p.status='Planejamento';
@@ -152,11 +157,16 @@ if (location.hostname.endsWith('.github.io') || new URLSearchParams(location.sea
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      if(!window.IASDPIDemo)return;
       const banner=document.createElement('aside');banner.className='demo-banner';
       banner.textContent='ARMAZENAMENTO LOCAL · Os registros permanecem neste navegador. Guarde uma cópia em Arquivo e banco.' + (storageAvailable ? '' : ' O salvamento está bloqueado neste navegador.');
       document.querySelector('.header').after(banner);
     });
     window.addEventListener('iasdpi-auth-changed',()=>{if(!window.IASDPIAuth.allowed())memory=[];});
-    return {request};
-  })();
-}
+    function apply(programs,path,method,body){
+      const previous=memory;memory=clone(programs);simulation=true;
+      try{return performRequest(path,method,body);}finally{memory=previous;simulation=false;}
+    }
+    return {request,apply};
+})();
+if(window.IASDPIConfig?.storageMode!=='supabase'&&(location.hostname.endsWith('.github.io')||new URLSearchParams(location.search).get('demo')==='1'||window.IASDPIConfig?.storageMode==='browser'))window.IASDPIDemo=window.IASDPILocalAdapter;

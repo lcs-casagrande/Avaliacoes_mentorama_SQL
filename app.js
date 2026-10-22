@@ -8,7 +8,7 @@ const roles = ['Ancião do mês', 'Recepção', 'Diácono', 'Diaconisa', 'Direto
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
 const minutes = (end, start) => (new Date(end) - new Date(start)) / 60000;
 const currentTime = () => new Date(Date.now() + state.offset);
-const clock = value => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: state.zone, hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
+const clock = value => actualClock(value)||'—';
 const dateLabel = value => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T12:00:00Z`));
 const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: state.zone }).format(currentTime());
 const signed = value => { const n = Math.round(value); return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)} min`; };
@@ -21,6 +21,7 @@ function toast(message, error = false) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { notice.hidden = true; }, 6000);
 }
 async function api(path = '', method = 'GET', body) {
+  if(window.IASDPIOperational)return window.IASDPIOperational.request(path,method,body);
   const authorization=path==='health'?null:await IASDPIAuth.requireAccess();
   if (window.IASDPIDemo){const result=await window.IASDPIDemo.request(path,method,body);if(method!=='GET'&&cloudState.session)void cloudAutoArchive();return result;}
   const response = await fetch(`/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(authorization?{Authorization:'Bearer '+authorization.token}:{}) }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -309,10 +310,11 @@ async function handleAction(target) {
   if(['chronogram','new','actuals','summary','programs','edit','track','duplicate','correct-date','edit-record-plan'].includes(action)&&!canLeaveRegistration())return;
   if(!action.startsWith('agenda-'))await IASDPIAuth.requireAccess();
   if(action.startsWith('users-')){await handleUsersAction(action,id);return;}
+  if(action.startsWith('operational-')){await IASDPIOperational.action(action,id);return;}
   if(action==='cloud-save')await cloudSave();
   else if(action==='cloud-list'){cloudState.archives=await cloudRequest('/rest/v1/culto_archives?select=id,created_at&order=created_at.desc&limit=30');render();}
   else if(action==='cloud-signout'){await IASDPIAuth.logout();}
-  else if(action==='cloud-restore'){const [row]=await cloudRequest('/rest/v1/culto_archives?id=eq.'+encodeURIComponent(id)+'&select=payload');if(!row)throw Error('Arquivo não encontrado.');const result=await restoreBackup(row.payload);render();toast(`${result.added} registros restaurados sem substituir os atuais.`);}
+  else if(action==='cloud-restore'){const [row]=await cloudRequest('/rest/v1/culto_archives?id=eq.'+encodeURIComponent(id)+'&select=payload');if(!row)throw Error('Arquivo não encontrado.');const result=await restoreBackup(row.payload);render();toast(result.preview?'Confira e confirme a prévia de importação.':`${result.added} registros restaurados sem substituir os atuais.`);}
   else if(action==='agenda-current'){selectAgendaMonth(today().slice(0,7));document.querySelector('[data-action="agenda-current"]').focus();}
   else if(action==='agenda-calendar'||action==='agenda-list'){agendaState.view=action==='agenda-calendar'?'calendar':'list';render();document.querySelector(`[data-action="${action}"]`).focus();}
   else if(action==='agenda-previous'||action==='agenda-next')changeAgendaMonth(action==='agenda-next'?1:-1);
@@ -338,10 +340,12 @@ async function handleAction(target) {
   else if(action==='add-extra')throw Error('Novos detalhes devem ser adicionados como subatividades.');
   else if(action==='remove-extra'){if(!window.confirm('Remover esta atividade extra antiga ao salvar?'))return;target.closest('.actual-row').remove();markRegistrationDirty();document.querySelectorAll('.actual-number').forEach((n,index)=>n.textContent=index+1);updateActuals();}
   else if (action === 'time-now') {
-    target.closest('.actual-row').querySelector(`[name="${target.dataset.field}"]`).value=actualClock(currentTime());
+    const input=target.closest('.subactivity, .actual-row').querySelector(`[name="${target.dataset.field}"]`);
+    input.value=displayActualTime(actualClock(currentTime()));input.dataset.timeEdited='true';
     markRegistrationDirty();updateActuals();
   }
   else if (action === 'chronogram') {
+    if(window.IASDPIOperational)await IASDPIOperational.refreshTemplates();
     window.IASDPIChronogram=null;state.selected=null;navigate('actuals');
   }
   else if (action === 'actuals') navigate('actuals', id);
@@ -403,9 +407,9 @@ async function guarded(task, trigger) {
 }
 app.addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(() => handleAction(target), target); });
 app.addEventListener('toggle',event=>{if(event.target.matches('.item-details'))event.target.querySelector('.item-edit-label').textContent=event.target.open?'Recolher':'Editar';},true);
-app.addEventListener('input', event => {clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form')){if(event.target.name==='activity-status')event.target.dataset.auto='false';markRegistrationDirty();updateActuals();}const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
+app.addEventListener('input', event => {if(event.target.dataset.realTime)event.target.dataset.timeEdited='true';clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form')){markRegistrationDirty();updateActuals();}const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
  document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.validationMessage);}},true);
-app.addEventListener('change', event => {if(event.target.closest('#actuals-form')){if(event.target.name==='activity-status')event.target.dataset.auto='false';markRegistrationDirty();updateActuals();}if(['agenda-area','agenda-department','agenda-show-people','agenda-month-picker'].includes(event.target.id)){const id=event.target.id;if(id==='agenda-area')agendaState.area=event.target.value;else if(id==='agenda-department')agendaState.department=event.target.value;else if(id==='agenda-show-people')agendaState.showPeople=event.target.checked;else if(event.target.value)selectAgendaMonth(event.target.value);render();document.getElementById(id)?.focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
+app.addEventListener('change', event => {if(event.target.closest('#actuals-form')){markRegistrationDirty();updateActuals();}if(['agenda-area','agenda-department','agenda-show-people','agenda-month-picker'].includes(event.target.id)){const id=event.target.id;if(id==='agenda-area')agendaState.area=event.target.value;else if(id==='agenda-department')agendaState.department=event.target.value;else if(id==='agenda-show-people')agendaState.showPeople=event.target.checked;else if(event.target.value)selectAgendaMonth(event.target.value);render();document.getElementById(id)?.focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
 document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(()=>handleAction(target),target); });
 app.addEventListener('submit', event => {
   event.preventDefault(); const form = event.target;
@@ -426,14 +430,17 @@ app.addEventListener('submit', event => {
       await IASDPIAuth.login(form.elements.email.value,password,form.elements['public-key']?.value);
       cloudState.session=IASDPIAuth.session();state.page='home';await boot();return;
     }
-    await IASDPIAuth.requireAccess();
+    if(form.id==='actuals-form'&&window.IASDPIOperational){await saveActuals(form,finalize);return;}
+    if(!(window.IASDPIOperational&&['program-form','notes-form'].includes(form.id)))await IASDPIAuth.requireAccess();
     if(form.id.startsWith('users-')||form.classList.contains('user-access-form')){await submitUsersForm(form);return;}
+    if(form.id==='operational-template-form'){await IASDPIOperational.saveTemplate(form);return;}
     if(form.id==='backup-export-form'){if(form.elements.password.value!==form.elements.repeat.value)throw fieldError(form.elements.repeat,'As senhas devem ser iguais.');await downloadBackup(await encryptBackup(await backupPayload(),form.elements.password.value));form.reset();toast('Backup preparado para download. Confira o arquivo na pasta Downloads.');return;}
-    if(form.id==='backup-restore-form'){const file=form.elements.file.files[0];if(!file||file.size>20971520)throw Error('Escolha um backup JSON de até 20 MB.');const data=await decryptBackup(JSON.parse(await file.text()),form.elements.password.value);const result=await restoreBackup(data);render();toast(`${result.added} registros restaurados; ${result.copies} cópias diferentes preservadas.`);return;}
+    if(form.id==='backup-restore-form'){const file=form.elements.file.files[0];if(!file||file.size>20971520)throw Error('Escolha um backup JSON de até 20 MB.');const data=await decryptBackup(JSON.parse(await file.text()),form.elements.password.value);const result=await restoreBackup(data);render();toast(result.preview?'Confira a prévia e confirme os registros que deseja importar.':`${result.added} registros restaurados; ${result.copies} cópias diferentes preservadas.`);return;}
     if(form.id==='open-record-form'){navigate('actuals',form.elements['record-id'].value);return;}
     if(form.id==='new-record-form'){
       window.IASDPIChronogram=await draftFromTemplate(form.elements['template-id'].value);
-      state.selected=null;navigate('actuals');return;
+      if(window.IASDPIOperational){const p=await api('programs','POST',window.IASDPIChronogram);replaceProgram(p);navigate('actuals',p.id);toast('Novo registro confirmado no Supabase.');}
+      else{state.selected=null;navigate('actuals');}return;
     }
     if (form.id === 'actuals-form') { await saveActuals(form, finalize); return; }
     const id = form.dataset.id;

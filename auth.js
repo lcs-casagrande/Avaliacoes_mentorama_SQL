@@ -29,7 +29,7 @@ window.IASDPIAuth = (() => {
       if(!response.ok){
         if(path.startsWith('/rest/v1/rpc/')){
           let error={};try{error=await response.json();}catch(_){}
-          if(['42501','23514','22023','40001'].includes(error.code))throw Error(error.code==='40001'?'Outra operação alterou os acessos. Atualize e tente novamente.':String(error.message).slice(0,250));
+          if(['42501','23514','22023','40001'].includes(error.code)){const failure=Error(String(error.message).slice(0,250));failure.code=error.code;throw failure;}
         }
         throw Error(response.status===401?'Sessão inválida ou expirada. Entre novamente.':'Não foi possível confirmar o acesso. Verifique a conexão e a configuração do Supabase.');
       }
