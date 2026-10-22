@@ -49,13 +49,13 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
   async function list(){
     const all=[];
     for(let offset=0;;offset+=500){
-      const rows=await remote('iasdpi_programs?select=document&order=id&limit=500&offset='+offset);
+      const rows=await remote('iasdpi_programs?select=document&deleted_at=is.null&order=id&limit=500&offset='+offset);
       all.push(...rows.map(row=>row.document));if(rows.length<500)break;
     }
     return all;
   }
   async function get(id){
-    const rows=await remote('iasdpi_programs?id=eq.'+encodeURIComponent(id)+'&select=document');
+    const rows=await remote('iasdpi_programs?id=eq.'+encodeURIComponent(id)+'&select=document&deleted_at=is.null');
     if(!rows[0])throw Error('Registro não encontrado no Supabase.');return rows[0].document;
   }
   async function request(path,method='GET',body={}){
@@ -96,7 +96,7 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
   }
   function panel(){
     return `<section class="panel"><h2>Persistência centralizada</h2><p>Registros e revisões ficam no Supabase e podem ser abertos em outro dispositivo autorizado. As cópias em culto_archives são independentes. Backup manual do navegador não é necessário a cada publicação.</p><div class="actions">${button('Atualizar registros do banco','operational-refresh')}${button('Conferir registros antigos deste navegador','operational-preview')}${button('Conferir envios pendentes','operational-pending')}</div>
-    ${preview?`<h3>Prévia de importação opcional</h3><p>Nenhum registro existente será sobrescrito. A cópia local será mantida integralmente.</p><div class="table-scroll"><table><thead><tr><th>Importar</th><th>Culto</th><th>Data / ID</th><th>Situação</th></tr></thead><tbody>${preview.rows.map(row=>`<tr><td>${row.status==='new'?`<input type="checkbox" data-import-id="${esc(row.id)}" checked aria-label="Importar ${esc(row.name)}">`:'—'}</td><td>${esc(row.name)}</td><td>${esc(displayDate(row.date))}<small>${esc(row.id)}</small></td><td>${esc({new:'Novo',exists:'Já importado',conflict:'Conflito: versão do banco preservada',duplicate:'Duplicado: já existe com outro ID',imported:'Importação confirmada'}[row.status]||row.status)}</td></tr>`).join('')}</tbody></table></div>${button('Confirmar importação dos selecionados','operational-import','','class="primary"')}`:''}
+    ${preview?`<h3>Prévia de importação opcional</h3><p>Nenhum registro existente será sobrescrito. A cópia local será mantida integralmente.</p><div class="table-scroll"><table><thead><tr><th>Importar</th><th>Culto</th><th>Data / ID</th><th>Situação</th></tr></thead><tbody>${preview.rows.map(row=>`<tr><td>${row.status==='new'?`<input type="checkbox" data-import-id="${esc(row.id)}" checked aria-label="Importar ${esc(row.name)}">`:'—'}</td><td>${esc(row.name)}</td><td>${esc(displayDate(row.date))}<small>${esc(row.id)}</small></td><td>${esc({unavailable:'Indisponível: consulte um administrador',new:'Novo',exists:'Já importado',conflict:'Conflito: versão do banco preservada',duplicate:'Duplicado: já existe com outro ID',imported:'Importação confirmada'}[row.status]||row.status)}</td></tr>`).join('')}</tbody></table></div>${button('Confirmar importação dos selecionados','operational-import','','class="primary"')}`:''}
     ${recoveries.length?`<h3>Envios pendentes neste dispositivo</h3><p>Reenviar reconfirma a mesma operação. Em caso de conflito, a versão do banco será preservada.</p><ul>${recoveries.map(row=>`<li>${esc(row.args.p_document.plan.name)} · ${esc(displayDate(row.args.p_document.plan.date))} ${button('Reenviar / conferir','operational-retry',row.args.p_request_id)} ${button('Descartar somente este envio','operational-discard',row.args.p_request_id)}</li>`).join('')}</ul>`:''}</section>
     ${IASDPIAuth.isAdmin()?`<section class="panel"><h2>Modelos de liturgia</h2><p>Administradores podem salvar a programação prevista de um culto como modelo. A execução real não é copiada.</p><form id="operational-template-form">${field('ID do modelo','model-id','','text',true,'pattern="[a-z0-9_-]{1,100}" placeholder="ex.: liturgia-ii"')}${field('Nome na lista','model-name','','text',true,'maxlength="200"')}<label>Programação de referência<select name="program-id">${state.programs.map(p=>`<option value="${esc(p.id)}">${esc(p.plan.name)} · ${esc(displayDate(p.plan.date))}</option>`).join('')}</select></label><button type="submit">Salvar modelo</button></form></section>`:''}`;
   }

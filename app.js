@@ -6,16 +6,16 @@ let bootInProgress=false,sessionWasAuthorized=false;
 const thresholds = { onTime: 1, attention: 5 };
 const roles = ['Ancião do mês', 'Recepção', 'Diácono', 'Diaconisa', 'Diretor de culto', 'Sonoplastia', 'Equipe de louvor', 'Responsável pela programação'];
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
-const minutes = (end, start) => (new Date(end) - new Date(start)) / 60000;
+const minutes = (end,start,day) => {const a=recordEpoch(end,day),b=recordEpoch(start,day);return a===null||b===null?null:(a-b)/60000;};
 const currentTime = () => new Date(Date.now() + state.offset);
 const clock = value => actualClock(value)||'—';
-const dateLabel = value => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T12:00:00Z`));
+const dateLabel = value => {const day=recordDay(value);return day?new Intl.DateTimeFormat('pt-BR',{timeZone:'UTC',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(day+'T12:00:00Z')):'Data inconsistente — corrija no registro';};
 const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: state.zone }).format(currentTime());
-const signed = value => { const n = Math.round(value); return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)} min`; };
-const duration = value => value==null?'—':`${Math.round(value)} min`;
-const elapsed = start => { const seconds = Math.max(0, Math.floor((currentTime() - new Date(start)) / 1000)); return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2, '0')}`; };
-function statusTone(value) { const n = Math.round(value); return n <= thresholds.onTime ? 'good' : n <= thresholds.attention ? 'warning' : 'critical'; }
-function delayLabel(value) { const n = Math.round(value); return n < 0 ? `${Math.abs(n)} min adiantado` : n <= 1 ? 'No horário' : `${n} min de atraso`; }
+const signed = value => { if(value===null||!Number.isFinite(value))return '—';const n = Math.round(value); return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)} min`; };
+const duration = value => value==null||!Number.isFinite(value)?'—':`${Math.round(value)} min`;
+const elapsed = start => { if(recordEpoch(start)===null)return '—';const seconds = Math.max(0, Math.floor((currentTime() - new Date(start)) / 1000)); return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2, '0')}`; };
+function statusTone(value) { if(value===null||!Number.isFinite(value))return 'neutral';const n = Math.round(value); return n <= thresholds.onTime ? 'good' : n <= thresholds.attention ? 'warning' : 'critical'; }
+function delayLabel(value) { if(value===null||!Number.isFinite(value))return 'Dados insuficientes';const n = Math.round(value); return n < 0 ? `${Math.abs(n)} min adiantado` : n <= 1 ? 'No horário' : `${n} min de atraso`; }
 function toast(message, error = false) {
   notice.textContent = message; notice.className = error ? 'error' : ''; notice.hidden = false;
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { notice.hidden = true; }, 6000);
@@ -38,11 +38,12 @@ function replaceProgram(program) {
   state.selected = program.id;
 }
 function executionInfo(p) {
+  p=programForMetrics(p);
   const items = p.plan.items;
-  const active = p.execution_mode === 'manual' ? null : items.find(i => p.executions[i.id] && !p.executions[i.id].ended);
-  const pending = items.find(i => !p.executions[i.id]);
+  const active = p.execution_mode === 'manual' ? null : items.find(i => p.executions[i.id]?.started && !p.executions[i.id].ended);
+  const pending = items.find(i => !p.executions[i.id]?.started);
   const finished = items.filter(i => p.executions[i.id]?.ended);
-  const records = Object.values(p.extra_events?.length?registrationData(p).executions:p.executions);
+  const records = Object.values(p.extra_events?.length?registrationData(p).executions:p.executions).filter(e=>e?.started);
   const first = [...records].sort((a,b) => new Date(a.started)-new Date(b.started))[0];
   const last = records.filter(e => e.ended).sort((a,b) => new Date(b.ended)-new Date(a.ended))[0];
   let shift = 0;
@@ -50,7 +51,8 @@ function executionInfo(p) {
   else if (active) {
     const e = p.executions[active.id];
     const plannedDuration = minutes(active.planned_end, active.planned_start);
-    shift = minutes(e.started, active.planned_start) + Math.max(0, minutes(currentTime(), e.started) - plannedDuration);
+    const delta=minutes(e.started,active.planned_start);
+    shift=delta===null||plannedDuration===null?null:delta+Math.max(0,minutes(currentTime(),e.started)-plannedDuration);
   } else if (p.plan.date === today() && p.status === 'Pronta') {
     shift = Math.max(0, minutes(currentTime(), p.planned_start));
   }
@@ -68,22 +70,19 @@ function heading(eyebrow, title, description = '', action = '') {
 }
 function empty(title, description, action = '') { return `<div class="empty"><h2>${title}</h2><p>${description}</p>${action}</div>`; }
 function button(label, action, id = '', extra = '') { return `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}>${label}</button>`; }
-function programDate(value) {
-  const day=new Date(`${value}T12:00:00Z`);
-  return `${new Intl.DateTimeFormat('pt-BR',{weekday:'long',timeZone:'UTC'}).format(day)} · ${new Intl.DateTimeFormat('pt-BR',{timeZone:'UTC'}).format(day)}`;
-}
+function programDate(value){return dateLabel(value);}
 function programStatus(p) {
   const tone={'Planejamento':'neutral','Pronta':'good','Em andamento':'warning','Finalizada':'complete'}[p.status] || 'neutral';
   return `<span class="badge ${tone}">${esc(p.status==='Planejamento'?'Rascunho':p.status)}</span>`;
 }
 function programRow(p, historic = false) {
   const m = executionInfo(p);
-  const planned = p.planned_start&&p.planned_end?minutes(p.planned_end,p.planned_start):null;
+  const view=programForMetrics(p);const planned = minutes(view.planned_end,view.planned_start);
   const actual = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
   return `<tr><td><strong>${esc(p.plan.name)}</strong><small>${esc(programDate(p.plan.date))}</small></td>
     <td>${esc(p.plan.start||'—')} → ${esc(p.plan.end||'—')}${historic ? `<small>${duration(planned)} previstos · ${actual === null ? '—' : duration(actual)} realizados</small>` : ''}</td>
     <td>${historic ? badge(m.shift, signed(m.shift)) : `${programStatus(p)}`}</td>
-    <td class="row-actions">${button(historic || p.status==='Finalizada' ? 'Ver resumo' : ['Planejamento','Pronta'].includes(p.status) ? 'Editar' : 'Ver programação', historic || p.status==='Finalizada' ? 'summary' : 'edit', p.id)}${button('Duplicar', 'duplicate', p.id)}${!historic ? button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"') : ''}</td></tr>`;
+    <td class="row-actions">${button(historic || p.status==='Finalizada' ? 'Ver resumo' : ['Planejamento','Pronta'].includes(p.status) ? 'Editar' : 'Ver programação', historic || p.status==='Finalizada' ? 'summary' : 'edit', p.id)}${button('Duplicar', 'duplicate', p.id)}${!historic&&window.IASDPIOperational&&IASDPIAuth.isAdmin()?button('Mover para a lixeira','trash-move',p.id,'class="danger-text"'):''}${!historic ? button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"') : ''}</td></tr>`;
 }
 function programTable(programs, historic = false) {
   return `<div class="table-scroll"><table><thead><tr><th>Programação</th><th>Horário ${historic ? '/ duração' : 'previsto'}</th><th>${historic ? 'Desvio do término' : 'Status'}</th><th>Ações</th></tr></thead><tbody>${programs.map(p => programRow(p, historic)).join('')}</tbody></table></div>`;
@@ -93,22 +92,19 @@ function home() {
     .sort((a, b) => `${a.plan.date} ${a.plan.start}`.localeCompare(`${b.plan.date} ${b.plan.start}`))[0];
   const running = state.programs.find(p => p.status === 'Em andamento');
   const featured = running || upcoming;
-  const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date)).slice(0, 5);
+  const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => String(b.plan.date||'').localeCompare(String(a.plan.date||''))).slice(0, 5);
   return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
     (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMO CULTO'}</p><h2>${esc(featured.plan.name)}</h2><div class="featured-meta"><p class="date">${esc(programDate(featured.plan.date))}</p>${programStatus(featured)}</div><p class="large-time">${esc(featured.plan.start||'—')} <span>→</span> ${esc(featured.plan.end||'—')}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(featured.execution_mode==='manual'?'Registrar culto':running?'Continuar acompanhamento':'Acompanhar culto', featured.execution_mode==='manual'?'actuals':'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Use Nova programação para planejar ou Registrar culto para informar o que aconteceu.')) +
     `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
 }
 function programsPage() {
-  const list = [...state.programs].sort((a,b) => b.plan.date.localeCompare(a.plan.date));
+  const list = [...state.programs].sort((a,b) => String(b.plan.date||'').localeCompare(String(a.plan.date||'')));
   return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
+    (window.IASDPIOperational&&IASDPIAuth.isAdmin()?`<div class="actions">${button('Lixeira de cultos','trash-open')}</div>`:'') +
     (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Use Nova programação para cadastrar os horários e as atividades.'));
 }
-function displayDate(iso){return /^\d{4}-\d{2}-\d{2}$/.test(iso||'')?iso.split('-').reverse().join('/'):iso||'';}
-function readDate(value){
-  const iso=/^\d{2}\/\d{2}\/\d{4}$/.test(value)?value.split('/').reverse().join('-'):value;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)||new Date(iso+'T12:00:00Z').toISOString().slice(0,10)!==iso)throw Error('Informe uma data válida no formato dd/mm/aaaa.');
-  return iso;
-}
+function displayDate(value){const day=recordDay(value);return day?day.split('-').reverse().join('/'):value||'';}
+function readDate(value){const day=recordDay(value);if(!day)throw Error('Informe uma data válida no formato dd/mm/aaaa.');return day;}
 function tryReadDate(value){try{return readDate(value);}catch(_){return '';}}
 function field(label, name, value = '', type = 'text', required = false, extra = '') {
   if(type==='date'){value=displayDate(value);type='text';extra+=' data-date-input inputmode="numeric" placeholder="dd/mm/aaaa"';}
@@ -172,11 +168,12 @@ function editor(p,plannedOnly=false) {
     </form>`;
 }
 function planView(p) {
-  return heading('PROGRAMAÇÃO', esc(p.plan.name), esc(dateLabel(p.plan.date)), `${button('Duplicar', 'duplicate', p.id)} ${button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"')}`) +
+  return heading('PROGRAMAÇÃO', esc(p.plan.name), esc(dateLabel(p.plan.date)), `${button('Duplicar', 'duplicate', p.id)}${window.IASDPIOperational&&IASDPIAuth.isAdmin()?button('Mover para a lixeira','trash-move',p.id,'class="danger-text"'):''} ${button(p.execution_mode === 'manual' ? 'Registrar culto' : 'Acompanhar', p.execution_mode === 'manual' ? 'actuals' : 'track', p.id, 'class="primary"')}`) +
     `<p class="muted">Planejamento protegido após o início. Horário previsto: ${esc(p.plan.start||'—')} → ${esc(p.plan.end||'—')}.</p>` + timeline(p) +
-    `<details class="panel"><summary>Equipe</summary><dl class="team-read">${roles.map(role => `<div><dt>${esc(role)}</dt><dd>${esc(p.plan.team[role] || 'Não informado')}</dd></div>`).join('')}</dl></details>`;
+    `<details class="panel"><summary>Equipe</summary><dl class="team-read">${roles.map(role => `<div><dt>${esc(role)}</dt><dd>${esc((p.plan.team||{})[role] || 'Não informado')}</dd></div>`).join('')}</dl></details>`;
 }
 function timeline(p) {
+  p=programForMetrics(p);
   let block = '';
   return `<section class="section"><div class="section-heading"><h2>Linha da programação</h2><span class="muted">✓ Finalizado · ● Em andamento · ○ Pendente</span></div><ol class="timeline">${p.plan.items.map(i => {
     const e = p.executions[i.id];
@@ -193,9 +190,10 @@ function tracking(p) {
   if (p?.execution_mode === 'manual') return actualsForm(p);
   if (!p) return heading('EXECUÇÃO', 'Acompanhar culto', 'Use esta tela durante o culto para iniciar, avançar e pausar as atividades.') + empty('Escolha uma programação', 'Abra uma programação pronta para acompanhar.', button('Ver programações', 'programs', '', 'class="primary"'));
   if (p.status === 'Finalizada') return summary(p);
+  p=programForMetrics(p);
   const m = executionInfo(p);
   const focus = m.active || m.expected || m.pending;
-  const index = focus ? p.plan.items.indexOf(focus) : -1;
+  const index = focus ? p.plan.items.findIndex(item=>item.id===focus?.id) : -1;
   const next = p.plan.items[index + 1];
   const e = focus && p.executions[focus.id];
   const dateMismatch = p.plan.date !== today();
@@ -211,7 +209,7 @@ function tracking(p) {
 }
 function summary(p) {
   const m = executionInfo(p);
-  const plannedDuration = p.planned_start&&p.planned_end?minutes(p.planned_end,p.planned_start):null;
+  const view=programForMetrics(p);const plannedDuration = minutes(view.planned_end,view.planned_start);
   const actualDuration = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
   return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Editar registro', 'actuals', p.id) : ''} ${window.IASDPIDemo&&p.execution_mode==='manual'&&p.plan.date==='2026-10-03'?button('Conferir correção para 10/10/2026','correct-date',p.id):''}`) +
     `<section class="summary-grid">${[['Início planejado', p.plan.start], ['Início real', actualClock(m.first?.started)||'—'], ['Término planejado', p.plan.end], ['Término real', actualClock(m.last?.ended)||'—'], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
@@ -221,10 +219,12 @@ function summary(p) {
 }
 const adherenceTolerance = 2;
 function adherence(p) {
-  const completed=p.plan.items.filter(item=>p.executions[item.id]?.ended);
+  p=programForMetrics(p);
+  const completed=p.plan.items.filter(item=>p.executions[item.id]?.started&&p.executions[item.id]?.ended&&item.planned_start&&item.planned_end);
   const conforming=completed.filter(item=>{
     const real=p.executions[item.id];
-    return Math.abs(minutes(real.started,item.planned_start)) <= adherenceTolerance &&
+    const start=minutes(real.started,item.planned_start),end=minutes(real.ended,item.planned_end);
+    return start!==null&&end!==null&&Math.abs(start) <= adherenceTolerance &&
       (item.end_inferred || Math.abs(minutes(real.ended,item.planned_end)) <= adherenceTolerance);
   });
   return {total:completed.length,conforming:conforming.length,percent:completed.length ? Math.round(conforming.length/completed.length*100) : 0};
@@ -235,15 +235,16 @@ function median(values) {
 }
 function activityMedians(programs) {
   const groups=new Map();
-  programs.forEach(p=>p.plan.items.forEach(item=>{
+  programs.map(programForMetrics).forEach(p=>p.plan.items.forEach(item=>{
     const real=p.executions[item.id];if(!real?.ended)return;
-    const name=item.activity.startsWith('Música Congregacional') ? 'Música Congregacional' : item.activity;
+    const name=String(item.activity||'Atividade sem título').startsWith('Música Congregacional') ? 'Música Congregacional' : item.activity;
     if(!groups.has(name))groups.set(name,{name,values:[],events:new Set(),estimated:false});
     const group=groups.get(name);
-    group.values.push(minutes(real.ended,real.started)-minutes(item.planned_end,item.planned_start));
+    const actual=minutes(real.ended,real.started),planned=minutes(item.planned_end,item.planned_start);if(actual===null||planned===null)return;
+    group.values.push(actual-planned);
     group.events.add(p.id);group.estimated ||= Boolean(item.end_inferred);
   }));
-  return [...groups.values()].map(group=>({...group,median:median(group.values)}));
+  return [...groups.values()].filter(group=>group.values.length).map(group=>({...group,median:median(group.values)}));
 }
 function medianView(programs) {
   const groups=activityMedians(programs);
@@ -254,7 +255,7 @@ function medianView(programs) {
     <p class="muted">${groups.some(g=>g.estimated)?'* Atividades marcadas usam um término de referência. ':''}A mediana considera os registros, inclusive quando a atividade se repete no mesmo culto.</p></section>`;
 }
 function adherenceOverview() {
-  const examples=state.programs.filter(p=>p.status==='Finalizada' && p.plan.items.some(i=>p.executions[i.id]?.ended)).sort((a,b)=>a.plan.date.localeCompare(b.plan.date));
+  const examples=state.programs.filter(p=>p.status==='Finalizada' && p.plan.items.some(i=>p.executions?.[i.id]?.ended)).sort((a,b)=>String(a.plan.date||'').localeCompare(String(b.plan.date||'')));
   if(!examples.length)return '';
   const counts=examples.map(adherence);
   const conforming=counts.reduce((sum,a)=>sum+a.conforming,0),total=counts.reduce((sum,a)=>sum+a.total,0);
@@ -268,18 +269,18 @@ function adherenceOverview() {
     }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p>${medianView(examples)}${transitionView(examples)}</section>`;
 }
 function historyPage() {
-  const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => b.plan.date.localeCompare(a.plan.date));
+  const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => String(b.plan.date||'').localeCompare(String(a.plan.date||'')));
   return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
 }
 function render() {
   const allowed=IASDPIAuth.allowed();
   if(!allowed&&!IASDPIAuth.isPublic(state.page))state.page='login';
-  document.querySelectorAll('nav a').forEach(a=>{a.hidden=a.dataset.page==='users'?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
+  document.querySelectorAll('nav a').forEach(a=>{a.hidden=['users','trash'].includes(a.dataset.page)?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
   document.querySelector('#auth-logout').hidden=!allowed;
 
   const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':['edit','plan-edit'].includes(state.page)?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  app.innerHTML = ({home, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
+  app.innerHTML = ({home, trash: trashPage, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   updateWeekday(); updateActuals(); tick();
 }
 function navigate(page, id) { if(!canLeaveRegistration()){window.history.replaceState(null,'',`#${state.page}${state.selected?'/'+state.selected:''}`);return false;} if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals','plan-edit'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
@@ -290,9 +291,9 @@ function updateWeekday() {
 }
 function tick() {
   const p = selected(); if (!p || state.page !== 'tracking' || p.status === 'Finalizada') return;
-  const m = executionInfo(p), e = m.active && p.executions[m.active.id];
+  const m = executionInfo(p), e = m.active && programForMetrics(p).executions[m.active.id];
   const focus = m.active || m.expected || m.pending;
-  const next = p.plan.items[p.plan.items.indexOf(focus) + 1];
+  const next = p.plan.items[p.plan.items.findIndex(item=>item.id===focus?.id) + 1];
   const nextElement = document.querySelector('[data-next]');
   if (nextElement && nextElement.dataset.item !== (next?.id || '')) {
     nextElement.dataset.item = next?.id || '';
@@ -309,6 +310,7 @@ async function handleAction(target) {
   const {action, id} = target.dataset;
   if(['chronogram','new','actuals','summary','programs','edit','track','duplicate','correct-date','edit-record-plan'].includes(action)&&!canLeaveRegistration())return;
   if(!action.startsWith('agenda-'))await IASDPIAuth.requireAccess();
+  if(action.startsWith('trash-')){await handleTrashAction(action,id);return;}
   if(action.startsWith('users-')){await handleUsersAction(action,id);return;}
   if(action.startsWith('operational-')){await IASDPIOperational.action(action,id);return;}
   if(action==='cloud-save')await cloudSave();
@@ -465,8 +467,8 @@ document.querySelector('#duplicate-form').addEventListener('submit', event => {
     document.querySelector('#duplicate-dialog').close(); replaceProgram(p); navigate('edit', p.id); toast('Planejamento duplicado.');
   }, event.submitter);
 });
-document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') guarded(()=>handleAction({dataset:{action:'chronogram'}})); else {navigate(link.dataset.page);if(link.dataset.page==='users'&&IASDPIAuth.isAdmin())guarded(()=>refreshUsers());} } });
-window.addEventListener('hashchange', () => { captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit'].includes(page)) navigate(page, id); });
+document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') guarded(()=>handleAction({dataset:{action:'chronogram'}})); else {navigate(link.dataset.page);if(link.dataset.page==='trash'&&IASDPIAuth.isAdmin())guarded(()=>refreshTrash());if(link.dataset.page==='users'&&IASDPIAuth.isAdmin())guarded(()=>refreshUsers());} } });
+window.addEventListener('hashchange', () => { captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash'].includes(page)) navigate(page, id); });
 async function boot() {
   if(bootInProgress)return;
   bootInProgress=true;
@@ -493,7 +495,7 @@ async function boot() {
     if (id && state.programs.some(p => p.id === id)) state.selected = id;
     if (page === 'actuals' && !id) state.selected = null;
     // Um novo culto sempre começa pela seleção explícita da data.
-    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; render();
+    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; render();
   } catch (error) {
     app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
   } finally {bootInProgress=false;}
