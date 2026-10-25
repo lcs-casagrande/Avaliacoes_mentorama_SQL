@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0F4C78">
   <title>IASDPI · Programação do culto</title>
   <link rel="stylesheet" href="styles.css">
@@ -20,6 +20,10 @@
   <script src="organization.js" defer></script>
   <script src="users.js" defer></script>
   <script src="trash.js" defer></script>
+  <script src="drafts.js" defer></script>
+  <script src="navigation.js" defer></script>
+  <script src="conflicts.js" defer></script>
+  <script src="history.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -36,6 +40,7 @@
       <a href="#archive" data-page="archive" hidden>Arquivo e banco</a>
       <a href="#history" data-page="history" hidden>Histórico</a>
       <a href="#trash" data-page="trash" hidden>Administração · Lixeira</a>
+      <a href="#models" data-page="models" hidden>Administração · Modelos</a>
       <a href="#users" data-page="users" hidden>Administração · Usuários</a>
       <a href="#login" data-page="login">Entrar</a>
       <button type="button" id="auth-logout" hidden>Sair</button>

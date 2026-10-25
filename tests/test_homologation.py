@@ -34,8 +34,10 @@ class PackageTests(unittest.TestCase):
     def test_static_allowlist_and_readonly_configuration(self):
         with tempfile.TemporaryDirectory(prefix='iasdpi-package-') as directory:
             manifest = builder.build(Path(directory) / 'site')
-            names = {p.name for p in (Path(directory) / 'site').iterdir()}
-            self.assertEqual(names, set(builder.ASSETS) | {'manifest.json'})
+            names = {str(p.relative_to(Path(directory) / 'site')) for p in (Path(directory) / 'site').rglob('*') if p.is_file()}
+            self.assertEqual(names, set(manifest['files']) | {'manifest.json'})
+            self.assertTrue(set(builder.ASSETS).issubset(names))
+            self.assertTrue(all(name in builder.ASSETS or name == 'manifest.json' or name.startswith('assets/') for name in names))
             self.assertNotIn('server.py', names)
             self.assertNotIn('chronogram.json', names)
             config = (Path(directory) / 'site/config.js').read_text()

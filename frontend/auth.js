@@ -2,7 +2,7 @@
 window.IASDPIAuth = (() => {
   let client=null, session=null, access=null, verification=null, generation=0, recovery=null;
   let phase='recovering', statusMessage='Recuperando sessão…', signingIn=false, expiryTimer=null;
-  const publicPages=new Set(['organization','agendas','login','invite']);
+  const publicPages=new Set(['organization','agendas','login','invite','forgot-password','reset-password']);
   function config(){
     let saved={};try{saved=JSON.parse(localStorage.getItem(IASDPIStorage.cloudConfig)||'{}');}catch(_){}
     return {url:window.IASDPIConfig?.supabaseUrl || '',key:window.IASDPIConfig?.supabasePublishableKey || saved.key || ''};
@@ -65,12 +65,15 @@ window.IASDPIAuth = (() => {
     });
     client.auth.onAuthStateChange((event,value)=>{
       // Callback síncrono: chamadas Auth dentro deste callback podem bloquear o SDK.
-      if(event==='SIGNED_OUT'){
+      if(event==='PASSWORD_RECOVERY'){
+        adopt(value);access=null;recoveryMetadata({uid:value.user.id,until:Math.min(Date.now()+900000,value.expires_at*1000)});status('recovering','Defina sua nova senha.');
+      }else if(event==='SIGNED_OUT'){
+        recoveryMetadata(null);
         const existed=Boolean(session);adopt(null);
         invalidate(existed?'expired':'anonymous',existed?'Sessão expirada. Entre novamente.':'Entre com uma conta autorizada.',true);
       }else{
         const changed=session?.access_token!==value?.access_token;adopt(value);
-        if(value&&changed&&!signingIn)setTimeout(()=>{void restore().catch(()=>{});},0);
+        if(value&&changed&&!signingIn&&!passwordRecoveryActive())setTimeout(()=>{void restore().catch(()=>{});},0);
       }
     });
     return client;
@@ -104,6 +107,7 @@ window.IASDPIAuth = (() => {
         if(error)throw error;
         adopt(data.session);
         if(!session){invalidate('anonymous','Entre com uma conta autorizada.',true);return null;}
+        if(passwordRecoveryActive()){status('recovering','Defina sua nova senha.');return null;}
         return await verify();
       }catch(error){
         const expired=error.status===400||error.status===401||/refresh_token|expirada/i.test(error.code||error.message||'');
@@ -115,6 +119,7 @@ window.IASDPIAuth = (() => {
     return recovery;
   }
   async function requireAccess(){
+    if(passwordRecoveryActive())throw Error('Conclua a recuperação de senha antes de acessar os registros.');
     if(!session||session.expires_at*1000<=Date.now())await restore();
     return verify();
   }
@@ -139,13 +144,88 @@ window.IASDPIAuth = (() => {
     const {error}=await getClient().auth.signUp({email,password});if(error)throw Error('Não foi possível concluir o cadastro. Verifique sua conexão.');
   }
   async function logout(){
+    if(window.IASDPIDrafts&&!await IASDPIDrafts.confirmLogout())return false;
+    const draftOwner=session?.user.id;
     const {error}=await getClient().auth.signOut({scope:'local'});
     if(error)throw Error('Não foi possível encerrar a sessão. Verifique a conexão e tente novamente.');
+    await window.IASDPIDrafts?.clearUser(draftOwner);
     adopt(null);invalidate('anonymous','Sessão encerrada.',true);
+    return true;
   }
+  // O SDK guarda o verificador PKCE e a sessão. Aqui só há metadados temporários.
+  const passwordMarker=IASDPIStorage.authSession+':password-recovery-v1';
+  let passwordContext=null,passwordRequestAt=0,passwordMessage='Link ausente, inválido ou expirado. Solicite um novo e abra no mesmo navegador.';
+  function recoveryMetadata(value){
+    passwordContext=value;
+    try{if(value)sessionStorage.setItem(passwordMarker,JSON.stringify(value));else sessionStorage.removeItem(passwordMarker);}catch(_){}
+  }
+  function passwordRecoveryActive(){
+    if(!passwordContext)try{passwordContext=JSON.parse(sessionStorage.getItem(passwordMarker)||'null');}catch(_){}
+    return Boolean(session&&passwordContext?.uid===session.user.id&&passwordContext.until>Date.now()&&session.expires_at*1000>Date.now());
+  }
+  function passwordRedirect(){
+    const url=new URL(location.href);
+    if(!['https:','http:'].includes(url.protocol)||(url.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('A recuperação exige o site HTTPS ou uma prévia local autorizada.');
+    url.search='';url.hash='reset-password';
+    if(url.origin!==location.origin||url.username||url.password)throw Error('Endereço de recuperação inválido.');
+    return url.href;
+  }
+  async function requestPasswordReset(email){
+    if(!remoteRequestAllowed('/auth/v1/recover','POST'))throw Error('Envio de e-mail bloqueado nesta prévia de consulta. Use o ambiente de testes autorizado.');
+    const redirectTo=passwordRedirect();
+    if(Date.now()-passwordRequestAt<60000)throw Error('Aguarde um minuto antes de solicitar outro link.');
+    passwordRequestAt=Date.now();
+    const {error}=await getClient().auth.resetPasswordForEmail(email,{redirectTo});
+    if(error&&error.status===429)throw Error('Muitas solicitações. Aguarde antes de tentar novamente.');
+    if(error&&!['user_not_found','email_not_found'].includes(error.code))throw Error('Não foi possível solicitar a recuperação agora. Verifique a conexão e tente novamente mais tarde.');
+    return 'Se o e-mail estiver cadastrado, você receberá as instruções para redefinir a senha. Verifique também o spam. Abra o link neste mesmo navegador.';
+  }
+  async function handlePasswordCallback(){
+    const url=new URL(location.href),hash=new URLSearchParams(url.hash.slice(1));
+    const recoveryRoute=url.hash==='#reset-password',implicit=hash.get('type')==='recovery';
+    if(!recoveryRoute&&!implicit&&!hash.has('error')&&!hash.has('error_code'))return false;
+    const codes=url.searchParams.getAll('code'),code=codes[0],hasError=url.searchParams.has('error')||hash.has('error')||url.searchParams.has('error_code')||hash.has('error_code');
+    const flowId=url.searchParams.get('sb_flow_id');
+    // Remover códigos/erros antes de qualquer navegação, consulta ou mensagem.
+    if(codes.length||hasError||implicit){url.search='';url.hash='reset-password';window.history.replaceState(null,'',url.pathname+url.hash);}
+    if(!codes.length&&!hasError&&!implicit)return false;
+    recoveryMetadata(null);
+    passwordMessage='Conferindo o link de recuperação…';signingIn=true;
+    try{
+      if(hasError||implicit||codes.length!==1||!code||code.length>2048)throw Error();
+      const {data,error}=await getClient().auth.exchangeCodeForSession(code,flowId?{flowId}:undefined);
+      if(error||data?.redirectType!=='recovery'||!data.session)throw Error();
+      adopt(data.session);recoveryMetadata({uid:session.user.id,until:Math.min(Date.now()+900000,session.expires_at*1000)});
+      passwordMessage='Link confirmado. Defina sua nova senha.';status('recovering',passwordMessage);
+    }catch(_){recoveryMetadata(null);passwordMessage='Link inválido, já utilizado ou expirado. Solicite outro e abra no mesmo navegador da solicitação.';}
+    finally{signingIn=false;}
+    return true;
+  }
+  async function updatePassword(password){
+    const sdk=getClient(),{data,error}=await sdk.auth.getSession();
+    if(error||!data.session){recoveryMetadata(null);passwordMessage='A recuperação expirou. Solicite um novo link.';throw Error(passwordMessage);}
+    adopt(data.session);
+    if(!passwordRecoveryActive())throw Error('Link inválido ou expirado. Solicite um novo link.');
+    if(typeof password!=='string'||password.length<12)throw Error('Use uma senha com pelo menos 12 caracteres.');
+    const result=await sdk.auth.updateUser({password});
+    if(result.error){if([401,403].includes(result.error.status)){recoveryMetadata(null);passwordMessage='Link expirado. Solicite um novo link.';}throw Error('Não foi possível redefinir a senha. Verifique a conexão, a validade do link e os requisitos de senha do projeto.');}
+    recoveryMetadata(null);passwordMessage='Senha redefinida. Entre novamente com a nova senha.';
+    const signedOut=await sdk.auth.signOut({scope:'local'});
+    adopt(null);invalidate('anonymous',passwordMessage,true);
+    if(signedOut.error)throw Error('Senha alterada, mas não foi possível encerrar a sessão local. Recarregue e entre com a nova senha.');
+  }
+  function forgotPasswordPage(){
+    if(bootInProgress)return heading('ACESSO','Recuperar senha')+'<p role="status">Preparando formulário de recuperação…</p>';
+    return heading('ACESSO','Recuperar senha','Informe seu e-mail. Esta solicitação não concede autorização de acesso à igreja.')+`<section class="panel auth-panel"><form id="password-request-form">${field('E-mail','email','','email',true,'autocomplete="email"')}<button type="submit" class="primary">Enviar link de recuperação</button><p class="password-feedback" role="status" aria-live="polite"></p></form><p><a href="#login" data-auth-page="login">Voltar para Entrar</a></p></section>`;
+  }
+  function resetPasswordPage(){
+    if(bootInProgress)return heading('ACESSO','Definir nova senha')+'<p role="status">Conferindo sessão de recuperação…</p>';
+    return heading('ACESSO','Definir nova senha','A redefinição usa uma sessão de recuperação do Supabase e não altera as permissões da conta.')+`<section class="panel auth-panel"><p role="status">${esc(passwordRecoveryActive()?'Link confirmado. Defina sua nova senha.':passwordMessage)}</p>${passwordRecoveryActive()?`<form id="password-reset-form">${field('Nova senha','password','','password',true,'minlength="12" maxlength="256" autocomplete="new-password"')}${field('Confirmar nova senha','repeat','','password',true,'minlength="12" maxlength="256" autocomplete="new-password"')}<button type="submit" class="primary">Definir nova senha</button></form>`:`<p><a href="#forgot-password" data-auth-page="forgot-password">Solicitar novo link</a></p>`}<p><a href="#login" data-auth-page="login">Voltar para Entrar</a></p></section>`;
+  }
+
   function loginPage(){
     return heading('ACESSO RESTRITO','Entrar no IASDPI','Cronogramas, registros, histórico e backups são exclusivos de administradores e líderes autorizados.')+
-      `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${field('E-mail','email','','email',true,'autocomplete="username"')}${field('Senha','password','','password',true,'autocomplete="current-password"')}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p class="muted">A sessão é mantida pelo Supabase neste navegador. Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
+      `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${field('E-mail','email','','email',true,'autocomplete="username"')}${field('Senha','password','','password',true,'autocomplete="current-password"')}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p><a href="#forgot-password" data-auth-page="forgot-password">Esqueci minha senha</a></p><p class="muted">A sessão é mantida pelo Supabase neste navegador. Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
   }
   document.addEventListener('visibilitychange',()=>{
     if(!client)return;
@@ -153,6 +233,6 @@ window.IASDPIAuth = (() => {
     else{client.auth.startAutoRefresh();void restore().catch(()=>{});}
   });
   setInterval(()=>{if(session&&!document.hidden)void requireAccess().catch(()=>{});},60000);
-  return {config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,restore,
+  return {config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,restore,requestPasswordReset,handlePasswordCallback,updatePassword,passwordRecoveryActive,forgotPasswordPage,resetPasswordPage,
     status:()=>({phase,message:statusMessage}),isPublic:page=>publicPages.has(page),session:()=>allowed()?session:null};
 })();

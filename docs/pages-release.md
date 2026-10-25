@@ -1,5 +1,9 @@
 # Publicação no Pages existente — validação do Supabase Auth
 
+> **Documento histórico:** descreve a etapa anterior com registros locais e
+> bloqueio de escrita remota. Para os Lotes 1–6 com Supabase operacional, seguir
+> [Preparação final da publicação](final-release-preparation.md).
+
 ## Destino e backups de código
 
 Repositório: `lcs-casagrande/Avaliacoes_mentorama_SQL`.

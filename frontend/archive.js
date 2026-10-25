@@ -1,6 +1,6 @@
 'use strict';
 const archiveKey=IASDPIStorage.programs;
-const cloudState={session:null,archives:[],busy:false,dirty:false};
+const cloudState={session:null,archives:[],loaded:false,loading:false,error:'',busy:false,dirty:false};
 function backupValidate(data){
   if(!data || data.format!=='IASDPI-backup'||data.version!==1||!Array.isArray(data.programs))throw Error('Arquivo de backup incompatível. Nada foi alterado.');
   const ids=new Set();
@@ -8,13 +8,14 @@ function backupValidate(data){
     if(!p||typeof p.id!=='string'||!p.id||ids.has(p.id)||!p.plan||typeof p.plan.name!=='string'||!Array.isArray(p.plan.items)||!p.executions||typeof p.executions!=='object'||!Number.isInteger(p.version)||p.version<1)throw Error('Registro inválido no backup. Nada foi alterado.');
     ids.add(p.id);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(p.plan.date)||p.plan.items.some(i=>!i||typeof i.id!=='string'||typeof i.activity!=='string'))throw Error('Cronograma inválido no backup. Nada foi alterado.');
-    const clock=/^([01]\d|2[0-3]):[0-5]\d$/;
+    const day=recordDay(p.plan.date),clock={test:validRecordClock};
+    const validTime=value=>typeof value==='string'&&inspectRecordTime(value,day).valid;
     const emptyFree=p.execution_mode==='manual'&&p.plan.template_id==='free'&&!p.plan.items.length&&p.plan.start===''&&p.plan.end===''&&p.planned_start===null&&p.planned_end===null;
-    if((!emptyFree&&(!clock.test(p.plan.start)||!clock.test(p.plan.end)||typeof p.planned_start!=='string'||typeof p.planned_end!=='string'||!Number.isFinite(new Date(p.planned_start).getTime())||!Number.isFinite(new Date(p.planned_end).getTime())))||!['Planejamento','Pronta','Em andamento','Finalizada'].includes(p.status))throw Error('Datas, horários ou status inválidos no backup.');
+    if(!day||(!emptyFree&&(!clock.test(p.plan.start)||!clock.test(p.plan.end)||!validTime(p.planned_start)||!validTime(p.planned_end)))||!['Planejamento','Pronta','Em andamento','Finalizada'].includes(p.status))throw Error('Datas, horários ou status inválidos no backup.');
     const itemIds=new Set();
-    for(const item of p.plan.items){if(itemIds.has(item.id)||!clock.test(item.start)||!clock.test(item.end)||typeof item.block!=='string'||!Number.isFinite(new Date(item.planned_start).getTime())||!Number.isFinite(new Date(item.planned_end).getTime()))throw Error('Atividade inválida no backup.');itemIds.add(item.id);}
+    for(const item of p.plan.items){if(itemIds.has(item.id)||!clock.test(item.start)||!clock.test(item.end)||typeof item.block!=='string'||!validTime(item.planned_start)||!validTime(item.planned_end))throw Error('Atividade inválida no backup.');itemIds.add(item.id);}
     if(Array.isArray(p.executions))throw Error('Execução inválida no backup.');
-    for(const [id,e] of Object.entries(p.executions)){if(!itemIds.has(id)||!e||typeof e.started!=='string'||!Number.isFinite(new Date(e.started).getTime())||(e.ended!=null&&(typeof e.ended!=='string'||!Number.isFinite(new Date(e.ended).getTime()))))throw Error('Horários realizados inválidos no backup.');}
+    for(const [id,e] of Object.entries(p.executions)){if(!itemIds.has(id)||!e||(e.started!=null&&e.started!==''&&!validTime(e.started))||(e.ended!=null&&e.ended!==''&&!validTime(e.ended)))throw Error('Horários realizados inválidos no backup.');}
     for(const item of p.plan.items){const detail=p.actual_details?.[item.id];if(detail&&(detail.status!==undefined||detail.subactivities!==undefined||detail.partial_end!==undefined)){const e=p.executions[item.id];validateActivityRecord({...detail,start:storedActualClock(e?.started),end:storedActualClock(e?.ended)||detail.partial_end||''},item.id);}}
     if(p.extra_events)validateExtraEvents(p,p.extra_events,false);
   }
@@ -26,6 +27,23 @@ async function backupPayload(){
   const programs=window.IASDPIDemo?(raw===null?[]:JSON.parse(raw)):await api('programs');
   return backupValidate({format:'IASDPI-backup',version:1,programs,
     dateCorrectionBackupsRaw:window.IASDPIDemo?localStorage.getItem(IASDPIStorage.dateCorrections):null});
+}
+// O schema operacional exige previstos HH:mm e execuções com data. A adaptação
+// só ocorre na importação confirmada; exportação/restauração local são exatas.
+function operationalImportCandidate(original){
+  const document=structuredClone(original),changes=[],day=recordDay(document.plan.date);
+  const planned=(object,key)=>{
+    const value=object[key],converted=plannedClock(value);
+    if(converted!==value){object[key]=converted;changes.push('previsto '+value+' → '+converted);}
+    if(value&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(converted))throw Error('Horário previsto com segundos não nulos: revise a programação antes de importar. O backup original foi preservado.');
+  };
+  for(const object of [document.plan,...document.plan.items])for(const key of ['start','end'])planned(object,key);
+  for(const e of Object.values(document.executions))for(const key of ['started','ended']){
+    const value=e[key];
+    if(validRecordClock(value)){e[key]=recordInstant(day,value);changes.push('horário real associado à data do culto, no fuso America/Sao_Paulo');}
+  }
+  if(changes.length)document.backup_source={format:'IASDPI-backup',version:1,document:structuredClone(original)};
+  return {document,changes};
 }
 const toBase64=bytes=>{let text='';for(const byte of bytes)text+=String.fromCharCode(byte);return btoa(text);};
 const fromBase64=text=>Uint8Array.from(atob(text),c=>c.charCodeAt(0));
@@ -71,7 +89,16 @@ function archivePage(){
   (window.IASDPIOperational?IASDPIOperational.panel():'')+
   `<section class="panel"><h2>${window.IASDPIOperational?'Backup adicional opcional':'Baixar backup protegido'}</h2><p class="muted">Inclui programações, horários, atividades extras, responsáveis e observações. Guarde o arquivo no Drive/OneDrive e mantenha a senha em local separado. Sem essa senha, o arquivo não poderá ser recuperado.</p><form id="backup-export-form"><div class="notes-grid">${field('Senha do backup','password','','password',true,'minlength="10" autocomplete="new-password"')}${field('Repetir senha','repeat','','password',true,'minlength="10" autocomplete="new-password"')}</div><button type="submit" class="primary">Baixar backup</button></form></section>
   <section class="panel"><h2>Restaurar uma cópia</h2><p class="muted">${window.IASDPIOperational?'Registros existentes no Supabase nunca serão substituídos pela restauração; conflitos serão informados.':'Os registros atuais não são substituídos. Versões diferentes do mesmo culto entram como cópias identificadas.'}</p><form id="backup-restore-form"><label>Arquivo de backup<input type="file" name="file" accept=".json,application/json" required></label>${field('Senha do arquivo protegido','password','','password',false,'autocomplete="off"')}<button type="submit">Restaurar sem substituir registros</button></form></section>
-  <section class="panel"><h2>Arquivos históricos · Supabase</h2><p class="muted">${window.IASDPIOperational?'Cópias imutáveis adicionais em culto_archives, independentes do banco operacional. Não é necessário arquivar manualmente cada edição ou publicação.':'Conecte um projeto com a tabela culto_archives e políticas de acesso instaladas. Administradores e líderes autorizados acessam as cópias da igreja; as versões arquivadas não podem ser alteradas ou apagadas pelo site.'}</p><p>Conectado como ${esc(account.user.email)}.</p><div class="actions">${button('Arquivar registros no banco','cloud-save','','class="primary"')}${button('Consultar arquivos','cloud-list')}${button('Sair','cloud-signout')}</div><div class="section">${cloudState.archives.length?`<ul class="agenda-list">${cloudState.archives.map(row=>`<li>${button('Restaurar cópia de '+displayRecordTimestamp(row.created_at),'cloud-restore',row.id)}</li>`).join('')}</ul>`:''}</div></section>`;
+  <section class="panel"><h2>Arquivos históricos · Supabase</h2><p class="muted">${window.IASDPIOperational?'Cópias imutáveis adicionais em culto_archives, independentes do banco operacional. Não é necessário arquivar manualmente cada edição ou publicação.':'Conecte um projeto com a tabela culto_archives e políticas de acesso instaladas. Administradores e líderes autorizados acessam as cópias da igreja; as versões arquivadas não podem ser alteradas ou apagadas pelo site.'}</p><p>Conectado como ${esc(account.user.email)}.</p><div class="actions">${button('Arquivar registros no banco','cloud-save','','class="primary"')}${button('Consultar arquivos','cloud-list')}${button('Sair','cloud-signout')}</div><div class="section">${cloudState.loading?'<p role="status">Carregando arquivos…</p>':cloudState.error?`<p role="alert" class="form-error">Erro ao carregar arquivos: ${esc(cloudState.error)} ${button('Tentar novamente','cloud-list')}</p>`:cloudState.archives.length?`<ul class="agenda-list">${cloudState.archives.map(row=>`<li>${button('Restaurar cópia de '+displayRecordTimestamp(row.created_at),'cloud-restore',row.id)}</li>`).join('')}</ul>`:cloudState.loaded?'<p>Nenhum arquivo histórico encontrado.</p>':'<p>Use Consultar arquivos para carregar as cópias históricas.</p>'}</div></section>`;
+}
+async function refreshArchives(){
+  cloudState.loading=true;cloudState.error='';render();
+  try{
+    const rows=await cloudRequest('/rest/v1/culto_archives?select=id,created_at&order=created_at.desc&limit=30');
+    if(!Array.isArray(rows))throw Error('Resposta inválida ao consultar arquivos.');
+    cloudState.archives=rows;cloudState.loaded=true;
+  }catch(error){cloudState.error=error.message;throw error;}
+  finally{cloudState.loading=false;render();}
 }
 async function cloudRequest(path,options={}){
   const authorization=await IASDPIAuth.requireAccess();

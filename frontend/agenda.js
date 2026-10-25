@@ -5,7 +5,18 @@ const ministrySchedules={'Comunicação':[
   {date:'2026-10-03',person:'Henrique'},{date:'2026-10-10',person:'Izabelle PI Souza'},
   {date:'2026-10-17',person:'Simone/Profªde Pilates 🧘'},{date:'2026-10-24',person:'macedo Logos'},
   {date:'2026-10-31',person:'Letícia PI'}
-], 'Sonoplastia':[]};
+], 'Sonoplastia':[
+  {date:'2026-10-03',person:'Mini Lucas'},{date:'2026-10-04',person:'Rafa'},
+  {date:'2026-10-07',person:'Samuel'},{date:'2026-10-10',person:'Luan'},
+  {date:'2026-10-11',person:'Macedo'},{date:'2026-10-14',person:'Paulitos'},
+  {date:'2026-10-17',person:'Mini Lucas'},{date:'2026-10-18',person:'Raphael'},
+  {date:'2026-10-21',person:'Luan'},{date:'2026-10-24',person:'Mini Lucas'},
+  {date:'2026-10-25',person:'Rafa'},{date:'2026-10-28',person:'Luan'},
+  {date:'2026-10-31',person:'Raphael'},{date:'2026-11-01',person:'Raphael'},
+  {date:'2026-11-04',person:'Paulitos'}
+]};
+const soundScheduleInfo={title:'Escala de Sonoplastia — Outubro de 2026',instruction:'Em caso de impedimento, avisar antecipadamente no grupo responsável.'};
+function agendaWeekday(date){const name=new Intl.DateTimeFormat('pt-BR',{weekday:'long',timeZone:'UTC'}).format(new Date(date+'T12:00:00Z'));return name[0].toLocaleUpperCase('pt-BR')+name.slice(1);}
 function agendaSource(){return window.IASDPIAgendaData || {status:'pending',events:[]};}
 const agendaDateAdd=(day,amount)=>new Date(new Date(day+'T12:00:00Z').getTime()+amount*86400000).toISOString().slice(0,10);
 function agendaPeriod(e){return e.startDate===e.endDate?programDate(e.startDate):`${programDate(e.startDate)} → ${programDate(e.endDate)}`;}
@@ -40,6 +51,15 @@ function agendaResponsibles(start,end){
   return `<section class="agenda-responsibles" aria-label="Anciãos responsáveis"><div class="panel"><p class="eyebrow">ANCIÃO DO MÊS</p>${month.length?month.map(e=>`<h2>${names(e)}</h2><p class="muted">${esc(agendaPeriod(e))}</p>`).join(''):'<p>Não informado no calendário para este mês.</p>'}</div><div class="panel"><p class="eyebrow">ANCIÃO DA SEMANA · DATA SELECIONADA</p>${selected.length?selected.map(e=>`<h2>${names(e)}</h2><p class="muted">${esc(agendaPeriod(e))}</p>`).join(''):'<p>Não informado para a data selecionada.</p>'}</div></section>
   <details class="panel agenda-weeks" ${agendaState.month!==today().slice(0,7)?'open':''}><summary>Escalas semanais do mês · ${weekly.length}</summary>${weekly.length?`<ul>${weekly.map(e=>`<li><strong>${names(e)}</strong><span>${esc(agendaPeriod(e))}</span></li>`).join('')}</ul>`:'<p class="muted">Nenhuma escala semanal neste período.</p>'}</details>`;
 }
+// Origem dos dados, sem atribuir uma sincronização oficial às escalas manuais.
+function agendaProvenance(area,source=agendaSource()){
+  if(area==='communication'||area==='sound'){
+    const ministry=area==='communication'?'Comunicação':'Sonoplastia',dates=ministrySchedules[ministry].map(e=>e.date).sort();
+    return `<section class="agenda-source form-note" aria-label="Fonte da escala" data-source="manual"><strong>Origem: escala manual de ${esc(ministry)}${area==='sound'?' fornecida pela liderança':''}</strong><p>${area==='sound'?'Fornecida pela liderança.':'Informada à aplicação e mantida no código.'} Não é sincronizada automaticamente com o calendário oficial.</p><p>Última atualização da escala: não informada. Vigência: ${dates.length?esc(displayDate(dates[0])+' a '+displayDate(dates.at(-1))):'não definida; nenhuma escala cadastrada'}.</p>${area==='sound'&&dates.length?`<p>Documento: Outubro de 2026 · ${dates.length} datas. Inclui também 01/11/2026 e 04/11/2026; selecione novembro para consultar essas datas.</p><p class="schedule-instruction">${esc(soundScheduleInfo.instruction)}</p>`:''}</section>`;
+  }
+  const valid=source.syncedAt&&inspectRecordTime(source.syncedAt).valid,stale=valid&&currentTime()-new Date(source.syncedAt)>86400000;
+  return `<section class="agenda-source muted" aria-label="Fonte da agenda" data-source="official"><strong>Origem: calendário oficial da igreja (Google Calendar)</strong><p>${source.status==='synced'&&valid?`Fonte oficial consultada em ${esc(displayRecordTimestamp(source.syncedAt))}.${stale?' A última sincronização tem mais de 24 horas.':''}`:'Aguardando sincronização com o calendário oficial.'} Esta página usa uma cópia publicada; abrir ou atualizar o navegador não consulta novamente o calendário.</p><p>Período importado: ${source.fromMonth&&source.toMonth?esc(source.fromMonth.split('-').reverse().join('/')+' a '+source.toMonth.split('-').reverse().join('/')):'não informado'}. <a href="https://iasd-paradainglesa.netlify.app/" target="_blank" rel="noopener noreferrer">Consultar fonte oficial ↗</a></p></section>`;
+}
 function agendasPage(){
   const {month,area,department,view,day,showPeople}=agendaState,[start,end]=agendaMonthBounds(month);
   const source=agendaSource(),allMonth=agendaEvents().filter(e=>agendaOverlaps(e,start,end));
@@ -48,10 +68,8 @@ function agendasPage(){
   const ministry=area==='elders'?'Anciãos':area==='communication'?'Comunicação':'Sonoplastia';
   const scale=area==='elders'?source.events.filter(e=>e.kind==='weekly'&&agendaOverlaps(e,start,end)).sort((a,b)=>a.start.localeCompare(b.start)).map(e=>({...e,date:e.startDate<start?start:e.startDate})):area==='church'?[]:ministrySchedules[ministry].filter(e=>e.date.startsWith(month));
   const monthDate=new Date(start+'T12:00:00Z'),monthTitle=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric',timeZone:'UTC'}).format(monthDate);
-  const current=new Date(currentTime()),syncTime=source.syncedAt?new Date(source.syncedAt):null;
-  const stale=syncTime && current-syncTime>86400000;
   return heading('ORGANIZAÇÃO','Escalas e agendas','Anciãos, programação da igreja e escalas dos ministérios.')+
-    `<p class="agenda-source muted" role="status">${source.status==='synced'?`Fonte oficial consultada em ${esc(displayRecordTimestamp(source.syncedAt))}.${stale?' A última sincronização tem mais de 24 horas.':''}`:'Aguardando sincronização com o calendário oficial.'} <a href="https://iasd-paradainglesa.netlify.app/" target="_blank" rel="noopener noreferrer">Consultar fonte oficial ↗</a></p>${source.fromMonth && (month<source.fromMonth||month>source.toMonth)?'<p class="form-note">Este mês está fora do período importado. Uma nova sincronização é necessária para verificar os registros.</p>':''}
+    `${agendaProvenance(area,source)}${!['communication','sound'].includes(area)&&source.fromMonth && (month<source.fromMonth||month>source.toMonth)?'<p class="form-note">Este mês está fora do período importado. Uma nova sincronização é necessária para verificar os registros.</p>':''}
     <section class="panel agenda-filters"><label for="agenda-area">Consultar<select id="agenda-area"><option value="church" ${area==='church'?'selected':''}>Agenda da igreja</option><option value="communication" ${area==='communication'?'selected':''}>Escala de Comunicação</option><option value="elders" ${area==='elders'?'selected':''}>Escala de Anciãos</option><option value="sound" ${area==='sound'?'selected':''}>Escala de Sonoplastia</option></select></label>${area==='church'?`<label for="agenda-department">Departamento<select id="agenda-department"><option value="all">Todos os departamentos</option>${departments.map(name=>`<option value="${esc(name)}" ${name===department?'selected':''}>${esc(name)}</option>`).join('')}</select></label>`:''}<label class="checkbox"><input id="agenda-show-people" type="checkbox" ${showPeople?'checked':''}> Mostrar pessoa escalada</label></section>
     <section class="panel agenda-toolbar"><div class="agenda-month"><button type="button" data-action="agenda-previous" aria-label="Mês anterior">‹</button><h2 id="agenda-month-title">${esc(monthTitle)}</h2><button type="button" data-action="agenda-next" aria-label="Próximo mês">›</button></div><div class="agenda-controls"><label for="agenda-month-picker">Mês e ano<input id="agenda-month-picker" type="month" value="${month}"></label>${button('Mês atual','agenda-current')}<div class="agenda-view" aria-label="Visualização">${button('Calendário','agenda-calendar','','aria-pressed="'+(view==='calendar')+'"')}${button('Lista','agenda-list','','aria-pressed="'+(view==='list')+'"')}</div></div></section>
     ${area==='church'||area==='elders'?agendaResponsibles(start,end):''}
@@ -60,7 +78,7 @@ function agendasPage(){
       const count=area==='church'?appointments.length:entry?1:0;
       return `<button type="button" class="calendar-day ${count?'scheduled':''} ${date===day?'selected-day':''}" data-action="agenda-day" data-id="${date}" aria-pressed="${date===day}" ${date===today()?'aria-current="date"':''} aria-label="${esc(programDate(date))} · ${count} ${area==='church'?'eventos':'escalas'}"><span class="calendar-number">${index+1}</span>${area==='church'?appointments.length?`<span class="calendar-person">${appointments.length} evento${appointments.length>1?'s':''}</span><span class="calendar-event-title">${esc(appointments[0].title)}${appointments[0].startDate!==date?' · continuação':''}</span>`:'':entry?`<span class="calendar-person">${showPeople?esc(entry.person):'Escala definida'}</span>`:''}</button>`;
     }).join('')}</div></section>`:''}
-    <section class="section"><div class="section-heading"><h2>${area==='church'?view==='calendar'?'Eventos · '+esc(programDate(day)):'Programação da igreja':`Escala de ${esc(ministry)}`}</h2><span class="muted">${area==='church'?events.length+' eventos no mês':scale.length+' datas com escala'}</span></div>${area==='church'?agendaEventList(view==='calendar'?events.filter(e=>agendaOverlaps(e,day,day)):events,allMonth):scale.length?`<ul class="agenda-list">${scale.map(e=>`<li><button type="button" data-action="agenda-day" data-id="${e.date}"><span>${esc(e.startDate?agendaPeriod(e):programDate(e.date))}</span><strong>${showPeople?esc(e.person):'Escala definida'}</strong></button></li>`).join('')}</ul>`:empty('Nenhuma escala cadastrada neste mês',`Ainda não há nomes informados para ${esc(ministry)} neste período.`)}</section>`;
+    <section class="section"><div class="section-heading"><h2>${area==='church'?view==='calendar'?'Eventos · '+esc(programDate(day)):'Programação da igreja':area==='sound'?esc(soundScheduleInfo.title):`Escala de ${esc(ministry)}`}</h2><span class="muted">${area==='church'?events.length+' eventos no mês':scale.length+' datas com escala'}</span></div>${area==='church'?agendaEventList(view==='calendar'?events.filter(e=>agendaOverlaps(e,day,day)):events,allMonth):scale.length?`<ul class="agenda-list">${scale.map(e=>`<li><button type="button" ${e.startDate?'':'class="ministry-shift" data-schedule-date="'+e.date+'"'} data-action="agenda-day" data-id="${e.date}">${e.startDate?`<span>${esc(agendaPeriod(e))}</span>`:`<span class="ministry-shift-date"><time datetime="${e.date}">${esc(displayDate(e.date))}</time><small>${esc(agendaWeekday(e.date))}</small></span><span class="ministry-shift-department">${esc(ministry)}</span>`}<strong>${showPeople?esc(e.person):'Escala definida'}</strong></button></li>`).join('')}</ul>`:empty('Nenhuma escala cadastrada neste mês',`Ainda não há nomes informados para ${esc(ministry)} neste período.`)}</section>`;
 }
 function selectAgendaMonth(month){
   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||Number(month.slice(0,4))<1000)throw Error('Selecione um mês e ano válidos.');

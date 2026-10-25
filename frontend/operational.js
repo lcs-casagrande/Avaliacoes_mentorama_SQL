@@ -12,7 +12,7 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
       return result;
     }catch(error){
       if(error.code==='40001')throw error;
-      throw Error(error.message+' Os campos não foram descartados. Nenhuma confirmação de gravação foi recebida.');
+      throw Error(error.message+(method==='GET'?' Não foi possível concluir a consulta. Os dados já carregados foram preservados.':' Os campos não foram descartados. Nenhuma confirmação de gravação foi recebida.'));
     }
   }
   function outboxDb(){return new Promise((resolve,reject)=>{
@@ -42,7 +42,11 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
     let recoveryAvailable=true;try{await outbox('put',entry,uid);}catch(_){recoveryAvailable=false;}
     let result;
     try{result=await remote('rpc/iasdpi_save_program','POST',entry.args,entry.uid);}
-    catch(error){throw Error(error.message+(recoveryAvailable?' Envio pendente disponível em Arquivo e banco.':' Recuperação local indisponível: mantenha esta aba aberta para não perder as alterações.'));}
+    catch(error){
+      const failure=Error(error.message+(recoveryAvailable?' Envio pendente disponível em Arquivo e banco.':' Recuperação local indisponível: mantenha esta aba aberta para não perder as alterações.'));
+      if(error.code==='40001'){failure.code='40001';failure.conflict={id:document.id,expectedVersion:expected,requestId:entry.args.p_request_id,uid:entry.uid,document:structuredClone(document)};}
+      throw failure;
+    }
     pending.delete(key);try{await outbox('delete',entry.args.p_request_id);}catch(_){/* RPC idempotente permite reconferir após uma resposta confirmada. */}
     return result;
   }
@@ -77,7 +81,11 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
     }
     const existingPending=pending.get(key);
     if(existingPending){
-      if(existingPending.source!==JSON.stringify([path,body]))throw Error('Há um envio pendente. Confira-o em Arquivo e banco antes de continuar.');
+      if(existingPending.source!==JSON.stringify([path,body])){
+        const failure=Error('Há um envio pendente. Confira-o em Arquivo e banco antes de continuar.');
+        if((state.programs.find(p=>p.id===id)?.version||0)>existingPending.args.p_expected_version){failure.code='40001';failure.conflict={id,expectedVersion:existingPending.args.p_expected_version,requestId:existingPending.args.p_request_id,uid:existingPending.uid,document:structuredClone(existingPending.args.p_document)};}
+        throw failure;
+      }
       candidate=existingPending.args.p_document;expected=existingPending.args.p_expected_version;
     }else{
       const current=id?(state.programs.find(p=>p.id===id)||await get(id)):null;
@@ -88,6 +96,15 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
     if(pending.has(key))pending.get(key).source=JSON.stringify([path,body]);
     const saved=await saving;return saved.document;
   }
+  async function releaseConflict(info,version){
+    const access=await IASDPIAuth.requireAccess();
+    if(info.uid!==access.user.id)throw Error('O envio pertence a outra conta.');
+    const latest=await get(info.id);
+    if(latest.version!==version||latest.version<=info.expectedVersion)throw Error('O registro mudou novamente. Reabra a comparação antes de reaplicar.');
+    const queued=(await outbox('list',null,info.uid)).find(row=>row.args.p_request_id===info.requestId&&row.args.p_id===info.id&&row.args.p_expected_version===info.expectedVersion);
+    if(queued)await outbox('delete',info.requestId,info.uid);
+    for(const [key,value] of pending)if(value.uid===info.uid&&value.args.p_request_id===info.requestId&&value.args.p_id===info.id)pending.delete(key);
+  }
   async function refreshTemplates(){
     templates=await remote('iasdpi_templates?select=id,plan,version,display_name&order=id');
     const visible=templates.filter(t=>t.display_name);
@@ -96,19 +113,29 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
   }
   function panel(){
     return `<section class="panel"><h2>Persistência centralizada</h2><p>Registros e revisões ficam no Supabase e podem ser abertos em outro dispositivo autorizado. As cópias em culto_archives são independentes. Backup manual do navegador não é necessário a cada publicação.</p><div class="actions">${button('Atualizar registros do banco','operational-refresh')}${button('Conferir registros antigos deste navegador','operational-preview')}${button('Conferir envios pendentes','operational-pending')}</div>
-    ${preview?`<h3>Prévia de importação opcional</h3><p>Nenhum registro existente será sobrescrito. A cópia local será mantida integralmente.</p><div class="table-scroll"><table><thead><tr><th>Importar</th><th>Culto</th><th>Data / ID</th><th>Situação</th></tr></thead><tbody>${preview.rows.map(row=>`<tr><td>${row.status==='new'?`<input type="checkbox" data-import-id="${esc(row.id)}" checked aria-label="Importar ${esc(row.name)}">`:'—'}</td><td>${esc(row.name)}</td><td>${esc(displayDate(row.date))}<small>${esc(row.id)}</small></td><td>${esc({unavailable:'Indisponível: consulte um administrador',new:'Novo',exists:'Já importado',conflict:'Conflito: versão do banco preservada',duplicate:'Duplicado: já existe com outro ID',imported:'Importação confirmada'}[row.status]||row.status)}</td></tr>`).join('')}</tbody></table></div>${button('Confirmar importação dos selecionados','operational-import','','class="primary"')}`:''}
+    ${preview?`<h3>Prévia de importação opcional</h3>${preview.adjustments.length?`<p class="form-note" role="status">Compatibilidade: ${preview.adjustments.length} registros exigem adaptação explícita de formato para o banco (previstos HH:mm; horários reais associados à data em America/Sao_Paulo). Nenhum instante é deslocado. O documento original integral também será preservado no campo backup_source, além do backup de origem.</p><details><summary>Conferir adaptações antes de confirmar</summary><ul>${preview.adjustments.map(a=>`<li>${esc(a.id)}: ${esc([...new Set(a.changes)].join('; '))}</li>`).join('')}</ul></details>`:''}<p>Nenhum registro existente será sobrescrito. A cópia local será mantida integralmente.</p><div class="table-scroll"><table><thead><tr><th>Importar</th><th>Culto</th><th>Data / ID</th><th>Situação</th></tr></thead><tbody>${preview.rows.map(row=>`<tr><td>${row.status==='new'?`<input type="checkbox" data-import-id="${esc(row.id)}" checked aria-label="Importar ${esc(row.name)}">`:'—'}</td><td>${esc(row.name)}</td><td>${esc(displayDate(row.date))}<small>${esc(row.id)}</small></td><td>${esc({unavailable:'Indisponível: consulte um administrador',new:'Novo',exists:'Já importado',conflict:'Conflito: versão do banco preservada',duplicate:'Duplicado: já existe com outro ID',imported:'Importação confirmada'}[row.status]||row.status)}${row.reason?`<small>${esc(row.reason)}</small>`:''}</td></tr>`).join('')}</tbody></table></div>${button('Confirmar importação dos selecionados','operational-import','','class="primary"')}`:''}
     ${recoveries.length?`<h3>Envios pendentes neste dispositivo</h3><p>Reenviar reconfirma a mesma operação. Em caso de conflito, a versão do banco será preservada.</p><ul>${recoveries.map(row=>`<li>${esc(row.args.p_document.plan.name)} · ${esc(displayDate(row.args.p_document.plan.date))} ${button('Reenviar / conferir','operational-retry',row.args.p_request_id)} ${button('Descartar somente este envio','operational-discard',row.args.p_request_id)}</li>`).join('')}</ul>`:''}</section>
-    ${IASDPIAuth.isAdmin()?`<section class="panel"><h2>Modelos de liturgia</h2><p>Administradores podem salvar a programação prevista de um culto como modelo. A execução real não é copiada.</p><form id="operational-template-form">${field('ID do modelo','model-id','','text',true,'pattern="[a-z0-9_-]{1,100}" placeholder="ex.: liturgia-ii"')}${field('Nome na lista','model-name','','text',true,'maxlength="200"')}<label>Programação de referência<select name="program-id">${state.programs.map(p=>`<option value="${esc(p.id)}">${esc(p.plan.name)} · ${esc(displayDate(p.plan.date))}</option>`).join('')}</select></label><button type="submit">Salvar modelo</button></form></section>`:''}`;
+    ${templatePanel()}`;
   }
+  function templatePanel(){
+    if(!IASDPIAuth.isAdmin())return '';
+    return `<section class="panel"><h2>Modelos de liturgia</h2><p>Administradores podem salvar a programação prevista de um culto como modelo. A execução real não é copiada.</p><form id="operational-template-form">${field('ID do modelo','model-id','','text',true,'pattern="[a-z0-9_-]{1,100}" placeholder="ex.: liturgia-ii"')}${field('Nome na lista','model-name','','text',true,'maxlength="200"')}<label>Programação de referência<select name="program-id">${state.programs.map(p=>`<option value="${esc(p.id)}">${esc(p.plan.name)} · ${esc(displayDate(p.plan.date))}</option>`).join('')}</select></label><button type="submit">Salvar modelo</button></form></section>`;
+  }
+
   async function prepareImport(documents,raw=null){
     backupValidate({format:'IASDPI-backup',version:1,programs:documents});
-    const rows=await remote('rpc/iasdpi_preview_import','POST',{p_documents:documents});
-    preview={documents:structuredClone(documents),rows,raw};render();
+    const candidates=[],blocked=[],adjustments=[];
+    for(const original of documents){
+      try{const candidate=operationalImportCandidate(original);candidates.push(candidate.document);if(candidate.changes.length)adjustments.push({id:original.id,changes:candidate.changes});}
+      catch(error){blocked.push({id:original.id,name:original.plan.name,date:original.plan.date,status:'unavailable',reason:error.message});}
+    }
+    const rows=candidates.length?await remote('rpc/iasdpi_preview_import','POST',{p_documents:candidates}):[];
+    preview={documents:candidates,rows:[...rows,...blocked],raw,adjustments};render();
   }
   async function importDocuments(documents){await prepareImport(documents);return {added:0,copies:0,preview:true};}
   async function action(action,id){
     await IASDPIAuth.requireAccess();
-    if(action==='operational-refresh'){state.programs=await list();render();toast('Registros atualizados do Supabase.');}
+    if(action==='operational-refresh'){await loadPrograms();render();toast('Registros atualizados do Supabase.');}
     else if(action==='operational-preview'){
       const raw=localStorage.getItem('iasdpi-demo-v1');
       if(!raw)throw Error('Não há registros antigos neste navegador. Você pode cadastrar novos cultos normalmente.');
@@ -122,14 +149,14 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
         const result=await commit(preview.documents.find(p=>p.id===id),0,true,'import:'+id);
         row.status=result.status;render();
       }
-      state.programs=await list();render();toast('Importações selecionadas confirmadas no Supabase. A cópia local foi preservada.');
+      await loadPrograms();render();toast('Importações selecionadas confirmadas no Supabase. A cópia local foi preservada.');
     }else if(action==='operational-pending'){
       recoveries=await outbox('list');render();if(!recoveries.length)toast('Nenhum envio pendente neste dispositivo.');
     }else if(action==='operational-retry'){
       const row=recoveries.find(row=>row.args.p_request_id===id);if(!row)throw Error('Envio não encontrado.');
       await remote('rpc/iasdpi_save_program','POST',row.args);
       await outbox('delete',id);for(const [key,value] of pending)if(value.args.p_request_id===id)pending.delete(key);
-      recoveries=await outbox('list');state.programs=await list();render();toast('Gravação reconfirmada pelo Supabase.');
+      recoveries=await outbox('list');await loadPrograms();render();toast('Gravação reconfirmada pelo Supabase.');
     }else if(action==='operational-discard'){
       if(!confirm('Descartar apenas este envio pendente? O registro no Supabase não será alterado.'))return;
       await outbox('delete',id);for(const [key,value] of pending)if(value.args.p_request_id===id)pending.delete(key);
@@ -147,5 +174,5 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
     const banner=document.createElement('aside');banner.className='demo-banner';banner.textContent='SUPABASE · Registros compartilhados da IASD Parada Inglesa. Alterações são confirmadas pelo banco.';document.querySelector('.header').after(banner);
   });
   window.addEventListener('iasdpi-auth-changed',()=>{if(!IASDPIAuth.allowed()){pending.clear();templates=[];preview=null;recoveries=[];lastActor=null;}});
-  return {request,refreshTemplates,panel,action,importDocuments,saveTemplate};
+  return {request,refreshTemplates,panel,action,importDocuments,saveTemplate,releaseConflict,templatePanel};
 })();

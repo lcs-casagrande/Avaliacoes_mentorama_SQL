@@ -60,7 +60,7 @@ window.IASDPILocalAdapter = (() => {
         plan.items.forEach(i => {i.id=id();});
         const copy=make(plan); memory.unshift(copy); save(); return clone(copy);
       }
-      if (body.version !== p.version) throw Error('Esta programação mudou. Atualize antes de continuar.');
+      if(body.version!==p.version){const error=Error('Esta programação mudou. Atualize antes de continuar.');error.code='40001';throw error;}
       if (route === 'correct-date') {
         if(simulation)throw Error('Corrija a data pela edição do registro.');
         if(body.expected!==JSON.stringify(p))throw Error('O registro mudou após a conferência. Reabra a prévia antes de confirmar.');
@@ -108,7 +108,8 @@ window.IASDPILocalAdapter = (() => {
       else if (route === 'notes') { p.note=body.note ?? p.note ?? ''; p.incident=body.incident ?? p.incident ?? ''; }
       else if (!route && method === 'PUT') {
         if (!['Planejamento','Pronta'].includes(p.status)) throw Error('O plano fica protegido após o início.');
-        const plan=prepare({...body,execution_mode:p.execution_mode || 'live'});p.plan=plan;p.planned_start=plan.start?instant(plan.date,plan.start):null;p.planned_end=plan.end?instant(plan.date,plan.end):null;p.status='Planejamento';
+        const incoming={...body,execution_mode:p.execution_mode || 'live',team:{...p.plan.team,...body.team},items:Array.isArray(body.items)?body.items.map(item=>({...p.plan.items.find(old=>old.id===item.id),...item})):body.items};
+        const plan={...p.plan,...prepare(incoming)};p.plan=plan;p.planned_start=plan.start?instant(plan.date,plan.start):null;p.planned_end=plan.end?instant(plan.date,plan.end):null;p.status='Planejamento';
       } else if (route === 'action') {
         if(p.execution_mode==='manual')throw Error('Use o formulário de realizado.');
         const active = p.plan.items.find(i => p.executions[i.id] && !p.executions[i.id].ended);

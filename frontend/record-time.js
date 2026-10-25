@@ -1,6 +1,7 @@
 'use strict';
 // Leitura tolerante, sem mutações. Valores desconhecidos não viram horários fictícios.
 const recordClockPattern=/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?$/;
+function validRecordClock(value){return typeof value==='string'&&recordClockPattern.test(value);}
 function recordDay(value){
   if(typeof value!=='string')return '';
   let day=value;
@@ -15,12 +16,17 @@ function recordDay(value){
   }
   return '';
 }
+const recordFormatters=Object.freeze({
+  civil:new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}),
+  clock:new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}),
+  day:new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo'})
+});
 function saoPauloInstant(day,clock){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(day||'')||!recordClockPattern.test(clock||''))return null;
   const full=clock.length===5?clock+':00':clock;
   const target=Date.parse(day+'T'+full.slice(0,8)+'Z');if(!Number.isFinite(target))return null;
   let epoch=target;
-  const formatter=new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+  const formatter=recordFormatters.civil;
   for(let n=0;n<4;n++){
     const parts=Object.fromEntries(formatter.formatToParts(new Date(epoch)).map(p=>[p.type,p.value]));
     const shown=Date.parse(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
@@ -50,11 +56,33 @@ function inspectRecordTime(value,day){
   const iso=offset?match[1]+'T'+full+offset.toUpperCase():saoPauloInstant(match[1],full);
   const epoch=iso?Date.parse(iso):NaN;
   if(!Number.isFinite(epoch))return {valid:false,empty:false,clock:value,epoch:null,iso:null};
-  const clock=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(epoch))+(full.match(/\.\d+$/)?.[0]||'');
-  return {valid:true,empty:false,clock,epoch,iso,absolute:Boolean(offset),day:new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo'}).format(new Date(epoch))};
+  const clock=recordFormatters.clock.format(new Date(epoch))+(full.match(/\.\d+$/)?.[0]||'');
+  return {valid:true,empty:false,clock,epoch,iso,absolute:Boolean(offset),day:recordFormatters.day.format(new Date(epoch))};
 }
 function recordClock(value,day){const parsed=inspectRecordTime(value,day);return parsed.empty?'':parsed.valid?parsed.clock:String(value);}
 function recordEpoch(value,day){const result=inspectRecordTime(value,day);return result.valid?result.epoch:null;}
+// Validação compartilhada por backups e indicadores; não normaliza o documento.
+function recordInterval(start,end,day){
+  const a=inspectRecordTime(start,day),b=inspectRecordTime(end,day);
+  const invalid=[a,b].some(v=>!v.empty&&(!v.valid||v.epoch===null||(day&&v.day!==day)));
+  if(invalid)return {state:'invalid',minutes:null};
+  if(a.empty||b.empty)return {state:'missing',minutes:null};
+  if(b.epoch<a.epoch)return {state:'invalid',minutes:null};
+  return {state:'valid',minutes:(b.epoch-a.epoch)/60000,start:a.iso,end:b.iso};
+}
+function activitySamples(original){
+  const p=programForMetrics(original),day=recordDay(p.plan.date);
+  return p.plan.items.map((item,index)=>{
+    const raw=original.plan.items[index],e=original.executions?.[item.id]||{};
+    const actual=recordInterval(e.started,e.ended??original.actual_details?.[item.id]?.partial_end,day);
+    const planned=recordInterval(raw.planned_start||raw.start,raw.planned_end||raw.end,day);
+    const state=actual.state==='invalid'||planned.state==='invalid'?'invalid':actual.state==='missing'||planned.state==='missing'?'missing':'valid';
+    return {item,actual,planned,state};
+  });
+}
+function sampleCounts(samples){
+  return {considered:samples.filter(s=>s.state==='valid').length,missing:samples.filter(s=>s.state==='missing').length,invalid:samples.filter(s=>s.state==='invalid').length,total:samples.length};
+}
 function recordInstant(day,clock){
   const parsed=inspectRecordTime(clock,recordDay(day));
   if(!parsed.valid||!parsed.iso)throw Error('Horário ou data inconsistente. Corrija o campo antes de salvar.');

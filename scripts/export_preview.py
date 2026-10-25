@@ -6,15 +6,17 @@ from zipfile import ZipFile, ZIP_DEFLATED
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, default=root / 'dist' / 'IASDPI-previa.html')
+parser.add_argument('--read-only', action='store_true', help='Bloqueia gravações remotas na prévia e mantém os registros no navegador.')
 args = parser.parse_args()
 frontend = root / 'frontend'
 html = (frontend / 'index.html').read_text(encoding='utf-8')
 css = (frontend / 'styles.css').read_text(encoding='utf-8')
 html = html.replace('<link rel="stylesheet" href="styles.css">', f'<style>\n{css}\n</style>')
-for name in ('config.js', 'storage.js', 'supabase-2.118.0.js', 'auth.js', 'record-time.js', 'demo.js', 'operational.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js', 'organization.js', 'users.js', 'trash.js', 'app.js'):
+for name in ('config.js', 'storage.js', 'supabase-2.118.0.js', 'auth.js', 'record-time.js', 'demo.js', 'operational.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js', 'organization.js', 'users.js', 'trash.js', 'drafts.js', 'navigation.js', 'conflicts.js', 'history.js', 'app.js'):
     script = (frontend / name).read_text(encoding='utf-8')
     if name == 'config.js':
-        script += "\nwindow.IASDPIConfig=Object.freeze({...window.IASDPIConfig,storageMode:'browser'});\n"
+        mode = ",remoteReadOnly:true,environment:'validation'" if args.read_only else ''
+        script += "\nwindow.IASDPIConfig=Object.freeze({...window.IASDPIConfig,storageMode:'browser'" + mode + "});\n"
     script = script.replace('</script', '<\\/script')
     html = html.replace(f'  <script src="{name}" defer></script>\n', '')
     # Scripts executam após os elementos da página existirem.

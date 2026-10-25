@@ -1,8 +1,10 @@
 'use strict';
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
-const state = { programs: [], selected: null, page: 'home', busy: false, zone: 'America/Sao_Paulo', offset: 0, duplicate: null };
+const state = { programs: [], selected: null, page: 'home', busy: false, zone: 'America/Sao_Paulo', offset: 0, duplicate: null, programsLoad: {status:'idle',error:''} };
+let programsLoadGeneration=0;
 let bootInProgress=false,sessionWasAuthorized=false;
+let bootTask=null,pendingNavigation=null;
 const thresholds = { onTime: 1, attention: 5 };
 const roles = ['Ancião do mês', 'Recepção', 'Diácono', 'Diaconisa', 'Diretor de culto', 'Sonoplastia', 'Equipe de louvor', 'Responsável pela programação'];
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
@@ -27,42 +29,70 @@ async function api(path = '', method = 'GET', body) {
   const response = await fetch(`/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(authorization?{Authorization:'Bearer '+authorization.token}:{}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   const result = await response.json();
   if(authorization&&IASDPIAuth.session()?.access_token!==authorization.token)throw Error('Sessão encerrada.');
-  if (!response.ok) {if(response.status===401||response.status===403)void IASDPIAuth.restore().catch(()=>{});throw new Error(result.error || 'Não foi possível concluir a operação.');}
+  if (!response.ok) {if(response.status===401||response.status===403)void IASDPIAuth.restore().catch(()=>{});const failure=new Error(result.error||'Não foi possível concluir a operação.');if(response.status===409)failure.code='40001';throw failure;}
   if(method!=='GET'&&cloudState.session)void cloudAutoArchive();
   return result;
+}
+async function loadPrograms({renderState=false}={}){
+  const generation=++programsLoadGeneration;
+  state.programsLoad={status:'loading',error:''};if(renderState)render();
+  try{
+    const rows=await api('programs');
+    if(!Array.isArray(rows)||rows.some(p=>!p||typeof p.id!=='string'||!p.plan||!Array.isArray(p.plan.items))||new Set(rows.map(p=>p.id)).size!==rows.length)throw Error('Resposta inválida ao consultar as programações.');
+    if(generation!==programsLoadGeneration||!IASDPIAuth.allowed())return null;
+    state.programs=rows;state.programsLoad={status:rows.length?'records':'empty',error:''};
+    return rows;
+  }catch(error){
+    if(generation===programsLoadGeneration&&IASDPIAuth.allowed())state.programsLoad={status:'error',error:error.message};
+    throw error;
+  }finally{if(renderState&&generation===programsLoadGeneration)render();}
+}
+function programsLoadView(){
+  const {status,error}=state.programsLoad;
+  if(status==='error')return `<section class="empty" role="alert" data-load-state="error"><h2>Erro ao carregar os registros</h2><p>${esc(error)}</p><p>Não foi possível confirmar os dados. Isso não significa que não existam registros. Os dados já carregados e os rascunhos foram preservados.</p>${button('Tentar novamente','retry-programs','','class="primary"')}</section>`;
+  return '<section class="empty" role="status" data-load-state="loading"><h2>Carregando registros…</h2><p>Aguarde a confirmação da consulta.</p></section>';
 }
 function selected() { return state.programs.find(p => p.id === state.selected); }
 function replaceProgram(program) {
   const i = state.programs.findIndex(p => p.id === program.id);
   if (i < 0) state.programs.unshift(program); else state.programs[i] = program;
   state.selected = program.id;
+  if(['records','empty'].includes(state.programsLoad.status))state.programsLoad={status:'records',error:''};
 }
 function executionInfo(p) {
+  const source=p,samples=activitySamples(source),counts=sampleCounts(samples),day=recordDay(source.plan.date);
+  const extraSamples=(source.extra_events||[]).map(e=>recordInterval(e.start,e.end,day));
+  const extraCounts=sampleCounts(extraSamples);
+  const actualComplete=counts.total>0&&samples.every(s=>s.actual.state==='valid')&&extraSamples.every(e=>e.state==='valid');
+  let complete=actualComplete&&counts.considered===counts.total;
   p=programForMetrics(p);
   const items = p.plan.items;
   const active = p.execution_mode === 'manual' ? null : items.find(i => p.executions[i.id]?.started && !p.executions[i.id].ended);
   const pending = items.find(i => !p.executions[i.id]?.started);
-  const finished = items.filter(i => p.executions[i.id]?.ended);
+  const finished = samples.filter(s=>s.actual.state==='valid').map(s=>s.item);
   const records = Object.values(p.extra_events?.length?registrationData(p).executions:p.executions).filter(e=>e?.started);
   const first = [...records].sort((a,b) => new Date(a.started)-new Date(b.started))[0];
   const last = records.filter(e => e.ended).sort((a,b) => new Date(b.ended)-new Date(a.ended))[0];
-  let shift = 0;
-  if (p.status === 'Finalizada' && last) shift = minutes(last.ended, p.planned_end);
+  let shift = null;
+  const plannedInterval=recordInterval(source.planned_start||source.plan.start,source.planned_end||source.plan.end,day);
+  complete &&= plannedInterval.state==='valid';
+  if (p.status === 'Finalizada') {if(complete&&last&&plannedInterval.state==='valid')shift = minutes(last.ended, p.planned_end);}
   else if (active) {
     const e = p.executions[active.id];
     const plannedDuration = minutes(active.planned_end, active.planned_start);
     const delta=minutes(e.started,active.planned_start);
     shift=delta===null||plannedDuration===null?null:delta+Math.max(0,minutes(currentTime(),e.started)-plannedDuration);
   } else if (p.plan.date === today() && p.status === 'Pronta') {
-    shift = Math.max(0, minutes(currentTime(), p.planned_start));
+    const delta=minutes(currentTime(),p.planned_start);shift=delta===null?null:Math.max(0,delta);
   }
   const origin = items.find(i => {
     const e = p.executions[i.id];
     return e && (minutes(e.started, i.planned_start) > thresholds.onTime || (e.ended && minutes(e.ended, i.planned_end) > thresholds.onTime));
   }) || (active && shift > thresholds.onTime ? active : null);
   const expected = items.find(i => currentTime() >= new Date(i.planned_start) && currentTime() < new Date(i.planned_end));
-  const forecast = p.planned_end?new Date(new Date(p.planned_end).getTime() + shift * 60000):null;
-  return { active, pending, finished, first, last, shift, origin, expected, forecast };
+  const forecast = p.planned_end&&shift!==null?new Date(new Date(p.planned_end).getTime() + shift * 60000):null;
+  const actualDuration=actualComplete&&first&&last?minutes(last.ended,first.started):null;
+  return { active, pending, finished, first, last, shift, origin, expected, forecast, complete, counts, extraCounts, actualDuration };
 }
 function badge(value, label = delayLabel(value)) { return `<span class="badge ${statusTone(value)}">${esc(label)}</span>`; }
 function heading(eyebrow, title, description = '', action = '') {
@@ -77,8 +107,8 @@ function programStatus(p) {
 }
 function programRow(p, historic = false) {
   const m = executionInfo(p);
-  const view=programForMetrics(p);const planned = minutes(view.planned_end,view.planned_start);
-  const actual = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
+  const view=programForMetrics(p);const planned = recordInterval(view.planned_start,view.planned_end,recordDay(p.plan.date)).minutes;
+  const actual = m.actualDuration;
   return `<tr><td><strong>${esc(p.plan.name)}</strong><small>${esc(programDate(p.plan.date))}</small></td>
     <td>${esc(displayPlannedTime(p.plan.start||'—'))} → ${esc(displayPlannedTime(p.plan.end||'—'))}${historic ? `<small>${duration(planned)} previstos · ${actual === null ? '—' : duration(actual)} realizados</small>` : ''}</td>
     <td>${historic ? badge(m.shift, signed(m.shift)) : `${programStatus(p)}`}</td>
@@ -95,16 +125,17 @@ function home() {
   const recent = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => String(b.plan.date||'').localeCompare(String(a.plan.date||''))).slice(0, 5);
   return heading('BEM-VINDO', 'Cada momento, no seu tempo.', 'Uma programação clara. Um acompanhamento tranquilo.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
     (featured ? `<section class="featured"><div><p class="eyebrow">${running ? 'EM ANDAMENTO' : 'PRÓXIMO CULTO'}</p><h2>${esc(featured.plan.name)}</h2><div class="featured-meta"><p class="date">${esc(programDate(featured.plan.date))}</p>${programStatus(featured)}</div><p class="large-time">${esc(displayPlannedTime(featured.plan.start||'—'))} <span>→</span> ${esc(displayPlannedTime(featured.plan.end||'—'))}</p><div class="actions">${button('Abrir programação', 'edit', featured.id)}${button(featured.execution_mode==='manual'?'Registrar culto':running?'Continuar acompanhamento':'Acompanhar culto', featured.execution_mode==='manual'?'actuals':'track', featured.id, 'class="primary"')}</div></div><div class="featured-aside"><span class="eyebrow">PLANEJAMENTO</span><strong>${featured.plan.items.length}</strong><span>momentos organizados</span></div></section>` : empty('Vamos preparar a próxima programação?', 'Use Nova programação para planejar ou Registrar culto para informar o que aconteceu.')) +
-    `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(recent.reduce((sum,p) => sum + executionInfo(p).shift, 0)/recent.length)}</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
+    `<section class="section"><div class="section-heading"><h2>Últimas programações</h2>${recent.length ? `<span class="muted">Desvio médio do término: ${signed(endStatistics(recent).mean)} · ${endStatistics(recent).considered} considerados / ${endStatistics(recent).excluded} desconsiderados</span>` : ''}</div>${recent.length ? programTable(recent, true) : '<p class="muted">Os resumos aparecerão aqui após finalizar uma programação.</p>'}</section>`;
 }
 function programsPage() {
   const list = [...state.programs].sort((a,b) => String(b.plan.date||'').localeCompare(String(a.plan.date||'')));
   return heading('PLANEJAMENTO', 'Programações', 'Organize horários, atividades e responsáveis.', `<div class="actions">${button('Nova programação', 'new', '', 'class="primary"')} ${button('Registrar culto', 'chronogram')}</div>`) +
-    (window.IASDPIOperational&&IASDPIAuth.isAdmin()?`<div class="actions">${button('Lixeira de cultos','trash-open')}</div>`:'') +
+    (window.IASDPIOperational&&IASDPIAuth.isAdmin()?`<div class="actions">${button('Gerenciar modelos','models-open')}${button('Lixeira de cultos','trash-open')}</div>`:'') +
     (list.length ? programTable(list) : empty('Nenhuma programação cadastrada', 'Use Nova programação para cadastrar os horários e as atividades.'));
 }
 function displayDate(value){const day=recordDay(value);return day?day.split('-').reverse().join('/'):value||'';}
 function readDate(value){const day=recordDay(value);if(!day)throw Error('Informe uma data válida no formato dd/mm/aaaa.');return day;}
+function readDateField(input){try{return readDate(input.value);}catch(error){throw fieldError(input,error.message);}}
 function tryReadDate(value){try{return readDate(value);}catch(_){return '';}}
 function field(label, name, value = '', type = 'text', required = false, extra = '') {
   if(type==='date'){value=displayDate(value);type='text';extra+=' data-date-input inputmode="numeric" placeholder="dd/mm/aaaa"';}
@@ -203,7 +234,7 @@ function tracking(p) {
     `<div class="planned-bar"><span>Previsto <strong>${esc(displayPlannedTime(p.plan.start||'—'))} → ${esc(displayPlannedTime(p.plan.end||'—'))}</strong></span>${programStatus(p)}</div>
     <section class="metrics" aria-label="Situação da programação"><div><span>HORÁRIO ATUAL</span><strong data-live="clock">${clock(currentTime())}</strong></div><div><span>DESVIO DO HORÁRIO</span><strong data-live="shift" class="${statusTone(m.shift)}">${signed(m.shift)}</strong><small data-live="status">${delayLabel(m.shift)}</small></div><div><span>PREVISÃO DE TÉRMINO</span><strong data-live="forecast">${p.status === 'Planejamento' ? '—' : (displayPlannedTime(m.forecast)||'—')}</strong></div></section>
     <p class="context-line">Pelo plano, agora: <strong data-live="expected">${esc(m.expected?.activity || (dateMismatch ? 'outra data' : 'intervalo ou fora da programação'))}</strong></p>
-    <section class="current-activity"><p class="eyebrow" data-live="focus-label">${m.active ? 'EM ANDAMENTO' : m.expected ? 'AGORA · PELO PLANEJAMENTO' : 'PRIMEIRA ATIVIDADE'}</p><h2 data-live="activity">${esc(focus?.activity || 'Sem atividades')}</h2><p class="responsible" data-live="responsible">${esc(focus?.responsible || 'Responsável não informado')}</p><div class="current-details"><div><span>Planejado</span><strong data-live="period">${esc(displayPlannedTime(focus?.start || '—'))} → ${esc(displayPlannedTime(focus?.end || '—'))}</strong></div><div><span>Início real</span><strong>${clock(e?.started)}</strong></div><div><span>Tempo transcorrido</span><strong data-live="elapsed">${e ? elapsed(e.started) : '—'}</strong></div></div><p data-live="item-note">${esc(focus?.note || '')}</p><p class="muted" data-live="origin">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}.` : 'Nenhum atraso registrado.'}</p></section>
+    <section class="current-activity"><p class="eyebrow" data-live="focus-label">${m.active ? 'EM ANDAMENTO' : m.expected ? 'AGORA · PELO PLANEJAMENTO' : 'PRIMEIRA ATIVIDADE'}</p><h2 data-live="activity">${esc(focus?.activity || 'Sem atividades')}</h2><p class="responsible" data-live="responsible">${esc(focus?.responsible || 'Responsável não informado')}</p><div class="current-details"><div><span>Planejado</span><strong data-live="period">${esc(displayPlannedTime(focus?.start || '—'))} → ${esc(displayPlannedTime(focus?.end || '—'))}</strong></div><div><span>Início real</span><strong>${clock(e?.started)}</strong></div><div><span>Tempo transcorrido</span><strong data-live="elapsed">${e ? elapsed(e.started) : '—'}</strong></div></div><p data-live="item-note">${esc(focus?.note || '')}</p><p class="muted" data-live="origin">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}.` : m.complete?'Nenhum atraso observado nos horários válidos.':'Dados incompletos ou inválidos: não é possível concluir a pontualidade.'}</p></section>
     ${next ? `<section class="next-activity" data-next><span class="eyebrow">PRÓXIMO</span><div><h3>${esc(next.activity)}</h3><p>${esc(next.responsible || 'Responsável não informado')}</p></div><strong>${esc(displayPlannedTime(next.start))}</strong></section>` : '<p class="muted" data-next>Última atividade da programação.</p>'}
     <div class="execution-actions">${p.status === 'Planejamento' ? button('Marcar programação como pronta', 'ready', p.id, 'class="primary big"') : m.active ? (p.paused ? button('Retomar acompanhamento', 'resume', p.id, 'class="primary big"') : button(m.pending ? 'Finalizar e avançar' : 'Finalizar programação', 'next', p.id, 'class="primary big"')) : button(`Iniciar atividade${m.expected && m.expected.id !== m.pending?.id ? ` · ${esc(m.pending.activity)}` : ''}`, 'start', p.id, `class="primary big" ${dateMismatch ? 'disabled' : ''}`)}${m.active && !p.paused ? button('Pausar acompanhamento', 'pause', p.id) : ''}${button('Voltar', 'programs')}</div>
     ${dateMismatch ? '<p class="muted">O início será liberado na data da programação. Para testar hoje, duplique com a data de hoje.</p>' : ''}${p.paused ? '<p class="pause-note">Acompanhamento pausado. O tempo real continua contando; a pausa não altera o planejamento nem exclui tempo do culto.</p>' : ''}
@@ -211,81 +242,81 @@ function tracking(p) {
 }
 function summary(p) {
   const m = executionInfo(p);
-  const view=programForMetrics(p);const plannedDuration = minutes(view.planned_end,view.planned_start);
-  const actualDuration = m.first && m.last ? minutes(m.last.ended, m.first.started) : null;
+  const view=programForMetrics(p);const plannedDuration = recordInterval(view.planned_start,view.planned_end,recordDay(p.plan.date)).minutes;
+  const actualDuration = m.actualDuration;
   return heading('PLANEJADO × REALIZADO', 'Resumo da programação', `${esc(p.plan.name)} · ${esc(dateLabel(p.plan.date))}`, `${button('Duplicar programação', 'duplicate', p.id)} ${p.execution_mode === 'manual' ? button('Editar registro', 'actuals', p.id) : ''} ${window.IASDPIDemo&&p.execution_mode==='manual'&&p.plan.date==='2026-10-03'?button('Conferir correção para 10/10/2026','correct-date',p.id):''}`) +
-    `<section class="summary-grid">${[['Início planejado', displayPlannedTime(p.plan.start)], ['Início real', actualClock(m.first?.started)||'—'], ['Término planejado', displayPlannedTime(p.plan.end)], ['Término real', actualClock(m.last?.ended)||'—'], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
-    <p class="muted">Desvio do término compara o relógio. Desvio da duração compara o tempo total entre o primeiro início e o último término, incluindo intervalos.</p>
-    <p class="context-line">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}. Veja as observações para entender a causa.` : 'Nenhum atraso registrado.'}</p>
+    `<section class="summary-grid">${[['Início planejado', displayPlannedTime(p.plan.start)], ['Início real', actualClock(m.first?.started)||'—'], ['Término planejado', displayPlannedTime(p.plan.end)], ['Término real', actualClock(m.last?.ended)||'—'], ['Duração planejada', duration(plannedDuration)], ['Duração real', actualDuration === null ? '—' : duration(actualDuration)], ['Desvio da duração', actualDuration === null || plannedDuration === null ? '—' : signed(actualDuration - plannedDuration)], ['Desvio do término', signed(m.shift)]].map(([label,value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</section>
+    <p class="muted">Desvio do término compara o relógio. Desvio da duração compara o tempo total entre o primeiro início e o último término, incluindo intervalos. ${metricsCountLabel(m.counts)}.${m.extraCounts.total?` Atividades extras: ${m.extraCounts.considered} consideradas; ${m.extraCounts.missing} com dados ausentes; ${m.extraCounts.invalid} com dados inválidos.`:''} Duração total e pontualidade exigem horários completos das atividades principais e extras; subatividades não são somadas novamente.</p>
+    <p class="context-line">${m.origin ? `Primeiro atraso observado: ${esc(m.origin.activity)}. Veja as observações para entender a causa.` : m.complete?'Nenhum atraso observado nos horários válidos.':'Dados incompletos ou inválidos: não é possível concluir a pontualidade.'}</p>
     <div class="table-scroll"><table><thead><tr><th>Atividade / bloco</th><th>Horários previstos</th><th>Horários reais</th><th>Duração prevista</th><th>Duração real</th><th>Diferença de duração</th></tr></thead><tbody>${summaryActivityRows(p)}</tbody></table></div>${transitionView([p])}${notes(p)}`;
 }
 const adherenceTolerance = 2;
+function metricsCountLabel(c){return `${c.considered} atividades consideradas; ${c.total-c.considered} desconsideradas (${c.missing} com dados ausentes; ${c.invalid} com dados inválidos)`;}
+function endStatistics(programs){
+  const shifts=programs.map(p=>executionInfo(p).shift).filter(v=>v!==null&&Number.isFinite(v));
+  return {considered:shifts.length,excluded:programs.length-shifts.length,mean:shifts.length?shifts.reduce((s,v)=>s+v,0)/shifts.length:null,onTime:shifts.filter(v=>Math.abs(v)<=adherenceTolerance).length};
+}
 function adherence(p) {
-  p=programForMetrics(p);
-  const completed=p.plan.items.filter(item=>p.executions[item.id]?.started&&p.executions[item.id]?.ended&&item.planned_start&&item.planned_end);
-  const conforming=completed.filter(item=>{
-    const real=p.executions[item.id];
-    const start=minutes(real.started,item.planned_start),end=minutes(real.ended,item.planned_end);
-    return start!==null&&end!==null&&Math.abs(start) <= adherenceTolerance &&
-      (item.end_inferred || Math.abs(minutes(real.ended,item.planned_end)) <= adherenceTolerance);
-  });
-  return {total:completed.length,conforming:conforming.length,percent:completed.length ? Math.round(conforming.length/completed.length*100) : 0};
+  const samples=activitySamples(p),counts=sampleCounts(samples),completed=samples.filter(s=>s.state==='valid');
+  const conforming=completed.filter(({item,actual,planned})=>Math.abs(minutes(actual.start,planned.start))<=adherenceTolerance&&(item.end_inferred||Math.abs(minutes(actual.end,planned.end))<=adherenceTolerance)).length;
+  return {...counts,total:counts.considered,expected:counts.total,excluded:counts.total-counts.considered,conforming,percent:completed.length?Math.round(conforming/completed.length*100):null};
 }
 function median(values) {
-  const sorted=[...values].sort((a,b)=>a-b), middle=Math.floor(sorted.length/2);
-  return sorted.length%2 ? sorted[middle] : (sorted[middle-1]+sorted[middle])/2;
+  const sorted=values.filter(Number.isFinite).sort((a,b)=>a-b), middle=Math.floor(sorted.length/2);
+  return !sorted.length?null:sorted.length%2 ? sorted[middle] : (sorted[middle-1]+sorted[middle])/2;
 }
 function activityMedians(programs) {
   const groups=new Map();
-  programs.map(programForMetrics).forEach(p=>p.plan.items.forEach(item=>{
-    const real=p.executions[item.id];if(!real?.ended)return;
+  programs.forEach(p=>activitySamples(p).forEach(({item,actual,planned,state})=>{
     const name=String(item.activity||'Atividade sem título').startsWith('Música Congregacional') ? 'Música Congregacional' : item.activity;
-    if(!groups.has(name))groups.set(name,{name,values:[],events:new Set(),estimated:false});
+    if(!groups.has(name))groups.set(name,{name,values:[],events:new Set(),estimated:false,missing:0,invalid:0});
     const group=groups.get(name);
-    const actual=minutes(real.ended,real.started),planned=minutes(item.planned_end,item.planned_start);if(actual===null||planned===null)return;
-    group.values.push(actual-planned);
+    if(state!=='valid'){group[state]++;return;}
+    group.values.push(actual.minutes-planned.minutes);
     group.events.add(p.id);group.estimated ||= Boolean(item.end_inferred);
   }));
-  return [...groups.values()].filter(group=>group.values.length).map(group=>({...group,median:median(group.values)}));
+  return [...groups.values()].map(group=>({...group,median:median(group.values)}));
 }
 function medianView(programs) {
   const groups=activityMedians(programs);
-  const label=value=>`${value>0?'+':value<0?'−':''}${Math.abs(value).toLocaleString('pt-BR',{maximumFractionDigits:1})} min`;
+  const label=value=>value===null?'Dados insuficientes':`${value>0?'+':value<0?'−':''}${Math.abs(value).toLocaleString('pt-BR',{maximumFractionDigits:1})} min`;
   return `<section class="section median-section"><div class="section-heading"><h2>Mediana do desvio por atividade</h2><span class="muted">${programs.length} programações finalizadas</span></div>
     <p class="muted">Diferença entre duração realizada e prevista em cada registro de atividade. Positivo = durou mais; negativo = durou menos. As músicas congregacionais estão agrupadas, incluindo sentados e em pé.</p>
-    <div class="table-scroll"><table><thead><tr><th>Atividade</th><th>Mediana do desvio</th><th>Registros comparados</th><th>Programações</th></tr></thead><tbody>${groups.map(group=>`<tr><td>${esc(group.name)}${group.estimated?' *':''}</td><td><span class="badge ${statusTone(group.median)}">${label(group.median)}</span></td><td>${group.values.length}</td><td>${group.events.size}</td></tr>`).join('')}</tbody></table></div>
-    <p class="muted">${groups.some(g=>g.estimated)?'* Atividades marcadas usam um término de referência. ':''}A mediana considera os registros, inclusive quando a atividade se repete no mesmo culto.</p></section>`;
+    <div class="table-scroll"><table><thead><tr><th>Atividade</th><th>Mediana do desvio</th><th>Registros comparados / desconsiderados</th><th>Programações</th></tr></thead><tbody>${groups.map(group=>`<tr><td>${esc(group.name)}${group.estimated?' *':''}</td><td><span class="badge ${statusTone(group.median)}">${label(group.median)}</span></td><td>${group.values.length} considerados; ${group.missing+group.invalid} desconsiderados<small>${group.missing} ausentes · ${group.invalid} inválidos</small></td><td>${group.events.size}</td></tr>`).join('')}</tbody></table></div>
+    <p class="muted">${groups.some(g=>g.estimated)?'* Atividades marcadas usam um término de referência. ':''}A mediana considera somente intervalos válidos, inclusive quando a atividade se repete no mesmo culto.</p></section>`;
 }
-function adherenceOverview() {
-  const examples=state.programs.filter(p=>p.status==='Finalizada' && p.plan.items.some(i=>p.executions?.[i.id]?.ended)).sort((a,b)=>String(a.plan.date||'').localeCompare(String(b.plan.date||'')));
+function adherenceOverview(programs=state.programs) {
+  const examples=programs.filter(p=>p.status==='Finalizada').sort((a,b)=>String(a.plan.date||'').localeCompare(String(b.plan.date||'')));
   if(!examples.length)return '';
-  const counts=examples.map(adherence);
-  const conforming=counts.reduce((sum,a)=>sum+a.conforming,0),total=counts.reduce((sum,a)=>sum+a.total,0);
-  const endOnTime=examples.filter(p=>Math.abs(executionInfo(p).shift)<=adherenceTolerance).length;
+  const counts=examples.map(adherence),ends=endStatistics(examples);
+  const conforming=counts.reduce((sum,a)=>sum+a.conforming,0),total=counts.reduce((sum,a)=>sum+a.total,0),excluded=counts.reduce((sum,a)=>sum+a.excluded,0);
+  const percent=total?Math.round(conforming/total*100)+'%':'Dados insuficientes';
   return `<section class="section adherence-section"><div class="section-heading"><h2>Aderência à programação</h2><span class="badge neutral">${examples.length} eventos finalizados</span></div>
-    <p class="muted">Aderência = atividades com início e término até ${adherenceTolerance} minutos antes ou depois do previsto. Atividades com término de referência são avaliadas somente pelo início.</p>
-    <div class="metrics"><div><span>ATIVIDADES ADERENTES</span><strong>${Math.round(conforming/total*100)}%</strong><small>${conforming} de ${total} atividades</small></div><div><span>EVENTOS COM TÉRMINO ADERENTE</span><strong>${endOnTime}/${examples.length}</strong><small>Dentro da tolerância de ±${adherenceTolerance} min</small></div><div><span>DESVIO MÉDIO DO TÉRMINO</span><strong>${signed(examples.reduce((sum,p)=>sum+executionInfo(p).shift,0)/examples.length)}</strong><small>Atrasos positivos · adiantamentos negativos</small></div></div>
-    <div class="table-scroll"><table><thead><tr><th>Evento</th><th>Aderência</th><th>Atividades aderentes</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
-      const a=adherence(p);const tone=a.percent>=90?'good':a.percent>=70?'warning':'critical';
-      return `<tr><td>${esc(p.plan.name)}<small>${esc(programDate(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent}%</span></td><td>${a.conforming} / ${a.total}</td><td>${badge(executionInfo(p).shift,signed(executionInfo(p).shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
-    }).join('')}</tbody></table></div><p class="muted">Aderência: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos.</p>${medianView(examples)}${transitionView(examples)}</section>`;
+    <p class="muted">Aderência = atividades com início e término até ${adherenceTolerance} minutos antes ou depois do previsto. Atividades com término de referência são avaliadas somente pelo início. Dados incompletos não permitem classificar o culto inteiro.</p>
+    <div class="metrics"><div><span>ATIVIDADES ADERENTES</span><strong>${percent}</strong><small>${conforming} de ${total} atividades consideradas; ${excluded} desconsideradas (${counts.reduce((s,a)=>s+a.missing,0)} ausentes; ${counts.reduce((s,a)=>s+a.invalid,0)} inválidas)</small></div><div><span>EVENTOS COM TÉRMINO ADERENTE</span><strong>${ends.considered?ends.onTime+'/'+ends.considered:'Dados insuficientes'}</strong><small>${ends.considered} cultos considerados; ${ends.excluded} desconsiderados · tolerância ±${adherenceTolerance} min</small></div><div><span>DESVIO MÉDIO DO TÉRMINO</span><strong>${signed(ends.mean)}</strong><small>${ends.considered} cultos considerados; ${ends.excluded} desconsiderados. Atrasos positivos · adiantamentos negativos</small></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Evento</th><th>Aderência</th><th>Atividades aderentes / consideradas</th><th>Desvio do término</th><th>Detalhes</th></tr></thead><tbody>${examples.map(p=>{
+      const a=adherence(p),m=executionInfo(p);const tone=a.percent===null||!m.complete?'neutral':a.percent>=90?'good':a.percent>=70?'warning':'critical';
+      return `<tr><td>${esc(p.plan.name)}<small>${esc(programDate(p.plan.date))}</small></td><td><span class="badge ${tone}">${a.percent===null?'Dados insuficientes':a.percent+'%'+(!m.complete?' · parcial':'')}</span></td><td>${a.conforming} / ${a.total}<small>${a.excluded} desconsideradas (${a.missing} ausentes; ${a.invalid} inválidas)</small></td><td>${badge(m.shift,signed(m.shift))}</td><td>${button('Ver realizado','summary',p.id)}</td></tr>`;
+    }).join('')}</tbody></table></div><p class="muted">Cultos completos: verde a partir de 90%, amarelo de 70% a 89%, vermelho abaixo de 70%. Dados parciais: classificação neutra. A duração total considera o intervalo do evento, sem duplicar os itens simultâneos ou as subatividades.</p>${medianView(examples)}${transitionView(examples)}</section>`;
 }
-function historyPage() {
-  const completed = state.programs.filter(p => p.status === 'Finalizada').sort((a,b) => String(b.plan.date||'').localeCompare(String(a.plan.date||'')));
-  return heading('MEMÓRIA', 'Histórico', 'Um registro simples para melhorar a próxima programação.') + adherenceOverview() + (completed.length ? programTable(completed, true) : empty('Ainda não há programações finalizadas', 'Ao finalizar a última atividade, o resumo será gerado automaticamente.'));
-}
+function modelsPage(){return heading('ADMINISTRAÇÃO','Modelos de liturgia','Use o mesmo cadastro de modelos da igreja. Atualizar um modelo não altera cultos já registrados.')+(!IASDPIAuth.isAdmin()?empty('Acesso restrito','Somente administradores podem gerenciar modelos.'):window.IASDPIOperational?IASDPIOperational.templatePanel():empty('Gerenciamento disponível no modo Supabase','Esta prévia local preserva os dados e não altera modelos no banco.'));}
+function historyPage(){return IASDPIHistory.page();}
+
 function render() {
+  window.IASDPIDrafts?.beforeRender();
   const allowed=IASDPIAuth.allowed();
   if(!allowed&&!IASDPIAuth.isPublic(state.page))state.page='login';
-  document.querySelectorAll('nav a').forEach(a=>{a.hidden=['users','trash'].includes(a.dataset.page)?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
+  document.querySelectorAll('nav a').forEach(a=>{a.hidden=['users','trash','models'].includes(a.dataset.page)?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
   document.querySelector('#auth-logout').hidden=!allowed;
 
   const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':['edit','plan-edit'].includes(state.page)?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  app.innerHTML = ({home, trash: trashPage, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
-  updateWeekday(); updateActuals(); tick();
+  const missingRecord=['edit','plan-edit','actuals','tracking','summary'].includes(state.page)&&state.selected&&!selected();
+  const needsPrograms=['home','programs','history','edit','plan-edit','actuals','tracking','summary','models'].includes(state.page);
+  app.innerHTML = allowed&&needsPrograms&&!['records','empty'].includes(state.programsLoad.status)?programsLoadView():allowed&&missingRecord?empty('Registro não encontrado','Este identificador não está entre os cultos ativos disponíveis. Confira o link ou as programações.',button('Ver programações','programs')):({home, models:modelsPage, trash: trashPage, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, 'forgot-password':IASDPIAuth.forgotPasswordPage,'reset-password':IASDPIAuth.resetPasswordPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
+  updateWeekday(); updateActuals(); tick(); window.IASDPIDrafts?.mount(); pageLayout.mount();
 }
-function navigate(page, id) { if(!canLeaveRegistration()){window.history.replaceState(null,'',`#${state.page}${state.selected?'/'+state.selected:''}`);return false;} if (id) state.selected = id; state.page = page; window.history.replaceState(null, '', `#${page}${['edit','summary','tracking','actuals','plan-edit'].includes(page) && state.selected ? '/' + state.selected : ''}`); render(); app.focus({preventScroll:true}); window.scrollTo({top: 0, behavior: 'instant'}); }
+function navigate(page,id,options){return IASDPINavigation.navigate(page,id,options);}
 function updateWeekday() {
   const form = document.querySelector('#program-form');
   const target = document.querySelector('#weekday');
@@ -302,7 +333,7 @@ function tick() {
     nextElement.className = 'next-activity';
     nextElement.innerHTML = next ? `<span class="eyebrow">PRÓXIMO</span><div><h3>${esc(next.activity)}</h3><p>${esc(next.responsible || 'Responsável não informado')}</p></div><strong>${esc(displayPlannedTime(next.start))}</strong>` : '<span class="muted">Última atividade da programação.</span>';
   }
-  const values = {'focus-label': m.active ? 'EM ANDAMENTO' : m.expected ? 'AGORA · PELO PLANEJAMENTO' : 'PRIMEIRA ATIVIDADE', activity: focus?.activity || 'Sem atividades', responsible: focus?.responsible || 'Responsável não informado', period: `${displayPlannedTime(focus?.start)||'—'} → ${displayPlannedTime(focus?.end)||'—'}`, 'item-note': focus?.note || '', clock: clock(currentTime()), shift: signed(m.shift), status: delayLabel(m.shift), forecast: p.status === 'Planejamento' ? '—' : (displayPlannedTime(m.forecast)||'—'), elapsed: e ? elapsed(e.started) : '—', expected: m.expected?.activity || (p.plan.date !== today() ? 'outra data' : 'intervalo ou fora da programação'), origin: m.origin ? `Primeiro atraso observado: ${m.origin.activity}.` : 'Nenhum atraso registrado.'};
+  const values = {'focus-label': m.active ? 'EM ANDAMENTO' : m.expected ? 'AGORA · PELO PLANEJAMENTO' : 'PRIMEIRA ATIVIDADE', activity: focus?.activity || 'Sem atividades', responsible: focus?.responsible || 'Responsável não informado', period: `${displayPlannedTime(focus?.start)||'—'} → ${displayPlannedTime(focus?.end)||'—'}`, 'item-note': focus?.note || '', clock: clock(currentTime()), shift: signed(m.shift), status: delayLabel(m.shift), forecast: p.status === 'Planejamento' ? '—' : (displayPlannedTime(m.forecast)||'—'), elapsed: e ? elapsed(e.started) : '—', expected: m.expected?.activity || (p.plan.date !== today() ? 'outra data' : 'intervalo ou fora da programação'), origin: m.origin ? `Primeiro atraso observado: ${m.origin.activity}.` : m.complete?'Nenhum atraso observado nos horários válidos.':'Dados incompletos ou inválidos: não é possível concluir a pontualidade.'};
   for (const [key, value] of Object.entries(values)) {
     const element = document.querySelector(`[data-live="${key}"]`);
     if (element) { element.textContent = value; if (key === 'shift') element.className = statusTone(m.shift); }
@@ -316,7 +347,7 @@ async function handleAction(target) {
   if(action.startsWith('users-')){await handleUsersAction(action,id);return;}
   if(action.startsWith('operational-')){await IASDPIOperational.action(action,id);return;}
   if(action==='cloud-save')await cloudSave();
-  else if(action==='cloud-list'){cloudState.archives=await cloudRequest('/rest/v1/culto_archives?select=id,created_at&order=created_at.desc&limit=30');render();}
+  else if(action==='cloud-list')await refreshArchives();
   else if(action==='cloud-signout'){await IASDPIAuth.logout();}
   else if(action==='cloud-restore'){const [row]=await cloudRequest('/rest/v1/culto_archives?id=eq.'+encodeURIComponent(id)+'&select=payload');if(!row)throw Error('Arquivo não encontrado.');const result=await restoreBackup(row.payload);render();toast(result.preview?'Confira e confirme a prévia de importação.':`${result.added} registros restaurados sem substituir os atuais.`);}
   else if(action==='agenda-current'){selectAgendaMonth(today().slice(0,7));document.querySelector('[data-action="agenda-current"]').focus();}
@@ -326,10 +357,10 @@ async function handleAction(target) {
   else if(action==='add-subactivity'){
     const row=target.closest('.actual-row'),list=row.querySelector('.subactivities');
     if(list.children.length>=50)throw Error('Limite de 50 subatividades por atividade.');
-    list.insertAdjacentHTML('beforeend',subactivityRow({},row.dataset.id));markRegistrationDirty();list.lastElementChild.querySelector('input').focus();
+    list.insertAdjacentHTML('beforeend',subactivityRow({},row.dataset.id));markRegistrationDirty();refreshSubactivityLabels();list.lastElementChild.querySelector('input').focus();
   }
   else if(action==='remove-subactivity'){
-    if(window.confirm('Excluir esta subatividade? A exclusão só será aplicada ao salvar o registro.')){target.closest('.subactivity').remove();markRegistrationDirty();}
+    if(window.confirm('Excluir esta subatividade? A exclusão só será aplicada ao salvar o registro.')){target.closest('.subactivity').remove();markRegistrationDirty();refreshSubactivityLabels();}
   }
   else if(action==='edit-record-plan'){
     const form=document.querySelector('#actuals-form');
@@ -338,7 +369,7 @@ async function handleAction(target) {
   }
   else if(action==='edit-record'){document.querySelector('#actuals-form [name="record-name"]')?.focus();}
   else if(action==='cancel-record'){
-    if(!canLeaveRegistration())return;
+    if(window.IASDPIDrafts?!await IASDPIDrafts.discardCurrent():!canLeaveRegistration())return;
     if(id){replaceProgram(await api('programs/'+id));navigate('summary',id);}else navigate('programs');
   }
   else if(action==='add-extra')throw Error('Novos detalhes devem ser adicionados como subatividades.');
@@ -350,7 +381,7 @@ async function handleAction(target) {
   }
   else if (action === 'chronogram') {
     if(window.IASDPIOperational)await IASDPIOperational.refreshTemplates();
-    window.IASDPIChronogram=null;state.selected=null;navigate('actuals');
+    window.IASDPIChronogram=null;state.selected=null;navigate('actuals',undefined,{refresh:true});
   }
   else if (action === 'actuals') navigate('actuals', id);
   else if(action==='correct-date'){
@@ -361,6 +392,8 @@ async function handleAction(target) {
     document.querySelector('#correct-date-dialog').showModal();
   }
   else if (action === 'new') { state.selected = null; navigate('edit'); }
+  else if (action === 'models-open') {if(!IASDPIAuth.isAdmin())throw Error('Acesso exclusivo de administradores.');if(window.IASDPIOperational)await IASDPIOperational.refreshTemplates();navigate('models');}
+
   else if (action === 'programs') navigate('programs');
   else if (['edit','summary','track'].includes(action)) navigate(action === 'track' ? 'tracking' : action, id);
   else if (action === 'duplicate') {
@@ -379,7 +412,7 @@ async function handleAction(target) {
     if (action === 'up' && row.previousElementSibling) row.previousElementSibling.before(row);
     if (action === 'down' && row.nextElementSibling) row.nextElementSibling.after(row);
     document.querySelectorAll('.item-number').forEach((n,i) => { n.textContent = i+1; });
-  } else if (action === 'refresh') { state.programs = await api('programs'); render(); toast('Programação atualizada.'); }
+  } else if (action === 'refresh'||action==='retry-programs') { await loadPrograms({renderState:true}); render(); toast('Registros carregados.'); }
   else if (['ready','start','next','pause','resume'].includes(action)) {
     let p = state.programs.find(p => p.id === id);
     const notesForm = document.querySelector('#notes-form');
@@ -388,7 +421,7 @@ async function handleAction(target) {
       replaceProgram(p); notesForm.dataset.version = p.version;
     }
     const updated = await api(`programs/${id}/action`, 'POST', {action, version:p.version});
-    replaceProgram(updated); navigate(updated.status === 'Finalizada' ? 'summary' : 'tracking', id);
+    replaceProgram(updated); navigate(updated.status === 'Finalizada' ? 'summary' : 'tracking', id,{refresh:true});
     toast({'ready':'Programação pronta para acompanhar.','start':'Culto iniciado.','pause':'Acompanhamento pausado.','resume':'Acompanhamento retomado.','next':updated.status==='Finalizada'?'Programação finalizada. Resumo disponível.':'Atividade finalizada. Próxima atividade iniciada.'}[action]);
   }
 }
@@ -404,21 +437,29 @@ async function guarded(task, trigger) {
   try { await task(); } catch (error) {
     toast(error.message, true);
     const form=trigger?.closest('form');
+    if(form?.id==='actuals-form'&&trigger?.type==='submit')setRegistrationSaveState(form,'error','Não foi possível '+(trigger.name==='finalize'?'finalizar':'salvar')+'. Alterações preservadas; revise a mensagem no formulário e tente novamente.');
     if(form){let feedback=form.querySelector('.form-error');if(!feedback){feedback=document.createElement('p');feedback.className='form-error';feedback.setAttribute('role','alert');form.prepend(feedback);}feedback.textContent=error.message;}
+    if(error.code==='40001'&&['actuals-form','program-form','notes-form'].includes(form?.id))try{await IASDPIConflicts.open(form,error);}catch(comparisonError){toast('Comparação indisponível. Os campos e rascunhos foram preservados. '+comparisonError.message,true);}
     // Atualiza a versão em memória sem substituir campos que o usuário está editando.
-    try { state.programs = await api('programs'); } catch (_) { /* manter dados já carregados */ }
-  } finally { clearTimeout(pending);if(notice.textContent==='Processando…')notice.hidden=true;state.busy=false;app.removeAttribute('aria-busy');if(trigger?.isConnected)trigger.textContent=originalLabel;buttons.forEach(b=>{b.disabled=false;});if(trigger?.isConnected&&document.activeElement===document.body)trigger.focus(); }
+    if(IASDPIAuth.allowed()&&!['password-request-form','password-reset-form'].includes(form?.id)&&state.programsLoad.status!=='error')try { await loadPrograms(); } catch (_) { /* preservar campos e exibir erro ao consultar as listas */ }
+  } finally { clearTimeout(pending);if(notice.textContent==='Processando…')notice.hidden=true;state.busy=false;app.removeAttribute('aria-busy');if(trigger?.isConnected)trigger.textContent=originalLabel;buttons.forEach(b=>{b.disabled=false;});if(trigger?.isConnected&&document.activeElement===document.body)trigger.focus();drainNavigation(); }
 }
-app.addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(() => handleAction(target), target); });
+app.addEventListener('click', event => { const link=event.target.closest('[data-auth-page]');if(link){event.preventDefault();navigate(link.dataset.authPage);return;}const target = event.target.closest('[data-action]'); if(target?.dataset.action==='history-clear'&&IASDPIAuth.allowed()){IASDPIHistory.clear();return;}if (target) guarded(() => handleAction(target), target); });
 app.addEventListener('toggle',event=>{if(event.target.matches('.item-details'))event.target.querySelector('.item-edit-label').textContent=event.target.open?'Recolher':'Editar';},true);
-app.addEventListener('input', event => {if(event.target.dataset.realTime)event.target.dataset.timeEdited='true';clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form')){markRegistrationDirty();updateActuals();}const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
- document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.hasAttribute('data-planned-time')?'Use o formato 24 horas HH:mm (ex.: 14:05).':event.target.validationMessage);}},true);
+app.addEventListener('input', event => {IASDPIHistory.input(event.target);if(event.target.dataset.realTime){event.target.dataset.timeEdited='true';delete event.target.dataset.conflictClock;}clearFieldError(event.target);event.target.closest('form')?.querySelector('.form-error')?.remove();if(event.target.closest('#actuals-form')){markRegistrationDirty();updateActuals();}const row=event.target.closest('.item-editor');if(row)updateItemOverview(row);});
+ document.addEventListener('invalid',event=>{if(event.target.matches('input,textarea,select')){event.preventDefault();if(event.target.closest('#actuals-form'))setRegistrationSaveState(event.target.closest('form'),'error','Revise o campo indicado. O registro ainda não foi finalizado.');fieldError(event.target,event.target.validity.valueMissing?'Preencha este campo obrigatório.':event.target.hasAttribute('data-planned-time')?'Use o formato 24 horas HH:mm (ex.: 14:05).':event.target.validationMessage);}},true);
 app.addEventListener('change', event => {if(event.target.closest('#actuals-form')){markRegistrationDirty();updateActuals();}if(['agenda-area','agenda-department','agenda-show-people','agenda-month-picker'].includes(event.target.id)){const id=event.target.id;if(id==='agenda-area')agendaState.area=event.target.value;else if(id==='agenda-department')agendaState.department=event.target.value;else if(id==='agenda-show-people')agendaState.showPeople=event.target.checked;else if(event.target.value)selectAgendaMonth(event.target.value);render();document.getElementById(id)?.focus();return;} if (event.target.name === 'date') updateWeekday(); if(event.target.name==='responsible-option'){const input=event.target.closest('.actual-row').querySelector('[name="responsible-name"]');input.hidden=event.target.value!=='other';if(!input.hidden)input.focus();} });
 document.querySelector('#duplicate-dialog').addEventListener('click', event => { const target = event.target.closest('[data-action]'); if (target) guarded(()=>handleAction(target),target); });
 app.addEventListener('submit', event => {
   event.preventDefault(); const form = event.target;
+  if(form.id==='history-filters'){IASDPIHistory.apply(form);return;}
   const finalize = event.submitter?.name === 'finalize';
+  const draftSave=window.IASDPIDrafts?.beginSave(form);
+  const actionButton=event.submitter||(form.id==='actuals-form'?form.querySelector('[name="save"]'):null);
+  if(form.id==='actuals-form'&&!state.busy)setRegistrationSaveState(form,'saving',finalize?'Finalizando registro… Aguarde a confirmação.':'Salvando alterações… Aguarde a confirmação.');
   guarded(async () => {
+    if(form.id==='password-request-form'){const message=await IASDPIAuth.requestPasswordReset(form.elements.email.value.trim());form.querySelector('.password-feedback').textContent=message;form.reset();return;}
+    if(form.id==='password-reset-form'){if(form.elements.password.value!==form.elements.repeat.value)throw fieldError(form.elements.repeat,'As senhas devem ser iguais.');const password=form.elements.password.value;form.reset();try{await IASDPIAuth.updatePassword(password);}catch(error){if(!IASDPIAuth.passwordRecoveryActive())render();throw error;}navigate('login',undefined,{replace:true,refresh:true});toast('Senha redefinida. Entre com sua nova senha.');return;}
     if(form.id==='invite-signup-form'){
       const password=form.elements.password.value;form.elements.password.value='';
       await IASDPIAuth.signup(form.elements.email.value,password,form.elements['public-key']?.value);
@@ -434,7 +475,7 @@ app.addEventListener('submit', event => {
       await IASDPIAuth.login(form.elements.email.value,password,form.elements['public-key']?.value);
       cloudState.session=IASDPIAuth.session();state.page='home';await boot();return;
     }
-    if(form.id==='actuals-form'&&window.IASDPIOperational){await saveActuals(form,finalize);return;}
+    if(form.id==='actuals-form'&&window.IASDPIOperational){await saveActuals(form,finalize,draftSave);return;}
     if(!(window.IASDPIOperational&&['program-form','notes-form'].includes(form.id)))await IASDPIAuth.requireAccess();
     if(form.id.startsWith('users-')||form.classList.contains('user-access-form')){await submitUsersForm(form);return;}
     if(form.id==='operational-template-form'){await IASDPIOperational.saveTemplate(form);return;}
@@ -443,38 +484,59 @@ app.addEventListener('submit', event => {
     if(form.id==='open-record-form'){navigate('actuals',form.elements['record-id'].value);return;}
     if(form.id==='new-record-form'){
       window.IASDPIChronogram=await draftFromTemplate(form.elements['template-id'].value);
-      if(window.IASDPIOperational){const p=await api('programs','POST',window.IASDPIChronogram);replaceProgram(p);navigate('actuals',p.id);toast('Novo registro confirmado no Supabase.');}
-      else{state.selected=null;navigate('actuals');}return;
+      if(window.IASDPIOperational){const p=await api('programs','POST',window.IASDPIChronogram);replaceProgram(p);navigate('actuals',p.id,{replace:true,refresh:true});toast('Novo registro confirmado no Supabase.');}
+      else{state.selected=null;navigate('actuals',undefined,{refresh:true});}return;
     }
     if (form.id === 'actuals-form') { await saveActuals(form, finalize); return; }
     const id = form.dataset.id;
     if (form.id === 'program-form') {
       const get = name => form.querySelector(`[name="${name}"]`).value;
-      const plan = {name:get('name'), date:readDate(get('date')),template_id:selected()?.plan.template_id, start:get('start'), end:get('end'), team:Object.fromEntries(roles.map((role,i) => [role,get(`team-${i}`)])), items: [...form.querySelectorAll('.item-editor')].map(row => ({id:row.dataset.itemId, ...Object.fromEntries([...row.querySelectorAll('input')].map(input => [input.name,input.value]))}))};
+      const plan = {name:get('name'), date:readDateField(form.querySelector('[name="date"]')),template_id:selected()?.plan.template_id, start:get('start'), end:get('end'), team:Object.fromEntries(roles.map((role,i) => [role,get(`team-${i}`)])), items: [...form.querySelectorAll('.item-editor')].map(row => ({id:row.dataset.itemId, ...Object.fromEntries([...row.querySelectorAll('input')].map(input => [input.name,input.value]))}))};
       validateProgramForm(form,plan);
       if (id) plan.version = Number(form.dataset.version);
       let p = await api(id ? `programs/${id}` : 'programs', id ? 'PUT' : 'POST', plan);
+      await window.IASDPIDrafts?.bind(form,p,draftSave?.context);
       if (form.elements.ready.checked) p = await api(`programs/${p.id}/action`, 'POST', {action:'ready', version:p.version});
-      replaceProgram(p); navigate(p.execution_mode==='manual'?'actuals':'programs',p.id); toast('Programação salva.');
+      const newer=await window.IASDPIDrafts?.saved(draftSave,p);
+      const stillEditing=form.isConnected,previousSelected=state.selected;replaceProgram(p);
+      if(!stillEditing)state.selected=previousSelected;else if(!newer)navigate(p.execution_mode==='manual'?'actuals':'programs',p.id);
+      toast(newer?'Envio confirmado. Há alterações mais recentes preservadas em rascunho.':'Programação salva.');
     } else if (form.id === 'notes-form') {
       const p = await api(`programs/${id}/notes`, 'PUT', {version:Number(form.dataset.version), note:form.elements.note.value, incident:form.elements.incident.value});
-      replaceProgram(p); form.dataset.version = p.version; toast('Observações salvas.');
+      const newer=await window.IASDPIDrafts?.saved(draftSave,p);
+      const previousSelected=state.selected;replaceProgram(p);if(!form.isConnected)state.selected=previousSelected;
+      form.dataset.version = p.version; toast(newer?'Envio confirmado. Há alterações mais recentes preservadas em rascunho.':'Observações salvas.');
     }
-  }, event.submitter);
+  }, actionButton);
 });
 document.querySelector('#duplicate-form').addEventListener('submit', event => {
   event.preventDefault();
   guarded(async () => {
-    const p = await api(`programs/${state.duplicate}/duplicate`, 'POST', {date:readDate(event.target.elements.date.value)});
+    const p = await api(`programs/${state.duplicate}/duplicate`, 'POST', {date:readDateField(event.target.elements.date)});
     document.querySelector('#duplicate-dialog').close(); replaceProgram(p); navigate('edit', p.id); toast('Planejamento duplicado.');
   }, event.submitter);
 });
-document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if (link) { event.preventDefault(); if (link.dataset.page === 'actuals') guarded(()=>handleAction({dataset:{action:'chronogram'}})); else {navigate(link.dataset.page);if(link.dataset.page==='trash'&&IASDPIAuth.isAdmin())guarded(()=>refreshTrash());if(link.dataset.page==='users'&&IASDPIAuth.isAdmin())guarded(()=>refreshUsers());} } });
-window.addEventListener('hashchange', () => { captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/'); if (['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash'].includes(page)) navigate(page, id); });
-async function boot() {
-  if(bootInProgress)return;
+function openNavigation(page){
+  if(state.busy||bootInProgress){pendingNavigation=page;toast('Carregando… A página escolhida abrirá em seguida.');return;}
+  if(page==='actuals')void guarded(()=>handleAction({dataset:{action:'chronogram'}}));
+  else navigate(page);
+}
+function drainNavigation(){
+  if(!pendingNavigation||state.busy||bootInProgress)return;
+  const page=pendingNavigation;pendingNavigation=null;
+  if(IASDPIAuth.allowed()||IASDPIAuth.isPublic(page))openNavigation(page);
+}
+document.querySelector('nav').addEventListener('click', event => { const link = event.target.closest('a[data-page]'); if(link){event.preventDefault();openNavigation(link.dataset.page);} });
+
+function boot(){
+  if(!bootTask)bootTask=performBoot().finally(()=>{bootTask=null;drainNavigation();});
+  return bootTask;
+}
+async function performBoot() {
   bootInProgress=true;
+  await IASDPIAuth.handlePasswordCallback();
   if(!IASDPIAuth.allowed()){
+    pendingNavigation=null;
     const requested=location.hash.slice(1).split('/')[0]||'organization';
     state.page=IASDPIAuth.isPublic(requested)?requested:'login';render();
   }
@@ -491,20 +553,27 @@ async function boot() {
   try {
     try{await IASDPIAuth.restore();}catch(_){}
     const health = await api('health'); state.zone = health.timezone; state.offset = new Date(health.server_time).getTime() - Date.now();
-    state.programs = IASDPIAuth.allowed()?await api('programs'):[];
+    captureInvite(location.hash.slice(1));const requested=location.hash.slice(1).split('/');
+    state.page=requested[0]&&requested[0]!=='login'?requested[0]:IASDPIAuth.allowed()?'home':'organization';
+    if(requested[1])state.selected=requested[1];
+    if(IASDPIAuth.allowed())await loadPrograms({renderState:true});
     state.selected = state.programs.find(p => p.status === 'Em andamento')?.id || state.programs.find(p => p.status === 'Pronta')?.id || null;
     captureInvite(location.hash.slice(1)); const [page,id] = location.hash.slice(1).split('/');
-    if (id && state.programs.some(p => p.id === id)) state.selected = id;
+    if(id)state.selected=id;
     if (page === 'actuals' && !id) state.selected = null;
-    // Um novo culto sempre começa pela seleção explícita da data.
-    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; render();
+    // A rota atual é restaurada; novos cultos escolhem modelo e usam a data de São Paulo.
+    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash','models','forgot-password','reset-password'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; bootInProgress=false;IASDPINavigation.start();render();
   } catch (error) {
-    app.innerHTML = empty('Não foi possível carregar os dados', esc(error.message)); toast(error.message, true);
+    bootInProgress=false;
+    if(IASDPIAuth.allowed())state.programsLoad={status:'error',error:error.message};
+    render();toast(error.message,true);
   } finally {bootInProgress=false;}
 }
 window.addEventListener('iasdpi-auth-changed',()=>{
-  cloudState.session=IASDPIAuth.session();cloudState.archives=[];resetUsers();
+  cloudState.session=IASDPIAuth.session();cloudState.archives=[];cloudState.loaded=false;cloudState.loading=false;cloudState.error='';resetUsers();
   if(!IASDPIAuth.allowed()){
+    programsLoadGeneration++;state.programsLoad={status:'idle',error:''};
+    pendingNavigation=null;
     registrationDirty=false;state.programs=[];state.selected=null;state.duplicate=null;window.IASDPIChronogram=null;
     dateCorrection=null;document.querySelector('#correct-date-dialog').close();document.querySelector('#correct-date-preview').replaceChildren();
     document.querySelector('#duplicate-dialog').close();
@@ -513,8 +582,7 @@ window.addEventListener('iasdpi-auth-changed',()=>{
 });
 window.addEventListener('iasdpi-role-changed',()=>{resetUsers();render();});
 document.querySelector('#auth-logout').addEventListener('click',()=>{
-  if(!canLeaveRegistration())return;
-  guarded(async()=>{await IASDPIAuth.logout();state.page='organization';navigate('organization');});
+  guarded(async()=>{if(await IASDPIAuth.logout()===false)return;state.page='organization';navigate('organization');});
 });
 setInterval(tick, 1000);
 let dateCorrection=null;
@@ -523,7 +591,7 @@ document.querySelector('#correct-date-cancel').addEventListener('click',()=>{dat
 document.querySelector('#correct-date-confirm').addEventListener('click',()=>guarded(async()=>{
   if(!dateCorrection||!window.IASDPIDemo)throw Error('Reabra a prévia do registro local.');
   const p=await api('programs/'+dateCorrection.id+'/correct-date','PUT',dateCorrection);
-  dateCorrection=null;document.querySelector('#correct-date-dialog').close();replaceProgram(p);navigate('summary',p.id);
+  dateCorrection=null;document.querySelector('#correct-date-dialog').close();replaceProgram(p);navigate('summary',p.id,{refresh:true});
   toast('Data corrigida para 10/10/2026 neste navegador. Nenhum culto foi duplicado. Exporte um novo backup.');
 }));
 window.addEventListener('iasdpi-session-status',()=>{
