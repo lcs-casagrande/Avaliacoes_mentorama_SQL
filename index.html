@@ -3,25 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pwbxksxxmnblqwpvlheu.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0F4C78">
   <title>IASDPI · Programação do culto</title>
-  <link rel="stylesheet" href="styles.css?v=ad66d9aa71aac0f2">
-  <script src="config.js?v=ecc15918702b89d4" defer></script>
-  <script src="storage.js?v=59be9a594df6c7bb" defer></script>
-  <script src="supabase-2.118.0.js?v=ee3be8de192b97cb" defer></script>
-  <script src="auth.js?v=42e8db6d03c6652b" defer></script>
-  <script src="record-time.js?v=391029fbea311901" defer></script>
-  <script src="demo.js?v=5a8ebe7ce16a41e1" defer></script>
-  <script src="operational.js?v=907ab9b5e0ed6a16" defer></script>
-  <script src="actuals.js?v=444ea5eb674fd316" defer></script>
-  <script src="agenda-data.js?v=4b72fc23dcade57a" defer></script>
-  <script src="agenda.js?v=91d780025d207a7a" defer></script>
-  <script src="archive.js?v=cdbb3993fedab5e0" defer></script>
-  <script src="organization.js?v=d2ac8d1c2bb5c614" defer></script>
-  <script src="users.js?v=ae37aabd4652c911" defer></script>
-  <script src="trash.js?v=072cb1c7065dff75" defer></script>
-  <script src="app.js?v=c1f1689fe77e9027" defer></script>
+  <link rel="stylesheet" data-release-style href="assets/styles-27cad1d6259b4478b510c76df590d5b03f0d729e766b48157c3795302ce385cc.css?v=27cad1d6259b4478" integrity="sha256-J8rR1iWbRHi1EMdt9ZDVsD8Ncp52a0gVfDeVMCzjhcw=" crossorigin="anonymous">
+<script src="agenda-data.js?v=7fbd6d7aeb9fc600" defer></script>
+  <script src="assets/loader-b4e28416bd18697fb71dae675db1ac6fea6251f9df33830efebdc6185e4a1dfb.js?v=b4e28416bd18697f" integrity="sha256-tOKEFr0YaX+3Ha5nXbGsb+piUfnfM4MO/r3GGF5KHfs=" crossorigin="anonymous" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#app">Ir para o conteúdo</a>
@@ -37,11 +24,13 @@
       <a href="#archive" data-page="archive" hidden>Arquivo e banco</a>
       <a href="#history" data-page="history" hidden>Histórico</a>
       <a href="#trash" data-page="trash" hidden>Administração · Lixeira</a>
+      <a href="#models" data-page="models" hidden>Administração · Modelos</a>
       <a href="#users" data-page="users" hidden>Administração · Usuários</a>
       <a href="#login" data-page="login">Entrar</a>
       <button type="button" id="auth-logout" hidden>Sair</button>
     </nav>
   </header>
+  <section id="release-recovery" class="panel" role="status" aria-live="polite"><h2>Preparando IASDPI</h2><p data-release-message>Carregando a aplicação. Se a conexão falhar, tente recarregar; seus registros e rascunhos serão preservados.</p><button type="button" data-release-retry hidden>Tentar novamente</button> <a data-release-reload href="./?iasdpi-update=1">Recarregar página</a></section>
   <main id="app" tabindex="-1"><p class="empty">Carregando programações…</p></main>
   <div id="notice" role="status" aria-live="polite" hidden></div>
   <dialog id="duplicate-dialog">

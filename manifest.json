@@ -1,12 +1,23 @@
 {
+  "manifest_version": 1,
   "environment": "production",
   "site_url": "https://lcs-casagrande.github.io/Avaliacoes_mentorama_SQL/",
   "remote_read_only": false,
   "storage_namespace": "",
-  "source_commit": "45aa73bb5432178fb10acd7be8be51bc7f0b1bc2",
+  "asset_strategy": "immutable-bundle-sri-v1",
+  "legacy_compatibility_ready": true,
+  "mutable_assets": [
+    "agenda-data.js"
+  ],
+  "entry": {
+    "bundle": "assets/app-362a1857602c89fb47f74d24415348d3aef59c5ae53c4e195fa55bcf604ee404.js?v=362a1857602c89fb",
+    "loader": "assets/loader-b4e28416bd18697fb71dae675db1ac6fea6251f9df33830efebdc6185e4a1dfb.js?v=b4e28416bd18697f",
+    "styles": "assets/styles-27cad1d6259b4478b510c76df590d5b03f0d729e766b48157c3795302ce385cc.css?v=27cad1d6259b4478"
+  },
+  "source_commit": "a77b48b8f29f70be2984e9e799c8a5c352579648",
   "source_has_uncommitted_changes": false,
   "files": {
-    "index.html": "2e3c2735c6458499731c54efe6fc07b37f29501c0c933fa5bb6060972f1fa792",
+    "index.html": "fc75bf28a41ff0cb0384a2d3002b661928b068ae2635e407de4a3694546050b3",
     "styles.css": "ad66d9aa71aac0f2f395fd23c106ba96a6729029474732e6123b2df688c3e8e5",
     "config.js": "ecc15918702b89d44a7d4fe98c8b9914756d560b38c461473abf1bb08d3b0cf0",
     "storage.js": "59be9a594df6c7bb8f10df15b8a625217071063d2c41e2b7db229cd4f2711231",
@@ -17,13 +28,20 @@
     "demo.js": "5a8ebe7ce16a41e1af0ec758e42b239e79aa60a76861de4108d576b19c587907",
     "operational.js": "907ab9b5e0ed6a16687b6c5b53e7919de357ccb59debcd694634b07325b55c6e",
     "actuals.js": "444ea5eb674fd316131dac8ddac028326dad3defdeb41a108c3e72c01df82b71",
-    "agenda-data.js": "4b72fc23dcade57a6b5ebcea7b57e723079fbef95a983419b770bdd398719ff0",
+    "agenda-data.js": "7fbd6d7aeb9fc600f51cfd416db1d5d72e2f774bea4a3fb5c0dd9e5d1fc53c7b",
     "agenda.js": "91d780025d207a7a41c72a3aa0c6daefcd4305d6f78f65d57961ddd1df6428ab",
     "archive.js": "cdbb3993fedab5e06583daee196a23b4c5cb2f9b4ba332eb60304fe32fc8c858",
     "organization.js": "d2ac8d1c2bb5c6141415e8ffbcac841409a052602b8acc7a35f3d2f90dd58474",
     "users.js": "ae37aabd4652c91137d3170e7a1581f5572e7318dc8e162a54dcb2e253d197bb",
     "trash.js": "072cb1c7065dff75f7e4bb0f2846d1f2e8025de89875e5b456b9b1cf51949e57",
+    "drafts.js": "91459b5fd3e0f0f6652efa5d1a8661168798dc7c03019012eca33213c269ac30",
+    "navigation.js": "682f5c0b7af410585f10d18631ec659c183cdf95b1d9af191d4432ee3b98edf4",
+    "conflicts.js": "f71b980e2d96f00ccc2bf564474050f9a3b1a0897cab2f2a16a8eed95a55e989",
+    "history.js": "d4bdbfe973c6d9eaccee91c34e8af129e18b3f6be411ec3376de7c411328f6a7",
     "app.js": "c1f1689fe77e9027874e01e7b469d883df03249a1a6deb11776d715d73090645",
-    ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "assets/app-362a1857602c89fb47f74d24415348d3aef59c5ae53c4e195fa55bcf604ee404.js": "362a1857602c89fb47f74d24415348d3aef59c5ae53c4e195fa55bcf604ee404",
+    "assets/loader-b4e28416bd18697fb71dae675db1ac6fea6251f9df33830efebdc6185e4a1dfb.js": "b4e28416bd18697fb71dae675db1ac6fea6251f9df33830efebdc6185e4a1dfb",
+    "assets/styles-27cad1d6259b4478b510c76df590d5b03f0d729e766b48157c3795302ce385cc.css": "27cad1d6259b4478b510c76df590d5b03f0d729e766b48157c3795302ce385cc"
   }
 }
