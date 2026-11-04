@@ -317,7 +317,7 @@ function render() {
   const activePage=state.page==='schedule-calendar'?'agendas':state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':['edit','plan-edit'].includes(state.page)?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   window.IASDPIPortalNavigation?.sync(state.page);
-  if(window.IASDPIChurches?.enabled()&&!IASDPIChurches.ready()&&!['organization','agendas','schedule-calendar','forgot-password','reset-password','controlled-reset','church-home'].includes(state.page)){app.innerHTML=IASDPIChurches.selectionPage();return;}
+  if(window.IASDPIChurches?.enabled()&&!IASDPIChurches.ready()&&!window.IASDPIPortalAccess?.enabled()&&!['organization','agendas','schedule-calendar','forgot-password','reset-password','controlled-reset','church-home','login','portal-login'].includes(state.page)){app.innerHTML=IASDPIChurches.selectionPage();return;}
   if(window.IASDPIChurches?.enabled()&&IASDPIChurches.selected()&&IASDPIChurches.selected()!=='IASD_PI'&&['organization','agendas'].includes(state.page)){app.innerHTML=empty('Conteúdo público ainda não configurado','Esta igreja ainda não possui agenda ou organograma publicados.');return;}
   const portalGate=window.IASDPIPortalAccess?.guard(state.page);if(portalGate){app.innerHTML=portalGate;return;}
   const missingRecord=['edit','plan-edit','actuals','tracking','summary'].includes(state.page)&&state.selected&&!selected();
@@ -483,7 +483,7 @@ app.addEventListener('submit', event => {
     }
     if(form.id==='auth-login-form'){
       const password=form.elements.password.value;form.elements.password.value='';
-      await IASDPIAuth.login(form.elements.email.value,password,form.elements['public-key']?.value);
+      await IASDPIAuth.login(form.elements.email.value,password,form.elements['public-key']?.value,null,false,{remember:form.elements.remember.checked,church:form.elements.church?.value});
       cloudState.session=IASDPIAuth.session();state.page='home';await boot();return;
     }
     if(form.id==='actuals-form'&&window.IASDPIOperational){await saveActuals(form,finalize,draftSave);return;}

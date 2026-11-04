@@ -26,11 +26,18 @@ class PortalIntegrationBrowserTests(unittest.TestCase):
     def go(self,page):
         self.page.wait_for_function('()=>!bootInProgress&&!state.busy');self.page.evaluate('(page)=>IASDPINavigation.navigate(page)',page)
     def choose(self):
-        self.go('schedule-build');self.page.wait_for_selector('#church-select');self.page.select_option('#church-select','IASD_PI');self.page.get_by_role('button',name='Continuar',exact=True).click();self.page.wait_for_selector('#portal-login-form')
+        self.go('schedule-build');self.page.wait_for_selector('#church-select');self.page.select_option('#church-select','IASD_PI');self.page.wait_for_selector('#portal-login-form')
     def login(self,alias='som.teste'):
         self.choose();self.page.fill('#portal-login-form [name=email]',alias);self.page.fill('#portal-login-form [name=password]','Demonstracao#2026');self.page.locator('#portal-login-form button').click();self.page.wait_for_selector('.monthly-calendar')
     def prefill(self):
         self.page.locator('[data-b1-action=prefill]').click();self.page.wait_for_function("()=>document.querySelector('#b1-feedback')?.textContent.includes('sugeridas')")
+    def fill_music(self,person=None):
+        for i in range(self.page.locator('.music-picker').count()):
+            picker=self.page.locator('.music-picker').nth(i)
+            if picker.locator(':checked').count():continue
+            if not picker.evaluate('e=>e.open'):picker.locator('summary').click()
+            selector='[data-music-volunteer]:not([disabled])'+('[value="'+person+'"]' if person else '')
+            picker.locator(selector).first.check()
     def save(self,publish=False):
         if publish:self.page.once('dialog',lambda d:d.accept())
         self.page.locator('[data-b1-action='+('publish' if publish else 'save')+']').first.click();self.page.wait_for_function("()=>document.querySelector('#b1-feedback')?.textContent.includes('salvas nesta aba')")
@@ -64,7 +71,7 @@ class PortalIntegrationBrowserTests(unittest.TestCase):
     def test_admin_governance_and_no_additional_active_church(self):
         self.login('admin.teste');self.go('access-admin');self.page.wait_for_selector('.governance-tabs');self.assertIn('Administrador fictício',self.page.locator('#app').inner_text());self.assertEqual(self.page.locator('#portal-church').count(),0)
     def test_chrono_uses_original_form_session_and_routes(self):
-        self.go('home');self.page.wait_for_selector('#church-select');self.page.select_option('#church-select','IASD_PI');self.page.get_by_role('button',name='Continuar',exact=True).click();self.page.wait_for_selector('#auth-login-form');self.page.fill('#auth-login-form [name=email]','crono.teste');self.page.fill('#auth-login-form [name=password]','Demonstracao#2026');self.page.locator('#auth-login-form button').click();self.page.wait_for_function('()=>IASDPIAuth.allowed()');self.assertEqual(self.page.evaluate('IASDPIAuth.session().user.id'),'00000000-0000-4000-8000-000000000096')
+        self.go('home');self.page.wait_for_selector('#church-select');self.page.select_option('#church-select','IASD_PI');self.page.wait_for_selector('#auth-login-form');self.page.fill('#auth-login-form [name=email]','crono.teste');self.page.fill('#auth-login-form [name=password]','Demonstracao#2026');self.page.locator('#auth-login-form button').click();self.page.wait_for_function('()=>IASDPIAuth.allowed()');self.assertEqual(self.page.evaluate('IASDPIAuth.session().user.id'),'00000000-0000-4000-8000-000000000096')
     def test_five_widths_keyboard_and_evidence(self):
         self.login();output=base.ROOT/'dist/portal-integration';output.mkdir(parents=True,exist_ok=True)
         for route,selector in [('church-home','.church-portal-cards'),('agendas','.agenda-calendar'),('organization','#organization-results'),('schedule-calendar','.scale-calendar'),('schedule-build','.monthly-calendar')]:

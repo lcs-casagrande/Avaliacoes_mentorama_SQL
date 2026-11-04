@@ -5,6 +5,12 @@ window.IASDPIAuth = (() => {
   const churchCode=()=>window.IASDPIChurches?.selected()||'IASD_PI';
   let phase='recovering', statusMessage='Recuperando sessão…', signingIn=false, expiryTimer=null;
   const publicPages=new Set(['organization','agendas','login','invite','forgot-password','reset-password','schedule-setup','schedule-calendar','schedule-build','schedule-members','schedule-settings','access-admin','access-request','controlled-reset','events']);
+  const rememberKey=IASDPIStorage.authSession+':remember';
+  let remember=true;try{remember=localStorage.getItem(rememberKey)!=='false';}catch(_){}
+  const remembers=()=>{try{return localStorage.getItem(rememberKey)!=='false';}catch(_){return remember;}};
+  const sessionStore={getItem:key=>(remembers()?localStorage:sessionStorage).getItem(key),setItem:(key,value)=>{const keep=remembers();(keep?localStorage:sessionStorage).setItem(key,value);(keep?sessionStorage:localStorage).removeItem(key);},removeItem:key=>{localStorage.removeItem(key);sessionStorage.removeItem(key);}};
+  function setRemember(value){remember=value;localStorage.setItem(rememberKey,String(value));}
+  function rememberField(){return `<label class="checkbox auth-remember"><input type="checkbox" name="remember" ${remember?'checked':''}> Manter conectado</label>`;}
   function config(){
     let saved={};try{saved=JSON.parse(localStorage.getItem(IASDPIStorage.cloudConfig)||'{}');}catch(_){}
     return {url:window.IASDPIConfig?.supabaseUrl || '',key:window.IASDPIConfig?.supabasePublishableKey || saved.key || ''};
@@ -20,7 +26,7 @@ window.IASDPIAuth = (() => {
     if(method==='GET')return /^\/auth\/v1\/(health|settings|user)$/.test(path)||/^\/rest\/v1\/(iasdpi_access|iasdpi_templates|culto_archives)(?:\?|$)/.test(path);
     if(method!=='POST')return false;
     return path==='/functions/v1/alias-login'||path==='/auth/v1/token?grant_type=password'||path==='/auth/v1/token?grant_type=refresh_token'||path==='/auth/v1/logout?scope=local'||
-      ['/rest/v1/rpc/iasdpi_schedule_visible','/rest/v1/rpc/iasdpi_events_visible','/rest/v1/rpc/iasdpi_events_catalog','/rest/v1/rpc/iasdpi_event_history','/rest/v1/rpc/iasdpi_events_published','/rest/v1/rpc/iasdpi_registry_identity_preview','/rest/v1/rpc/iasdpi_registry_audit','/rest/v1/rpc/iasdpi_registry_history','/rest/v1/rpc/iasdpi_registry_public','/rest/v1/rpc/iasdpi_registry_people','/rest/v1/rpc/iasdpi_registry_catalog','/rest/v1/rpc/iasdpi_schedule_department_days','/rest/v1/rpc/iasdpi_schedule_elder_workspace','/rest/v1/rpc/iasdpi_schedule_elder_versions','/rest/v1/rpc/iasdpi_portal_context','/rest/v1/rpc/iasdpi_my_churches','/rest/v1/rpc/iasdpi_schedule_published','/rest/v1/rpc/iasdpi_governance_catalog','/rest/v1/rpc/iasdpi_governance_history','/rest/v1/rpc/iasdpi_department_members','/rest/v1/rpc/iasdpi_access_requests','/rest/v1/rpc/iasdpi_access_request_options','/rest/v1/rpc/iasdpi_alias_list','/rest/v1/rpc/iasdpi_list_churches','/rest/v1/rpc/iasdpi_schedule_catalog','/rest/v1/rpc/iasdpi_schedule_person_details','/rest/v1/rpc/iasdpi_schedule_rotation_context','/rest/v1/rpc/iasdpi_schedule_workspace','/rest/v1/rpc/iasdpi_schedule_plan_version','/rest/v1/rpc/iasdpi_schedule_settings_get','/rest/v1/rpc/iasdpi_schedule_members','/rest/v1/rpc/iasdpi_schedule_person_history','/rest/v1/rpc/iasdpi_schedule_exceptions','/rest/v1/rpc/iasdpi_list_users','/rest/v1/rpc/iasdpi_list_invites','/rest/v1/rpc/iasdpi_find_account'].includes(path);
+      ['/rest/v1/rpc/iasdpi_event_preview','/rest/v1/rpc/iasdpi_schedule_visible','/rest/v1/rpc/iasdpi_events_visible','/rest/v1/rpc/iasdpi_events_catalog','/rest/v1/rpc/iasdpi_event_history','/rest/v1/rpc/iasdpi_events_published','/rest/v1/rpc/iasdpi_registry_identity_preview','/rest/v1/rpc/iasdpi_registry_audit','/rest/v1/rpc/iasdpi_registry_history','/rest/v1/rpc/iasdpi_registry_public','/rest/v1/rpc/iasdpi_registry_people','/rest/v1/rpc/iasdpi_registry_catalog','/rest/v1/rpc/iasdpi_schedule_department_days','/rest/v1/rpc/iasdpi_schedule_elder_workspace','/rest/v1/rpc/iasdpi_schedule_elder_versions','/rest/v1/rpc/iasdpi_portal_context','/rest/v1/rpc/iasdpi_my_churches','/rest/v1/rpc/iasdpi_schedule_published','/rest/v1/rpc/iasdpi_governance_catalog','/rest/v1/rpc/iasdpi_governance_history','/rest/v1/rpc/iasdpi_department_members','/rest/v1/rpc/iasdpi_access_requests','/rest/v1/rpc/iasdpi_access_request_options','/rest/v1/rpc/iasdpi_alias_list','/rest/v1/rpc/iasdpi_list_churches','/rest/v1/rpc/iasdpi_schedule_catalog','/rest/v1/rpc/iasdpi_schedule_person_details','/rest/v1/rpc/iasdpi_schedule_rotation_context','/rest/v1/rpc/iasdpi_schedule_workspace','/rest/v1/rpc/iasdpi_schedule_plan_version','/rest/v1/rpc/iasdpi_schedule_settings_get','/rest/v1/rpc/iasdpi_schedule_members','/rest/v1/rpc/iasdpi_schedule_person_history','/rest/v1/rpc/iasdpi_schedule_exceptions','/rest/v1/rpc/iasdpi_list_users','/rest/v1/rpc/iasdpi_list_invites','/rest/v1/rpc/iasdpi_find_account'].includes(path);
   }
   async function jsonRequest(path,options={}){
     if(!remoteRequestAllowed(path,(options.method||'GET').toUpperCase()))throw Error('Homologação em modo de consulta: alterações remotas estão bloqueadas.');
@@ -74,7 +80,7 @@ window.IASDPIAuth = (() => {
     if(!window.supabase?.createClient)throw Error('Não foi possível carregar a autenticação. Recarregue a página.');
     client=window.supabase.createClient(cfg.url,cfg.key,{
       auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,
-        storageKey:IASDPIStorage.authSession,flowType:'pkce'},
+        storageKey:IASDPIStorage.authSession,storage:sessionStore,flowType:'pkce'},
       global:{fetch:async(input,options={})=>{
         const url=new URL(typeof input==='string'?input:input.url);
         if(url.origin!==cfg.url||!remoteRequestAllowed(url.pathname+url.search,(options.method||'GET').toUpperCase()))throw Error('Operação remota bloqueada no modo de consulta.');
@@ -170,11 +176,13 @@ window.IASDPIAuth = (() => {
     const result=await getClient().auth.setSession({access_token:tokens.access_token,refresh_token:tokens.refresh_token});
     if(result.error)throw failure();return result;
   }
-  async function login(email,password,key,inviteToken,identityOnly=false){
+  async function login(email,password,key,inviteToken,identityOnly=false,options={}){
+    if(options.church&&window.IASDPIChurches)await IASDPIChurches.selectForLogin(options.church);
     if(window.IASDPIChurches)await IASDPIChurches.ensure();
     const cfg=config();if(key)cfg.key=key.trim();validateConfig(cfg);
     if(client&&cfg.key!==config().key)throw Error('Recarregue a página após alterar a chave pública.');
     localStorage.setItem(IASDPIStorage.cloudConfig,JSON.stringify(cfg));
+    const previousRemember=remember;if(typeof options.remember==='boolean')setRemember(options.remember);
     signingIn=true;status('recovering','Confirmando acesso…');
     try{
       const identifier=String(email||'').trim();
@@ -183,7 +191,7 @@ window.IASDPIAuth = (() => {
       adopt(data.session);
       if(inviteToken)await jsonRequest('/rest/v1/rpc/iasdpi_accept_invite',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({p_token:inviteToken})});
       if(identityOnly)await requireIdentity();else await verify();window.dispatchEvent(new Event('iasdpi-auth-changed'));
-    }catch(error){invalidate('unavailable',error.message);throw error;}
+    }catch(error){if(!session)setRemember(previousRemember);invalidate('unavailable',error.message);throw error;}
     finally{signingIn=false;}
   }
   async function signup(email,password,key){
@@ -275,9 +283,8 @@ window.IASDPIAuth = (() => {
   }
 
   function loginPage(){
-    if(window.IASDPIChurches?.enabled()&&!IASDPIChurches.ready())return IASDPIChurches.selectionPage();
-    return (window.IASDPIChurches?.selectedLabel()||'')+heading('ACESSO RESTRITO','Entrar no IASDPI','Cronogramas, registros, histórico e backups são exclusivos de administradores e líderes autorizados.')+
-      `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${loginIdentifierField()}${field('Senha','password','','password',true,'autocomplete="current-password"')}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p><a href="#forgot-password" data-auth-page="forgot-password">Esqueci minha senha</a></p>${window.IASDPIConfig?.governanceEnabled?'<p><a href="#access-request" data-auth-page="access-request">Solicitar acesso ou recuperação</a></p>':''}<p class="muted">A sessão é mantida pelo Supabase neste navegador. Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
+    return heading('ACESSO RESTRITO','Entrar no IASDPI','Cronogramas, registros, histórico e backups são exclusivos de administradores e líderes autorizados.')+
+      `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${window.IASDPIChurches?.loginSelector()||''}${loginIdentifierField()}${field('Senha','password','','password',true,'autocomplete="current-password"')}${rememberField()}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p><a href="#forgot-password" data-auth-page="forgot-password">Esqueci minha senha</a></p>${window.IASDPIConfig?.governanceEnabled?'<p><a href="#access-request" data-auth-page="access-request">Solicitar acesso ou recuperação</a></p>':''}<p class="muted">Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
   }
   document.addEventListener('visibilitychange',()=>{
     if(!client)return;
@@ -285,6 +292,6 @@ window.IASDPIAuth = (() => {
     else{client.auth.startAutoRefresh();void restore().catch(()=>{});}
   });
   setInterval(()=>{if(session&&!document.hidden)void requireAccess().catch(()=>{});},60000);
-  return {identityKey:()=>session&&!passwordRecoveryActive()&&session.expires_at*1000>Date.now()?session.user.id:null,identityCurrent:token=>session?.access_token===token&&identityChurch===churchCode(),scopeValidated:()=>{scopedUser=session?.user.id;status('scoped','Sessão ministerial ativa. As demais áreas exigem autorização própria.');},requireIdentity,loginIdentifierField,loginIdentity:(email,password)=>login(email,password,null,null,true),config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,restore,requestPasswordReset,handlePasswordCallback,updatePassword,passwordRecoveryActive,forgotPasswordPage,resetPasswordPage,
+  return {identityKey:()=>session&&!passwordRecoveryActive()&&session.expires_at*1000>Date.now()?session.user.id:null,identityCurrent:token=>session?.access_token===token&&identityChurch===churchCode(),scopeValidated:()=>{scopedUser=session?.user.id;status('scoped','Sessão ministerial ativa. As demais áreas exigem autorização própria.');},requireIdentity,loginIdentifierField,rememberField,loginIdentity:(email,password,options)=>login(email,password,null,null,true,options),config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,restore,requestPasswordReset,handlePasswordCallback,updatePassword,passwordRecoveryActive,forgotPasswordPage,resetPasswordPage,
     status:()=>({phase,message:statusMessage}),isPublic:page=>publicPages.has(page)||Boolean(window.IASDPIPortalAccess?.enabled()&&IASDPIPortalAccess.isPublic(page)),session:()=>allowed()?session:null};
 })();

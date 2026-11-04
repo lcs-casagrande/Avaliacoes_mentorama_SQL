@@ -1,0 +1,9 @@
+-- Somente leitura; retorna APENAS irregularidades da 022. Executar como postgres.
+WITH tables AS(SELECT unnest(ARRAY['iasdpi_event_spaces','iasdpi_event_series','iasdpi_event_series_versions','iasdpi_event_reservations']) name),
+functions AS(SELECT unnest(ARRAY['iasdpi_event_submit','iasdpi_event_series_save','iasdpi_event_preview','iasdpi_events_catalog','iasdpi_event_history','iasdpi_event_save']) name)
+SELECT 'RLS ausente ou desativada: '||t.name AS irregularidade FROM tables t LEFT JOIN pg_class c ON c.oid=to_regclass('public.'||t.name) WHERE c.oid IS NULL OR NOT c.relrowsecurity OR NOT c.relforcerowsecurity
+UNION ALL SELECT 'Gravação direta indevida: '||t.name FROM tables t WHERE has_table_privilege('authenticated','public.'||t.name,'INSERT,UPDATE,DELETE') OR has_table_privilege('anon','public.'||t.name,'SELECT,INSERT,UPDATE,DELETE')
+UNION ALL SELECT 'RPC insegura: '||f.name FROM functions f LEFT JOIN pg_proc p ON p.proname=f.name AND p.pronamespace='public'::regnamespace WHERE p.oid IS NULL OR NOT p.prosecdef OR pg_get_userbyid(p.proowner)<>'iasdpi_church_executor' OR NOT p.proconfig @> ARRAY['search_path=""'] OR has_function_privilege('anon',p.oid,'EXECUTE')
+UNION ALL SELECT 'Helper privado executável: '||p.proname FROM pg_proc p WHERE p.pronamespace='iasdpi_schedule_private'::regnamespace AND p.proname IN('event_space_key','event_store','event_dates','event_interval','event_conflicts','event_conflict_view','event_save_021') AND has_function_privilege('authenticated',p.oid,'EXECUTE')
+UNION ALL SELECT 'Exclusão de reservas ausente' WHERE NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.iasdpi_event_reservations'::regclass AND contype='x')
+UNION ALL SELECT 'Ocorrência sem série da mesma igreja' FROM public.iasdpi_events e WHERE series_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.iasdpi_event_series s WHERE s.id=e.series_id AND s.church_id=e.church_id);

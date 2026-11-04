@@ -25,9 +25,11 @@ parser.add_argument('--department-days-preview',action='store_true',help='G7: di
 parser.add_argument('--registry-preview',action='store_true',help='G8.2: cadastro central integrado em demonstração isolada.')
 parser.add_argument('--registry-consolidation-preview',action='store_true',help='G8.3: auditoria e lacunas do cadastro central em prévia isolada.')
 parser.add_argument('--registry-identities-preview',action='store_true',help='G8.4: nomes confirmados e conciliação administrativa, sem rede externa.')
+parser.add_argument('--event-management-preview',action='store_true',help='Eventos com recorrência, locais e pendência; memória isolada, sem Supabase.')
 parser.add_argument('--calendar-privacy-preview',action='store_true',help='Classificação e privacidade simuladas: eventos abertos e Ancionato públicos, demais escalas com login fictício.')
 parser.add_argument('--events-preview',action='store_true',help='E1: calendário unificado e gestão de eventos com acesso simulado, sem Supabase real.')
 args = parser.parse_args()
+if args.event_management_preview:args.calendar_privacy_preview=True
 if args.calendar_privacy_preview:args.events_preview=True
 if args.events_preview:
     args.registry_identities_preview=True
@@ -103,6 +105,7 @@ for name in ('config.js', 'churches.js', 'storage.js', 'supabase-2.118.0.js', 'a
         script+='\nwindow.IASDPIConfig=Object.freeze({...IASDPIConfig,eventsEnabled:true,calendarPrivacyEnabled:'+str(args.calendar_privacy_preview).lower()+'});'
     if name == 'app.js' and args.events_preview:
         script+='\n'+(root/'tests/fixtures/events-preview.js').read_text()
+        if args.event_management_preview:script+='\n'+(root/'tests/fixtures/event-planning-preview.js').read_text()
     script = script.replace('</script', '<\\/script')
     html = html.replace(f'  <script src="{name}" defer></script>\n', '')
     # Scripts executam após os elementos da página existirem.

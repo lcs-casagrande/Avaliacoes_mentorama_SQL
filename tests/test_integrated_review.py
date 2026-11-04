@@ -124,7 +124,6 @@ class IntegratedReviewBrowserTests(SiteFixture, unittest.TestCase):
     def login(self, alias='admin.teste'):
         self.go('schedule-build');self.page.wait_for_selector('#church-select')
         self.page.select_option('#church-select', 'IASD_PI')
-        self.page.get_by_role('button', name='Continuar', exact=True).click()
         self.page.wait_for_selector('#portal-login-form')
         self.page.fill('#portal-login-form [name=email]', alias)
         self.page.fill('#portal-login-form [name=password]', 'Demonstracao#2026')

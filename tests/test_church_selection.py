@@ -18,22 +18,22 @@ class ChurchSelectionTests(base.FrontendAccessTests):
         if 'grant_type=password' in request.url:self.auth_password_requests+=1
         return super().supabase(route)
     def choose(self):
-        self.page.goto(self.base+'#login');self.page.wait_for_selector('#church-select');self.page.locator('#church-select').select_option('IASD_PI');self.page.get_by_role('button',name='Continuar',exact=True).click();self.page.wait_for_selector('#auth-login-form')
+        self.page.goto(self.base+'#login');self.page.wait_for_selector('#church-select');self.page.locator('#church-select').select_option('IASD_PI');self.page.wait_for_selector('#auth-login-form')
     def test_selector_precedes_password_and_only_backend_list_is_used(self):
-        self.page.goto(self.base+'#login');self.page.wait_for_selector('#church-select');self.assertEqual(self.page.locator('input[type=password]').count(),0)
+        self.page.goto(self.base+'#login');self.page.wait_for_selector('#church-select');self.page.wait_for_function("()=>IASDPIChurches.ready()");self.assertEqual(self.page.locator('input[type=password]').count(),1)
         self.assertNotIn('Carregando igrejas',self.page.locator('#app').inner_text())
         self.assertEqual(self.page.locator('#church-select option:not([value=""])').all_text_contents(),['IASD Parada Inglesa']);self.assertEqual(self.auth_password_requests,0)
         self.page.evaluate("document.querySelector('#church-select').innerHTML+='<option value=FORGED>Igreja indevida</option>';document.querySelector('#church-select').value='FORGED'")
-        self.page.get_by_role('button',name='Continuar',exact=True).click();self.assertEqual(self.page.locator('input[type=password]').count(),0);self.assertEqual(self.page.evaluate('IASDPIChurches.selected()'),'')
+        self.page.fill('#auth-login-form [name=email]','lider@teste.com');self.page.fill('#auth-login-form [name=password]','SenhaDeTeste123!');self.page.locator('#auth-login-form button[type=submit]').click();self.page.wait_for_function("()=>document.querySelector('#notice')?.textContent.includes('Selecione uma igreja autorizada')");self.assertEqual(self.auth_password_requests,0);self.assertEqual(self.page.evaluate('IASDPIChurches.selected()'),'IASD_PI')
     def test_selected_church_survives_reload_and_all_rest_requests_are_scoped(self):
         self.choose();self.login();self.page.wait_for_function("()=>IASDPIAuth.allowed()");self.assertGreater(self.auth_password_requests,0);self.assertTrue(self.rest_headers);self.assertTrue(all(v=='IASD_PI' for v in self.rest_headers))
         self.page.reload();self.page.wait_for_selector('#app');self.assertEqual(self.page.evaluate('IASDPIChurches.selected()'),'IASD_PI')
     def test_temporary_listing_failure_is_error_and_retry_recovers(self):
-        self.list_status=503;self.page.goto(self.base+'#login');self.page.wait_for_selector('[data-church-retry]');self.assertEqual(self.page.locator('#church-select').count(),0);self.assertIn('indisponível',self.page.locator('[role=alert]').inner_text())
+        self.list_status=503;self.page.goto(self.base+'#login');self.page.wait_for_selector('[data-church-retry]');self.assertTrue(self.page.locator('#church-select').is_disabled());self.assertIn('indisponível',self.page.locator('[role=alert]').inner_text())
         self.list_status=200;self.page.get_by_role('button',name='Tentar novamente',exact=True).click();self.page.wait_for_selector('#church-select');self.assertEqual(self.auth_password_requests,0)
     def test_really_empty_list_and_invalid_saved_choice_never_fall_back(self):
-        self.churches=[];self.page.goto(self.base+'#login');self.page.wait_for_function("()=>document.querySelector('#app').textContent.includes('Nenhuma igreja')");self.assertEqual(self.page.locator('input[type=password],#church-select').count(),0)
-        self.churches=[{'id':'1','code':'IASD_PI','name':'IASD Parada Inglesa'}];self.page.evaluate("sessionStorage.setItem('iasdpi-selected-church-v1','UNAUTHORIZED')");self.page.reload();self.page.wait_for_selector('#church-select');self.assertEqual(self.page.locator('input[type=password]').count(),0)
+        self.churches=[];self.page.goto(self.base+'#login');self.page.wait_for_function("()=>document.querySelector('#app').textContent.includes('Nenhuma igreja')");self.assertFalse(self.page.evaluate('IASDPIChurches.ready()'));self.assertEqual(self.auth_password_requests,0)
+        self.churches=[{'id':'1','code':'IASD_PI','name':'IASD Parada Inglesa'}];self.page.evaluate("sessionStorage.setItem('iasdpi-selected-church-v1','UNAUTHORIZED')");self.page.reload();self.page.wait_for_function("()=>document.querySelector('#church-select')&&!document.querySelector('#church-select').disabled");self.assertEqual(self.page.locator('#church-select').input_value(),'');self.assertFalse(self.page.evaluate('IASDPIChurches.ready()'));self.assertEqual(self.auth_password_requests,0)
     def test_original_local_keys_preserved_and_future_scopes_separate(self):
         self.choose();self.assertEqual(self.page.evaluate('IASDPIStorage.programs'),'iasdpi-demo-v1');self.assertEqual(self.page.evaluate("IASDPIStorage.scope('iasdpi-edit-drafts-v1')"),'iasdpi-edit-drafts-v1')
         self.page.evaluate("sessionStorage.setItem('iasdpi-selected-church-v1','TEST_ONLY')")
@@ -42,7 +42,7 @@ class ChurchSelectionTests(base.FrontendAccessTests):
         self.page.goto(self.base+'#login');self.page.wait_for_selector('#church-select')
         for width in [360,390,768,1024,1440]:
             self.page.set_viewport_size(dict(width=width,height=900));self.assertLessEqual(self.page.evaluate('document.documentElement.scrollWidth'),width);self.assertGreaterEqual(self.page.locator('#church-select').bounding_box()['height'],44)
-        self.page.locator('#church-select').focus();self.page.keyboard.press('ArrowDown');self.page.keyboard.press('Tab');self.assertTrue(self.page.get_by_role('button',name='Continuar',exact=True).evaluate('e=>e===document.activeElement'))
+        self.page.locator('#church-select').focus();self.page.keyboard.press('ArrowDown');self.page.keyboard.press('Tab');self.assertEqual(self.page.evaluate('document.activeElement.name'),'email')
     # Os cenários herdados são cobertos na classe original, com feature desativada.
     test_public_pages_and_direct_access_preserve_storage=None
     test_leader_can_edit_and_logout_keeps_original_records=None

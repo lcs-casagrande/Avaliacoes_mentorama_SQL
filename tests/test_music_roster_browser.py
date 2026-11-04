@@ -44,14 +44,15 @@ class MusicRosterBrowserTests(unittest.TestCase):
             person = next(p for p in c['people'] if p['name'] == name)
             self.assertGreaterEqual(len([m for m in c['memberships'] if m['person_id'] == person['id']]), 2)
         self.department('musica')
-        self.page.locator('[data-b1-action=prefill]').click()
-        self.page.wait_for_function("()=>document.querySelector('#b1-feedback')?.textContent.includes('sugeridas')")
+        self.assertTrue(self.page.locator('[data-b1-action=prefill]').is_disabled())
+        self.page.locator('[data-b1-action=prefill]').dispatch_event('click')
         self.assertEqual(self.page.locator('[data-music-volunteer]:checked').count(), 0)
 
     def test_music_multiple_selection_saves_and_reopens_same_central_ids(self):
         self.login()
         self.department('musica')
         team = self.page.locator('.music-team').first
+        self.page.locator('.music-picker>summary').first.click()
         self.assertEqual(team.locator('[data-music-volunteer]').count(), 13)
         selected = [team.locator('[data-music-volunteer]').nth(i).get_attribute('value') for i in [0, 1]]
         for person in selected:
@@ -59,7 +60,7 @@ class MusicRosterBrowserTests(unittest.TestCase):
         self.page.locator('[data-b1-action=save]').click()
         self.page.wait_for_function("()=>document.querySelector('#b1-feedback')?.textContent.includes('salvas nesta aba')")
         self.page.locator('[data-b1-action=reload]').click()
-        self.page.wait_for_selector('.music-team')
+        self.page.wait_for_selector('.music-picker')
         self.assertEqual(set(self.page.locator('.music-team').first.locator(':checked').evaluate_all('es=>es.map(e=>e.value)')), set(selected))
 
     def test_new_member_publishes_with_central_name_and_stays_private_without_login(self):
@@ -67,6 +68,7 @@ class MusicRosterBrowserTests(unittest.TestCase):
         self.department('musica')
         person = next(p for p in self.catalog()['people'] if p['name'] == 'Ana Julia')
         for index in range(self.page.locator('.music-team').count()):
+            self.page.locator('.music-picker>summary').nth(index).click()
             self.page.locator('.music-team').nth(index).locator('[value="'+person['id']+'"]').check()
         month = self.page.locator('#schedule-month').input_value()
         self.page.once('dialog', lambda d: d.accept())

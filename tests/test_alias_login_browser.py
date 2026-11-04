@@ -27,7 +27,7 @@ class AliasLoginBrowserTests(unittest.TestCase):
         if '/token?grant_type=password' in req.url:self.email_calls+=1
         return base.FrontendAccessTests.supabase(self,route)
     def choose(self):
-        self.page.goto(self.base+'#login');self.page.wait_for_selector('#church-select');self.page.locator('#church-select').select_option('IASD_PI');self.page.get_by_role('button',name='Continuar',exact=True).click();self.page.wait_for_selector('#auth-login-form')
+        self.page.goto(self.base+'#login');self.page.wait_for_selector('#church-select');self.page.locator('#church-select').select_option('IASD_PI');self.page.wait_for_selector('#auth-login-form')
     def login_as(self,identifier='sonoplastia'):
         self.page.locator('#auth-login-form [name=email]').fill(identifier);self.page.locator('#auth-login-form [name=password]').fill('individual-test-password');self.page.locator('#auth-login-form button').click();self.page.wait_for_function('()=>IASDPIAuth.allowed()')
     def test_identifier_field_and_church_then_native_sdk_session(self):

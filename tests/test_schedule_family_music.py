@@ -16,14 +16,21 @@ class FamilyMusicTests(unittest.TestCase):
         self.page.reload();self.page.wait_for_selector('.simple-daily-calendar')
     tearDown=review.ReviewBrowserTests.tearDown
     catalog=review.ReviewBrowserTests.catalog
-    fill=review.ReviewBrowserTests.fill
+    def fill(self):
+        if self.page.locator('.music-picker').count():
+            import test_portal_integration_browser as portal
+            portal.PortalIntegrationBrowserTests.fill_music(self)
+        else:review.ReviewBrowserTests.fill(self)
     save=review.ReviewBrowserTests.save
     def department(self,code):
-        d=next(d for d in self.catalog()['departments'] if d['code']==code);self.page.locator('[data-b1-action=department][data-department="'+d['id']+'"]').click();self.page.wait_for_selector('.music-team' if code=='musica' else '.monthly-calendar');return d
+        d=next(d for d in self.catalog()['departments'] if d['code']==code);self.page.locator('[data-b1-action=department][data-department="'+d['id']+'"]').click();self.page.wait_for_selector('.music-picker' if code=='musica' else '.monthly-calendar');return d
     def person(self,name):return next(p['id'] for p in self.catalog()['people'] if p['name']==name)
     def link_music(self,name='Luan'):
         self.page.evaluate("""async name=>{const rpc=IASDPISchedulePreview.request,c=await rpc('iasdpi_schedule_catalog'),p=c.people.find(p=>p.name===name),d=c.departments.find(d=>d.code==='musica'),m=c.memberships.find(m=>m.person_id===p.id&&m.department_id===d.id);if(!m)await rpc('iasdpi_schedule_save',{p_entity:'membership',p_id:crypto.randomUUID(),p_expected_version:0,p_request_id:crypto.randomUUID(),p_data:{person_id:p.id,department_id:d.id,active:true}});}""",name)
-    def first_team(self):return self.page.locator('.music-team').first
+    def first_team(self):
+        picker=self.page.locator('.music-picker').first
+        if not picker.evaluate('e=>e.open'):picker.locator('summary').click()
+        return picker.locator('.music-team')
     def flag(self,name):return self.first_team().locator('[data-music-volunteer][value="'+self.person(name)+'"]')
     def publish(self):
         self.page.once('dialog',lambda d:d.accept());self.page.get_by_role('button',name='Publicar escala',exact=True).click();self.page.wait_for_function("()=>document.querySelector('#b1-feedback').textContent.includes('Escala publicada')")

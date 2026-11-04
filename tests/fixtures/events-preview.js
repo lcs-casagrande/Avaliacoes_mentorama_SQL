@@ -9,9 +9,9 @@
  const catalog=()=>IASDPIKnownPreviewSeed.catalog,dept=id=>catalog().departments.find(d=>d.id===id);
  const current=a=>[...events.values()].filter(e=>a.globalRole==='admin'||e.category==='department'&&a.caps[e.department_id]?.view);
  const time=t=>t?String(t).padEnd(8,':00'):'';
- function fingerprint(e){return JSON.stringify([e.title.trim().normalize('NFC').toLowerCase(),e.date,e.end_date,time(e.start_time),time(e.end_time),e.category,e.department_id,e.location.trim().toLowerCase()]);}
+ function fingerprint(e){return JSON.stringify([e.title.trim().normalize('NFC').toLowerCase(),e.date,e.end_date,time(e.start_time),time(e.end_time),e.category,e.department_id,e.location.trim().toLowerCase(),(e.spaces||[]).slice().sort()]);}
  function save(a,b){
-  if(!b.p_id||!Number.isInteger(b.p_expected_version)||b.p_expected_version<0||!b.p_request_id||!b.p_patch||Object.keys(b.p_patch).some(k=>!allowed.has(k)))fail('Campos, identificador ou versão inválidos.','22023');
+  if(!b.p_id||!Number.isInteger(b.p_expected_version)||b.p_expected_version<0||!b.p_request_id||!b.p_patch||Object.keys(b.p_patch).some(k=>!allowed.has(k)&&!(k==='spaces'&&window.IASDPIEventPlanningDemo)))fail('Campos, identificador ou versão inválidos.','22023');
   const old=events.get(b.p_id),patch=b.p_patch,e={title:'',location:'',description:'',category:null,department_id:null,program_category:null,organizer_kind:null,audience:null,is_restricted:false,organizer_department_id:null,all_day:false,start_time:null,end_time:null,status:'draft',source_key:null,source_url:null,cancellation_reason:'',...clone(old||{}),...clone(patch)};
   if(!Object.hasOwn(patch,'end_date')&&(!old||old.date===old.end_date))e.end_date=e.date;
   const edit=!old||Object.keys(patch).some(k=>!['status','cancellation_reason'].includes(k))||e.status==='draft';
