@@ -311,6 +311,8 @@ function subactivitiesSummary(detail){
 }
 function markRegistrationDirty(){registrationDirty=true;const form=document.querySelector('#actuals-form');const saving=form?.querySelector('.registration-savebar')?.dataset.state==='saving';setRegistrationSaveState(form,saving?'saving':'dirty',saving?'Envio em andamento. Há alterações mais recentes pendentes.':'Alterações pendentes · ainda não salvas.');}
 function canLeaveRegistration(){
+  if(window.IASDPIScheduleManagement&&!IASDPIScheduleManagement.canLeave())return false;
+  if(window.IASDPISchedules&&!IASDPISchedules.canLeave())return false;
   if(window.IASDPIDrafts)return IASDPIDrafts.canLeave();
   if(!registrationDirty)return true;
   if(!window.confirm('Descartar as alterações não salvas deste registro?'))return false;

@@ -2,6 +2,17 @@
 
 MVP para cadastrar uma programação e acompanhar o planejado × realizado, com prioridade para celular e tablet.
 
+## Revisão do desenvolvimento
+
+A branch `feat/schedule-management-b1` reúne Escalas B1–B1.2, governança G1–G8.4 e a preparação G9. O Cadastro Geral consolidado reaproveita as pessoas e os vínculos existentes. **E1 — Gestão de Eventos não está implementada nesta candidata.**
+
+- [Demonstração integrada isolada](https://lcs-casagrande.github.io/IASDPI-homologacao/integrada/): contas fictícias, alterações em memória, sem Supabase real.
+- [Escopo, testes, pendências e rollback da homologação](docs/review-publication.md).
+- [Ordem das migrações e preparação G9](docs/governance-g9-homologation.md).
+- [Checklist de Auth/RLS reais, ainda pendente](docs/g9-real-validation.md).
+
+Os flags G1–G4/Cadastro Geral do frontend operacional permanecem desativados. Publicar esta branch não instala migrações, não ativa Edge Functions e não substitui o GitHub Pages oficial.
+
 **Administração de usuários:** interface e migração incremental em [Gestão de usuários](docs/user-management.md). Requer aprovação e aplicação da migração 002; não é ativada automaticamente.
 
 **Acesso:** organograma e agenda são públicos. Planejamento, acompanhamento, realizado, histórico e backups exigem login Supabase e autorização `admin` ou `leader`. Veja [configuração e limites de segurança](docs/access-control.md). Sem configuração, o acesso privado permanece bloqueado; os dados existentes não são apagados.

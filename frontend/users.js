@@ -17,7 +17,8 @@ async function refreshUsers(){
   }catch(error){usersState.error=error.message;throw error;}
   finally{usersState.loading=false;render();}
 }
-function usersPage(){
+function usersPage(){return window.IASDPIGovernance?.enabled()?IASDPIGovernance.page():legacyUsersPage();}
+function legacyUsersPage(){
   if(!IASDPIAuth.isAdmin())return heading('ADMINISTRAÇÃO','Acesso restrito','Somente administradores podem gerenciar usuários.');
   return heading('ADMINISTRAÇÃO','Usuários','IASD Parada Inglesa · autorizações e convites.',button('Atualizar lista','users-refresh'))+
     (window.IASDPIConfig?.remoteReadOnly?'<p class="form-note">Modo de consulta: listagem e busca disponíveis; alterações de acesso e convites bloqueadas nesta interface.</p>':'')+
@@ -27,6 +28,7 @@ function usersPage(){
     <section class="section"><h2>Convites pendentes</h2>${usersState.loading?'<p role="status">Carregando convites…</p>':usersState.error?'<p>Não foi possível consultar os convites. Tente novamente.</p>':usersState.invites.length?`<ul class="users-list">${usersState.invites.map(i=>`<li class="users-inline"><div><strong>${esc(i.email)}</strong><small>Expira em ${esc(displayRecordTimestamp(i.expires_at))}</small></div>${button('Revogar convite','users-revoke-invite',i.id)}</li>`).join('')}</ul>`:usersState.loaded?'<p class="muted">Nenhum convite pendente.</p>':'<p class="muted">Atualize a lista para consultar os convites.</p>'}</section>`;
 }
 function captureInvite(fragment){
+  if(window.IASDPIGovernance?.captureReset(fragment))return;
   if(/(?:^|&)(?:error|error_code)=/.test(fragment)||/(?:^|&)type=recovery(?:&|$)/.test(fragment)){void IASDPIAuth.handlePasswordCallback();return;}
   // Confirmação de e-mail pode redirecionar com tokens no fragmento.
   // Este fluxo usa login por senha: não importar nem deixar tokens na URL.

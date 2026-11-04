@@ -1,0 +1,51 @@
+"""Limpeza somente da montagem atual; nomes removidos permanecem pendentes até salvar."""
+import json
+import shutil
+import unittest
+import test_frontend_access as base
+import test_schedule_review_ready as review
+
+@unittest.skipUnless(base.sync_playwright and shutil.which('chromium'),'Requer Chromium')
+class ClearScheduleTests(unittest.TestCase):
+    setUpClass=classmethod(review.ReviewBrowserTests.setUpClass.__func__)
+    tearDownClass=classmethod(review.ReviewBrowserTests.tearDownClass.__func__)
+    setUp=review.ReviewBrowserTests.setUp
+    tearDown=review.ReviewBrowserTests.tearDown
+    catalog=review.ReviewBrowserTests.catalog
+    department=review.ReviewBrowserTests.department
+    fill=review.ReviewBrowserTests.fill
+    save=review.ReviewBrowserTests.save
+    def clear(self,elder=False,accept=True):
+        self.page.once('dialog',lambda d:d.accept() if accept else d.dismiss());self.page.get_by_role('button',name='Limpar escala',exact=True).click()
+        self.assertEqual(self.page.locator('[data-elder-action=clear]' if elder else '[data-b1-action=clear]').count(),1)
+    def publish(self):
+        self.page.once('dialog',lambda d:d.accept());self.page.get_by_role('button',name='Publicar escala',exact=True).click();self.page.wait_for_function("document.querySelector('#b1-feedback').textContent.includes('Escala publicada')")
+    def stored(self):return self.page.evaluate('JSON.stringify([...IASDPIKnownPreview.plans])')
+    def test_empty_draft_clear_disabled_and_not_available_in_consultation(self):
+        self.assertTrue(self.page.get_by_role('button',name='Limpar escala',exact=True).is_disabled());self.page.get_by_role('button',name='Calendário',exact=True).click();self.page.wait_for_selector('.scale-calendar');self.assertEqual(self.page.get_by_role('button',name='Limpar escala',exact=True).count(),0)
+    def test_cancel_keeps_names_metrics_and_stored_versions(self):
+        self.fill();values=[f.input_value() for f in self.page.locator('[data-calendar-volunteer]').all()];before=self.stored();self.clear(accept=False);self.assertEqual(values,[f.input_value() for f in self.page.locator('[data-calendar-volunteer]').all()]);self.assertEqual(before,self.stored());self.assertEqual(self.page.locator('.monthly-metrics dd').nth(1).inner_text(),str(len(values)))
+    def test_confirm_clears_only_names_until_save_preserves_notes_dates_and_ids(self):
+        self.fill();self.page.locator('.monthly-note summary').click();self.page.locator('.monthly-note textarea').fill('Observação preservada\n<importante>');self.save();before=json.loads(self.stored());ids=[r['id'] for r in before[0][1]['requirements']];original=self.page.evaluate('JSON.stringify({legacy:IASDPIKnownPreview.legacy,official:IASDPICalendarOfficialSource()})')
+        self.clear();self.assertTrue(all(not f.input_value() for f in self.page.locator('[data-calendar-volunteer]').all()));self.assertEqual(json.loads(self.stored()),before);self.assertEqual(self.page.locator('.monthly-note textarea').input_value(),'Observação preservada\n<importante>');self.assertEqual(self.page.locator('.monthly-metrics dd').nth(1).inner_text(),'0');self.assertEqual(self.page.locator('.monthly-metrics dd').nth(2).inner_text(),str(len(ids)));self.assertIn('Salve',self.page.locator('#b1-feedback').inner_text())
+        self.save();after=json.loads(self.stored());self.assertEqual(before[0][1]['id'],after[0][1]['id']);self.assertEqual(ids,[r['id'] for r in after[0][1]['requirements']]);self.assertEqual(after[0][1]['version'],before[0][1]['version']+1)
+        self.page.get_by_role('button',name='Recarregar escala',exact=True).click();self.page.wait_for_selector('[data-calendar-volunteer]');self.assertTrue(all(not f.input_value() for f in self.page.locator('[data-calendar-volunteer]').all()));self.assertEqual(original,self.page.evaluate('JSON.stringify({legacy:IASDPIKnownPreview.legacy,official:IASDPICalendarOfficialSource()})'))
+    def test_reload_can_discard_pending_clear_without_saving(self):
+        self.fill();self.save();values=[f.input_value() for f in self.page.locator('[data-calendar-volunteer]').all()];self.clear();self.page.once('dialog',lambda d:d.accept());self.page.get_by_role('button',name='Recarregar escala',exact=True).click();self.page.wait_for_function("document.querySelector('[data-calendar-volunteer]')?.value!==''");self.assertEqual(values,[f.input_value() for f in self.page.locator('[data-calendar-volunteer]').all()])
+    def test_clear_other_department_never_touches_previous_draft_or_history(self):
+        self.fill();self.save();before=json.loads(self.stored());d=self.department('comunicacao');self.fill();self.clear();self.save();after=json.loads(self.stored());self.assertEqual(before[0],after[0]);comm=next(p for _,p in after if p['department_id']==d['id'] and p['month']=='2026-11-01');self.assertEqual(len(comm['requirements']),4);self.assertTrue(all(not r['assignments'] for r in comm['requirements']));self.assertEqual(self.page.evaluate('IASDPIKnownPreview.legacy.length'),20)
+    def test_published_snapshot_retained_and_empty_republication_blocked(self):
+        self.fill();self.publish();published=self.page.evaluate('JSON.stringify(IASDPICalendarSource())');self.clear();self.assertEqual(published,self.page.evaluate('JSON.stringify(IASDPICalendarSource())'));self.page.once('dialog',lambda d:d.accept());self.save();self.assertEqual(published,self.page.evaluate('JSON.stringify(IASDPICalendarSource())'))
+        self.page.once('dialog',lambda d:d.accept());self.page.get_by_role('button',name='Publicar escala',exact=True).click();self.page.wait_for_selector('[role=alert]');self.assertIn('vagas',self.page.locator('[role=alert]').first.inner_text());self.assertEqual(published,self.page.evaluate('JSON.stringify(IASDPICalendarSource())'))
+    def test_elders_weekly_clear_keeps_monthly_assignment_and_source(self):
+        self.department('ancionato');person=next(p['id'] for p in self.catalog()['people'] if p['name']=='David Cavalcanti');source=self.page.evaluate('JSON.stringify(IASDPICalendarOfficialSource())');self.page.locator('[data-kind=monthly]').click();self.page.locator('[data-elder-period="monthly:2026-11-01"] select').select_option(person);self.page.locator('[data-elder-action=save]').click();self.page.wait_for_function("document.querySelector('#elder-feedback').textContent.includes('salvas nesta aba')");before=self.page.evaluate('JSON.stringify([...IASDPIKnownPreview.elderPeriods])');self.page.locator('[data-kind=weekly]').click();self.clear(elder=True)
+        self.assertTrue(all(not f.input_value() for f in self.page.locator('[data-elder-person]').all()));self.assertEqual(before,self.page.evaluate('JSON.stringify([...IASDPIKnownPreview.elderPeriods])'));self.page.locator('[data-elder-action=save]').click();self.page.wait_for_function("document.querySelector('#elder-feedback').textContent.includes('salvas nesta aba')");self.page.locator('[data-kind=monthly]').click();self.assertEqual(self.page.locator('[data-elder-period="monthly:2026-11-01"] select').input_value(),person);self.assertEqual(source,self.page.evaluate('JSON.stringify(IASDPICalendarOfficialSource())'))
+    def test_elders_annual_clear_keeps_weekly_pending_selection(self):
+        self.department('ancionato');person=next(p['id'] for p in self.catalog()['people'] if p['name']=='Adriano Borrego');self.page.locator('[data-elder-person]').first.select_option(person);self.page.locator('[data-kind=monthly]').click();self.page.locator('[data-elder-action=prefill]').click();self.assertTrue(any(f.input_value() for f in self.page.locator('[data-elder-person]').all()));before=self.page.evaluate('JSON.stringify([...IASDPIKnownPreview.elderPeriods])');self.clear(elder=True);self.assertEqual(self.page.locator('.elder-month-card').count(),12);self.assertTrue(all(not f.input_value() for f in self.page.locator('[data-elder-person]').all()));self.assertEqual(before,self.page.evaluate('JSON.stringify([...IASDPIKnownPreview.elderPeriods])'));self.page.locator('[data-elder-action=save]').click();self.page.wait_for_function("document.querySelector('#elder-feedback').textContent.includes('salvas nesta aba')");self.page.locator('[data-kind=weekly]').click();self.assertEqual(self.page.locator('[data-elder-person]').first.input_value(),person);self.assertIn('Alterações pendentes',self.page.locator('#elder-feedback').inner_text())
+    def test_read_only_cannot_clear_and_saving_disables_button(self):
+        self.fill();self.page.evaluate("()=>{const original=IASDPISchedulePreview.request;IASDPISchedulePreview.request=async(name,args)=>{if(name==='iasdpi_schedule_plan_save')await new Promise(resolve=>window.finishClearTestSave=resolve);return original(name,args);};}");self.page.get_by_role('button',name='Salvar rascunho',exact=True).click();self.assertTrue(self.page.get_by_role('button',name='Limpar escala',exact=True).is_disabled());self.page.evaluate('window.finishClearTestSave()');self.page.wait_for_function("document.querySelector('#b1-feedback').textContent.includes('salvas nesta aba')")
+        self.page.evaluate("()=>{const original=IASDPISchedulePreview.request;IASDPISchedulePreview.request=async(name,args)=>{const data=await original(name,args);if(name==='iasdpi_schedule_catalog'){data.is_admin=false;data.departments.forEach(d=>d.can_manage=false);}return data;};}");self.page.get_by_role('button',name='Recarregar escala',exact=True).click();self.page.wait_for_selector('.monthly-calendar');self.assertEqual(self.page.get_by_role('button',name='Limpar escala',exact=True).count(),0)
+    def test_clear_can_be_followed_by_automatic_refill_and_mobile_layout(self):
+        self.fill();self.clear();self.fill();self.assertTrue(all(f.input_value() for f in self.page.locator('[data-calendar-volunteer]').all()))
+        for width in [360,390,768,1024,1440]:self.page.set_viewport_size(dict(width=width,height=1000));self.assertLessEqual(self.page.evaluate('document.documentElement.scrollWidth'),width);self.assertGreaterEqual(self.page.get_by_role('button',name='Limpar escala',exact=True).bounding_box()['height'],44)
+        self.page.set_viewport_size(dict(width=390,height=1000));self.page.screenshot(path=str(base.ROOT/'dist/schedule-clear/mobile.png'))

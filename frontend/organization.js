@@ -56,13 +56,13 @@ const organizationCountText = count=>`${count} ${count===1?'resultado encontrado
 function organizationDepartments(elder){
   return elder.departments.flatMap(original=>{
     const names=original==='Diaconato'?['Diaconato — Diaconisas','Diaconato — Diáconos']:[organizationDepartmentNames[original]||original];
-    return names.map(name=>{const ministry=churchMinistries.find(entry=>entry.name===name);return {name,original,responsibles:ministry?.responsibles||[]};});
+    return names.map(name=>{const stored=churchMinistries.find(entry=>entry.name===name);const ministry=window.IASDPIRegistry?.ministry(stored||{name,responsibles:[]})||stored;return {name,original,responsibles:ministry?.responsibles||[]};});
   });
 }
 function organizationResults(){
   const query=organizationSearchText(organizationState.query);
   const matches=ministry=>!query||organizationSearchText([ministry.name,ministry.original||'',ministryPeople(ministry)].join(' ')).includes(query);
-  const ancionato=churchMinistries.find(ministry=>ministry.name==='Ancionato');
+  const oldAncionato=churchMinistries.find(ministry=>ministry.name==='Ancionato');const ancionato=window.IASDPIRegistry?.ministry(oldAncionato)||oldAncionato;
   const showAncionato=matches(ancionato);
   const groups=churchOrganization.map(elder=>({...elder,departments:organizationDepartments(elder).filter(matches)})).filter(elder=>elder.departments.length);
   const count=groups.reduce((total,elder)=>total+elder.departments.length,0)+Number(showAncionato);
@@ -72,7 +72,7 @@ function organizationResults(){
 }
 function organizationPage() {
   const results=organizationResults();
-  return heading('NOSSA IGREJA','Organograma da igreja','Ministérios, seus responsáveis e o acompanhamento pastoral e dos anciãos.') +
+  return (window.IASDPIRegistry?.publicStatus()||'')+heading('NOSSA IGREJA','Organograma da igreja','Ministérios, seus responsáveis e o acompanhamento pastoral e dos anciãos.') +
     `<section class="panel organization-search" role="search" aria-label="Pesquisa de ministérios"><label for="organization-query">Pesquisar ministério ou responsável<input type="search" id="organization-query" maxlength="200" autocomplete="off" placeholder="Ex.: Música ou Alexandre" value="${esc(organizationState.query)}" aria-controls="organization-results"></label><button type="button" id="organization-clear">Limpar pesquisa</button><p id="organization-count" class="muted" role="status" aria-live="polite">${organizationCountText(results.count)}</p></section>`+
     `<section class="organization" aria-label="Hierarquia da liderança da igreja">
       <div class="organization-pastor"><span class="eyebrow">PASTOR</span><h2>Luciano</h2><p>Acompanhamento de todos os anciãos</p></div>

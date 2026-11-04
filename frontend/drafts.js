@@ -13,7 +13,7 @@ window.IASDPIDrafts=(()=>{
   const aad=row=>new TextEncoder().encode(JSON.stringify([row.key,row.revision,row.baseVersion,row.expiresAt]));
   function enqueue(job){const task=queue.then(job);queue=task.catch(()=>{});return task;}
   function open(){return new Promise((resolve,reject)=>{
-    const request=indexedDB.open('iasdpi-edit-drafts-v1',1);
+    const request=indexedDB.open(window.IASDPIStorage?.scope?.('iasdpi-edit-drafts-v1')||'iasdpi-edit-drafts-v1',1);
     request.onupgradeneeded=()=>{request.result.createObjectStore('drafts',{keyPath:'key'});request.result.createObjectStore('keys',{keyPath:'key'});};
     request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(Error('Armazenamento local indisponível.'));
   });}

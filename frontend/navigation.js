@@ -1,7 +1,7 @@
 'use strict';
 // Histórico da interface; autorização e dados continuam nos serviços existentes.
 window.IASDPINavigation=(()=>{
-  const pages=new Set(['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash','models','forgot-password','reset-password']);
+  const pages=new Set(['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash','models','forgot-password','reset-password','schedule-setup','schedule-calendar','schedule-build','schedule-members','schedule-settings','access-admin','access-request','controlled-reset','church-home','portal-login']);
   const records=new Set(['edit','summary','tracking','actuals','plan-edit']);
   let current=null,restoring=null;
   function parse(){

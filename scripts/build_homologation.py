@@ -10,12 +10,17 @@ import subprocess
 from urllib.parse import urlsplit, unquote
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSETS = ('index.html', 'styles.css', 'config.js', 'storage.js', 'supabase-2.118.0.js', 'supabase.LICENSE', 'auth.js',
+ASSETS = ('index.html', 'styles.css', 'config.js', 'churches.js', 'storage.js', 'supabase-2.118.0.js', 'supabase.LICENSE', 'auth.js',
           'record-time.js', 'demo.js', 'operational.js', 'actuals.js', 'agenda-data.js', 'agenda.js', 'archive.js',
-          'organization.js', 'users.js', 'trash.js', 'drafts.js', 'navigation.js', 'conflicts.js', 'history.js', 'app.js', '.nojekyll')
+          'organization.js', 'users.js', 'trash.js', 'drafts.js', 'navigation.js', 'conflicts.js', 'history.js', 'schedule-foundation.js', 'schedule-management.js', 'governance.js', 'church-portal.js', 'portal-access.js', 'app.js', '.nojekyll')
 DEFAULT_URL = 'https://lcs-casagrande.github.io/IASDPI-homologacao/'
 IMMUTABLE = re.compile(r'assets/(?:app|loader|styles)-([a-f0-9]{64})\.(?:js|css)')
-LEGACY_ASSETS = set(ASSETS) - {'drafts.js', 'navigation.js', 'conflicts.js', 'history.js'}
+VERSION5_ASSETS = set(ASSETS) - {'church-portal.js','portal-access.js'}
+VERSION4_ASSETS = VERSION5_ASSETS - {'governance.js'}
+VERSION3_ASSETS = VERSION4_ASSETS - {'churches.js'}
+VERSION2_ASSETS = VERSION3_ASSETS - {'schedule-management.js'}
+VERSION1_ASSETS = VERSION2_ASSETS - {'schedule-foundation.js'}
+LEGACY_ASSETS = VERSION1_ASSETS - {'drafts.js', 'navigation.js', 'conflicts.js', 'history.js'}
 
 
 def _manifest_json(text):
@@ -36,7 +41,7 @@ def _manifest_files(manifest):
     if not isinstance(manifest, dict) or not isinstance(manifest.get('files'), dict):
         raise ValueError('Manifesto inválido: inventário de arquivos obrigatório.')
     version = manifest.get('manifest_version', 1)
-    if type(version) is not int or version != 1:
+    if type(version) is not int or version not in (1, 2, 3, 4, 5, 6):
         raise ValueError('Manifesto inválido: versão não suportada.')
     if (not isinstance(manifest.get('environment'), str)
             or manifest['environment'] not in {'production', 'validation', 'homologation'}
@@ -51,7 +56,7 @@ def _manifest_files(manifest):
     if strategy is None and 'entry' in manifest:
         raise ValueError('Manifesto inválido: entry sem estratégia de recursos.')
     files = manifest['files']
-    required = set(ASSETS) if strategy else LEGACY_ASSETS
+    required = ({1: VERSION1_ASSETS, 2: VERSION2_ASSETS, 3: VERSION3_ASSETS, 4: VERSION4_ASSETS, 5: VERSION5_ASSETS, 6: set(ASSETS)}[version]) if strategy else LEGACY_ASSETS
     missing = required - files.keys()
     if missing:
         raise ValueError('Integridade: arquivo obrigatório ausente do manifesto: ' + ', '.join(sorted(missing)))
@@ -229,7 +234,7 @@ def build_rollback(output, target_site, current_site):
     for name, data in contents.items():
         if re.search(rb'sb_secret_[A-Za-z0-9_-]{10,}|-----BEGIN (?:RSA |EC )?PRIVATE KEY-----|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', data):
             raise ValueError('Material secreto no rollback: ' + name)
-    manifest = {**before, 'manifest_version': 1, 'rollback_from': now.get('source_commit'),
+    manifest = {**before, 'manifest_version': before.get('manifest_version',1), 'rollback_from': now.get('source_commit'),
                 'mutable_assets': ['agenda-data.js'],
                 'files': {name: hashlib.sha256(data).hexdigest() for name, data in contents.items()}}
     _validate_contents(contents, manifest)
@@ -240,7 +245,7 @@ def build_rollback(output, target_site, current_site):
     return manifest
 
 
-def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, operational=False, previous_site=None):
+def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, operational=False, previous_site=None, *, real_homologation=False, public_config=None):
     output = Path(output).resolve()
     if output.exists() and any(output.iterdir()):
         raise ValueError('Destino não vazio. Escolha outra pasta; nenhum arquivo será substituído.')
@@ -252,12 +257,23 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
     if not match:
         raise ValueError('Configuração pública não reconhecida.')
     cfg = json.loads(match[1])
-    if set(cfg) != {'supabaseUrl', 'supabasePublishableKey'}:
+    if public_config is not None:
+        if not real_homologation or not isinstance(public_config,dict):
+            raise ValueError('Configuração alternativa exige homologação real explícita.')
+        cfg = dict(public_config)
+    if not {'supabaseUrl', 'supabasePublishableKey'} <= set(cfg) or set(cfg) - {'supabaseUrl', 'supabasePublishableKey', 'churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled', 'portalAccessEnabled', 'centralRegistryEnabled'} or type(cfg.get('churchIsolationEnabled',False)) is not bool or type(cfg.get('aliasLoginEnabled',False)) is not bool or (cfg.get('aliasLoginEnabled') and not cfg.get('churchIsolationEnabled')) or type(cfg.get('governanceEnabled',False)) is not bool or (cfg.get('governanceEnabled') and not (cfg.get('churchIsolationEnabled') and cfg.get('aliasLoginEnabled'))) or type(cfg.get('portalAccessEnabled',False)) is not bool or (cfg.get('portalAccessEnabled') and not cfg.get('governanceEnabled')) or type(cfg.get('centralRegistryEnabled',False)) is not bool or (cfg.get('centralRegistryEnabled') and not cfg.get('portalAccessEnabled')):
         raise ValueError('Revisar os campos da configuração antes de gerar o site.')
     if not re.fullmatch(r'https://[a-z0-9]+\.supabase\.co', cfg['supabaseUrl']):
         raise ValueError('URL Supabase inválida.')
     if not re.fullmatch(r'sb_publishable_[A-Za-z0-9_-]{20,100}', cfg['supabasePublishableKey']):
         raise ValueError('Somente chave publishable pode ser publicada. Não usar credencial injetada.')
+    if real_homologation:
+        if preserve_local or operational or public_config is None:
+            raise ValueError('Homologação real exige configuração própria, sem modo principal ou preserve-local.')
+        if cfg['supabaseUrl'] in {'https://pwbxksxxmnblqwpvlheu.supabase.co','https://chzltoqifqgylgkxbwuk.supabase.co'}:
+            raise ValueError('Homologação real não pode apontar para projeto Supabase de produção.')
+        if urlsplit(site_url).hostname in {'lcs-casagrande.github.io','iasd-paradainglesa.netlify.app'}:
+            raise ValueError('Homologação real exige origem diferente dos sites existentes; caminhos não isolam sessões.')
     cfg.update(environment='validation' if preserve_local else 'homologation', storageMode='browser',
                storageNamespace='' if preserve_local else 'iasdpi-homologacao-v1',
                remoteReadOnly=True, siteUrl=site_url)
@@ -265,6 +281,8 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
         if not preserve_local:
             raise ValueError('Modo operacional exige o destino Pages principal.')
         cfg.update(environment='production', storageMode='supabase', remoteReadOnly=False)
+    if real_homologation:
+        cfg.update(environment='homologation',storageMode='supabase',storageNamespace='iasdpi-hml-real-v1',remoteReadOnly=False)
     contents = {name: (ROOT / 'frontend' / name).read_bytes() for name in ASSETS}
     contents['config.js'] = ("'use strict';\n// Configuração PÚBLICA da homologação; sem segredos administrativos.\nwindow.IASDPIConfig = Object.freeze(" + json.dumps(cfg, ensure_ascii=False, indent=2) + ');\n').encode()
     if previous_site and agenda is None:
@@ -317,7 +335,7 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
     contents.update(legacy)
     contents.update(retained)
     contents['index.html'] = html.encode()
-    manifest = {'manifest_version': 1, 'environment': cfg['environment'], 'site_url': site_url,
+    manifest = {'manifest_version': 6, 'environment': cfg['environment'], 'site_url': site_url,
                 'remote_read_only': cfg['remoteReadOnly'], 'storage_namespace': cfg['storageNamespace'],
                 'asset_strategy': 'immutable-bundle-sri-v1', 'legacy_compatibility_ready': bool(previous_site),
                 'mutable_assets': ['agenda-data.js'],
@@ -339,7 +357,10 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, default=ROOT / 'dist/homologacao')
     parser.add_argument('--site-url', default=DEFAULT_URL)
     parser.add_argument('--agenda-data', type=Path, help='Snapshot JSON/JS público validado da agenda publicada')
+    parser.add_argument('--real-homologation', action='store_true', help='Persistência real exclusivamente em projeto Supabase separado; não publica.')
+    parser.add_argument('--public-config', type=Path, help='JSON somente com URL/chave pública do projeto HML e flags aprovadas; nunca segredos.')
     args = parser.parse_args()
-    build(args.output, args.site_url, args.agenda_data)
+    config=json.loads(args.public_config.read_text()) if args.public_config else None
+    build(args.output, args.site_url, args.agenda_data, real_homologation=args.real_homologation, public_config=config)
     print('Homologação preparada em', args.output)
     print('Nenhum commit, push ou publicação executado.')

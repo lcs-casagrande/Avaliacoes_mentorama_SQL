@@ -16,7 +16,7 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
     }
   }
   function outboxDb(){return new Promise((resolve,reject)=>{
-    const opening=indexedDB.open('iasdpi-pending-writes-v1',1);
+    const opening=indexedDB.open(window.IASDPIStorage?.scope?.('iasdpi-pending-writes-v1')||'iasdpi-pending-writes-v1',1);
     opening.onupgradeneeded=()=>opening.result.createObjectStore('writes',{keyPath:'key'});
     opening.onsuccess=()=>resolve(opening.result);opening.onerror=()=>reject(Error('Não foi possível preservar o envio pendente neste dispositivo.'));
   });}
@@ -137,12 +137,12 @@ if(window.IASDPIConfig?.storageMode==='supabase')window.IASDPIOperational=(()=>{
     await IASDPIAuth.requireAccess();
     if(action==='operational-refresh'){await loadPrograms();render();toast('Registros atualizados do Supabase.');}
     else if(action==='operational-preview'){
-      const raw=localStorage.getItem('iasdpi-demo-v1');
+      const raw=localStorage.getItem(IASDPIStorage.programs);
       if(!raw)throw Error('Não há registros antigos neste navegador. Você pode cadastrar novos cultos normalmente.');
       await prepareImport(JSON.parse(raw),raw);
     }else if(action==='operational-import'){
       if(!preview)throw Error('Confira a prévia primeiro.');
-      if(preview.raw!==null&&localStorage.getItem('iasdpi-demo-v1')!==preview.raw)throw Error('Os dados locais mudaram. Reabra a prévia.');
+      if(preview.raw!==null&&localStorage.getItem(IASDPIStorage.programs)!==preview.raw)throw Error('Os dados locais mudaram. Reabra a prévia.');
       const ids=[...document.querySelectorAll('[data-import-id]:checked')].map(input=>input.dataset.importId);
       for(const id of ids){
         const row=preview.rows.find(row=>row.id===id);if(row.status!=='new')continue;

@@ -1,4 +1,4 @@
-"""Validação remota do JWT e da autorização da única igreja, sem cache de papéis."""
+"""Validação de JWT/escopo; backend SQLite legado atende somente IASD_PI."""
 import json
 import os
 import re
@@ -29,7 +29,7 @@ def project_url():
 
 def _get(url, key, token):
     try:
-        request = Request(url, headers={'apikey': key, 'Authorization': 'Bearer ' + token})
+        request = Request(url, headers={'apikey': key, 'Authorization': 'Bearer ' + token, 'x-iasdpi-church': 'IASD_PI'})
         with urlopen(request, timeout=10) as response:
             raw = response.read(1048577)
         if len(raw) > 1048576:
@@ -44,6 +44,10 @@ def _get(url, key, token):
 
 
 def authorize(headers):
+    # SQLite não é multitenant: falha fechada antes de consultar qualquer dado.
+    church = headers.get('x-iasdpi-church', headers.get('X-IASDPI-Church', 'IASD_PI'))
+    if church != 'IASD_PI':
+        raise AccessDenied('Este backend atende somente a IASD Parada Inglesa.', 403)
     authorization = headers.get('Authorization', '')
     if not re.fullmatch(r'Bearer [A-Za-z0-9_.-]{1,8192}', authorization):
         raise AccessDenied('Entre com uma conta autorizada.', 401)

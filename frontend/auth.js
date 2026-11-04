@@ -1,8 +1,10 @@
 'use strict';
 window.IASDPIAuth = (() => {
   let client=null, session=null, access=null, verification=null, generation=0, recovery=null;
+  let scopedUser=null,accessChurch=null,identityChurch=null;
+  const churchCode=()=>window.IASDPIChurches?.selected()||'IASD_PI';
   let phase='recovering', statusMessage='Recuperando sessão…', signingIn=false, expiryTimer=null;
-  const publicPages=new Set(['organization','agendas','login','invite','forgot-password','reset-password']);
+  const publicPages=new Set(['organization','agendas','login','invite','forgot-password','reset-password','schedule-setup','schedule-calendar','schedule-build','schedule-members','schedule-settings','access-admin','access-request','controlled-reset']);
   function config(){
     let saved={};try{saved=JSON.parse(localStorage.getItem(IASDPIStorage.cloudConfig)||'{}');}catch(_){}
     return {url:window.IASDPIConfig?.supabaseUrl || '',key:window.IASDPIConfig?.supabasePublishableKey || saved.key || ''};
@@ -17,19 +19,32 @@ window.IASDPIAuth = (() => {
     if(!window.IASDPIConfig?.remoteReadOnly)return true;
     if(method==='GET')return /^\/auth\/v1\/(health|settings|user)$/.test(path)||/^\/rest\/v1\/(iasdpi_access|iasdpi_templates|culto_archives)(?:\?|$)/.test(path);
     if(method!=='POST')return false;
-    return path==='/auth/v1/token?grant_type=password'||path==='/auth/v1/token?grant_type=refresh_token'||path==='/auth/v1/logout?scope=local'||
-      ['/rest/v1/rpc/iasdpi_list_users','/rest/v1/rpc/iasdpi_list_invites','/rest/v1/rpc/iasdpi_find_account'].includes(path);
+    return path==='/functions/v1/alias-login'||path==='/auth/v1/token?grant_type=password'||path==='/auth/v1/token?grant_type=refresh_token'||path==='/auth/v1/logout?scope=local'||
+      ['/rest/v1/rpc/iasdpi_registry_identity_preview','/rest/v1/rpc/iasdpi_registry_audit','/rest/v1/rpc/iasdpi_registry_history','/rest/v1/rpc/iasdpi_registry_public','/rest/v1/rpc/iasdpi_registry_people','/rest/v1/rpc/iasdpi_registry_catalog','/rest/v1/rpc/iasdpi_schedule_department_days','/rest/v1/rpc/iasdpi_schedule_elder_workspace','/rest/v1/rpc/iasdpi_schedule_elder_versions','/rest/v1/rpc/iasdpi_portal_context','/rest/v1/rpc/iasdpi_my_churches','/rest/v1/rpc/iasdpi_schedule_published','/rest/v1/rpc/iasdpi_governance_catalog','/rest/v1/rpc/iasdpi_governance_history','/rest/v1/rpc/iasdpi_department_members','/rest/v1/rpc/iasdpi_access_requests','/rest/v1/rpc/iasdpi_access_request_options','/rest/v1/rpc/iasdpi_alias_list','/rest/v1/rpc/iasdpi_list_churches','/rest/v1/rpc/iasdpi_schedule_catalog','/rest/v1/rpc/iasdpi_schedule_person_details','/rest/v1/rpc/iasdpi_schedule_rotation_context','/rest/v1/rpc/iasdpi_schedule_workspace','/rest/v1/rpc/iasdpi_schedule_plan_version','/rest/v1/rpc/iasdpi_schedule_settings_get','/rest/v1/rpc/iasdpi_schedule_members','/rest/v1/rpc/iasdpi_schedule_person_history','/rest/v1/rpc/iasdpi_schedule_exceptions','/rest/v1/rpc/iasdpi_list_users','/rest/v1/rpc/iasdpi_list_invites','/rest/v1/rpc/iasdpi_find_account'].includes(path);
   }
   async function jsonRequest(path,options={}){
     if(!remoteRequestAllowed(path,(options.method||'GET').toUpperCase()))throw Error('Homologação em modo de consulta: alterações remotas estão bloqueadas.');
+    // Esta RPC é pública por RLS. O contexto original só é utilizado se constar
+    // na lista pública autorizada; não seleciona igreja nem amplia acesso privado.
+    const publicRegistry=path==='/rest/v1/rpc/iasdpi_registry_public'&&window.IASDPIChurches?.enabled()&&!IASDPIChurches.selected();
+    if(publicRegistry){const churches=await IASDPIChurches.load();if(!churches.some(c=>c.code==='IASD_PI'))throw Error('Igreja original indisponível para consulta pública.');}
+    else if(path.startsWith('/rest/v1/')&&window.IASDPIChurches)await IASDPIChurches.ensure();
     const cfg=config();validateConfig(cfg);
+    const churchHeaders=publicRegistry?{'x-iasdpi-church':'IASD_PI'}:path.startsWith('/rest/v1/')?(window.IASDPIChurches?.headers()||{}):{};
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
     try{
-      const response=await fetch(cfg.url+path,{...options,signal:controller.signal,headers:{apikey:cfg.key,...options.headers}});
+      const response=await fetch(cfg.url+path,{...options,signal:controller.signal,headers:{apikey:cfg.key,...options.headers,...churchHeaders}});
       if(!response.ok){
         if(path.startsWith('/rest/v1/rpc/')){
           let error={};try{error=await response.json();}catch(_){}
-          if(['42501','23514','22023','40001'].includes(error.code)){const failure=Error(String(error.message).slice(0,250));failure.code=error.code;throw failure;}
+          if(path.startsWith('/rest/v1/rpc/iasdpi_schedule_')){
+            const departmentDays=path==='/rest/v1/rpc/iasdpi_schedule_department_days'||path==='/rest/v1/rpc/iasdpi_schedule_department_days_save';
+            if(error.code==='PGRST202'&&departmentDays){const failure=Error('Dias do departamento indisponíveis: revise a instalação da migração 016.');failure.code=error.code;throw failure;}
+            const management=['iasdpi_schedule_rotation_context','iasdpi_schedule_workspace','iasdpi_schedule_plan_version','iasdpi_schedule_event_create','iasdpi_schedule_plan_save','iasdpi_schedule_settings_get','iasdpi_schedule_settings_save','iasdpi_schedule_generate_days','iasdpi_schedule_members','iasdpi_schedule_member_save','iasdpi_schedule_person_history','iasdpi_schedule_exceptions','iasdpi_schedule_exception_save'].some(name=>path==='/rest/v1/rpc/'+name);
+            const messages={PGRST202:management?'Montagem indisponível: revise a instalação das migrações 005, 006 e 007.':'Cadastros indisponíveis: revise a instalação da migração 005.',23505:management?'Já existe um evento, escala ou atribuição com essa identificação. Reabra o existente; os dados não foram sobrescritos.':'Este vínculo, função ou conta já está cadastrado. Reutilize o cadastro existente.',23503:'Vínculo incompatível ou cadastro de referência inexistente.',23502:'Preencha os campos necessários ao cadastro.', '22P02':'Identificador ou valor inválido. Revise os campos.',22007:'Data ou horário inválido.',22008:'Data ou horário fora do intervalo permitido.'};
+            if(messages[error.code]){const failure=Error(messages[error.code]);failure.code=error.code;throw failure;}
+          }
+          if(['42501','23514','23505','23P01','22023','40001'].includes(error.code)){const failure=Error(String(error.message).slice(0,250));failure.code=error.code;throw failure;}
         }
         throw Error(response.status===401?'Sessão inválida ou expirada. Entre novamente.':'Não foi possível confirmar o acesso. Verifique a conexão e a configuração do Supabase.');
       }
@@ -38,15 +53,18 @@ window.IASDPIAuth = (() => {
   }
 
   function status(next,message){phase=next;statusMessage=message;window.dispatchEvent(new Event('iasdpi-session-status'));}
-  function allowed(){return Boolean(session&&access&&session.expires_at*1000>Date.now());}
+  function allowed(){return Boolean(session&&access&&access.user_id===session.user.id&&accessChurch===churchCode()&&session.expires_at*1000>Date.now());}
   function invalidate(next='expired',message='Sessão expirada. Entre novamente.',dropSession=false){
-    generation++;access=null;verification=null;clearTimeout(expiryTimer);
-    if(dropSession)session=null;
+    generation++;access=null;accessChurch=null;identityChurch=null;verification=null;clearTimeout(expiryTimer);
+    if(dropSession){session=null;scopedUser=null;window.dispatchEvent(new Event('iasdpi-identity-ended'));}
     status(next,message);window.dispatchEvent(new Event('iasdpi-auth-changed'));
   }
   function adopt(value){
+    const changedUser=Boolean(session?.user.id&&value?.user.id&&session.user.id!==value.user.id);
     if(session?.access_token!==value?.access_token){generation++;verification=null;}
+    if(session?.user.id!==value?.user.id)scopedUser=null;
     session=value;
+    if(changedUser){access=null;verification=null;window.dispatchEvent(new Event('iasdpi-identity-ended'));window.dispatchEvent(new Event('iasdpi-auth-changed'));}
     clearTimeout(expiryTimer);
     if(value)expiryTimer=setTimeout(()=>{void restore().catch(()=>{});},Math.max(100,Math.min(value.expires_at*1000-Date.now()+50,2147483647)));
   }
@@ -81,7 +99,7 @@ window.IASDPIAuth = (() => {
   async function verify(){
     if(!session||session.expires_at*1000<=Date.now())throw Error('Sessão expirada. Entre novamente.');
     if(verification)return verification;
-    const ticket=generation,token=session.access_token;
+    const ticket=generation,token=session.access_token,church=churchCode();
     verification=(async()=>{
       try{
         const headers={Authorization:'Bearer '+token};
@@ -89,11 +107,11 @@ window.IASDPIAuth = (() => {
         if(user.is_anonymous!==false||!user.id)throw Error('Conta sem autorização.');
         const rows=await jsonRequest('/rest/v1/iasdpi_access?user_id=eq.'+encodeURIComponent(user.id)+'&select=user_id,role,enabled&limit=1',{headers});
         if(!Array.isArray(rows)||rows.length!==1||rows[0].user_id!==user.id||rows[0].enabled!==true||!['admin','leader'].includes(rows[0].role))throw Error('Conta sem autorização. Solicite acesso à administração.');
-        if(ticket!==generation)throw Error('Sessão alterada. Tente novamente.');
-        const previousRole=access?.role;access=rows[0];session.user=user;status('authenticated','Sessão ativa.');
+        if(ticket!==generation||church!==churchCode())throw Error('Sessão ou igreja alterada. Tente novamente.');
+        const previousRole=access?.role;access=rows[0];accessChurch=church;identityChurch=church;session.user=user;status('authenticated','Sessão ativa.');
         if(previousRole&&previousRole!==access.role)window.dispatchEvent(new Event('iasdpi-role-changed'));
         return {token,role:access.role,user};
-      }catch(error){if(ticket===generation)invalidate('unavailable',error.message);throw error;}
+      }catch(error){if(ticket===generation)invalidate(scopedUser===session?.user.id?'scoped':'unavailable',scopedUser===session?.user.id?'Sessão ministerial ativa. As demais áreas exigem autorização própria.':error.message);throw error;}
       finally{if(ticket===generation)verification=null;}
     })();
     return verification;
@@ -103,6 +121,7 @@ window.IASDPIAuth = (() => {
     recovery=Promise.resolve().then(async()=>{
       if(!allowed())status('recovering','Recuperando sessão…');
       try{
+        if(window.IASDPIChurches)await IASDPIChurches.ensure();
         const {data,error}=await getClient().auth.getSession();
         if(error)throw error;
         adopt(data.session);
@@ -112,7 +131,7 @@ window.IASDPIAuth = (() => {
       }catch(error){
         const expired=error.status===400||error.status===401||/refresh_token|expirada/i.test(error.code||error.message||'');
         const denied=/Conta sem autorização/.test(error.message||'');
-        invalidate(denied?'unauthorized':expired?'expired':'unavailable',denied?error.message:expired?'Sessão expirada. Entre novamente.':'Não foi possível recuperar a sessão. Verifique sua conexão e tente novamente.');
+        invalidate(denied&&scopedUser===session?.user.id?'scoped':denied?'unauthorized':expired?'expired':'unavailable',denied&&scopedUser===session?.user.id?'Sessão ministerial ativa. As demais áreas exigem autorização própria.':denied?error.message:expired?'Sessão expirada. Entre novamente.':'Não foi possível recuperar a sessão. Verifique sua conexão e tente novamente.');
         throw error;
       }finally{recovery=null;}
     });
@@ -123,17 +142,47 @@ window.IASDPIAuth = (() => {
     if(!session||session.expires_at*1000<=Date.now())await restore();
     return verify();
   }
-  async function login(email,password,key,inviteToken){
+  // Identidade não concede autorização global. Cada módulo verifica seu escopo no servidor.
+  async function requireIdentity(){
+    if(passwordRecoveryActive())throw Error('Conclua a recuperação de senha.');
+    if(window.IASDPIChurches)await IASDPIChurches.ensure();
+    const {data,error}=await getClient().auth.getSession();
+    if(error||!data.session)throw Error('Entre com uma conta autorizada para este departamento.');
+    adopt(data.session);
+    const ticket=generation,token=session.access_token,church=churchCode();
+    const user=await jsonRequest('/auth/v1/user',{headers:{Authorization:'Bearer '+token}});
+    if(ticket!==generation||church!==churchCode()||!user.id||user.id!==session?.user.id||user.is_anonymous!==false)throw Error('Sessão alterada ou inválida. Entre novamente.');
+    identityChurch=church;return {token,user};
+  }
+  const aliasEnabled=()=>window.IASDPIConfig?.aliasLoginEnabled===true;
+  function loginIdentifierField(){return aliasEnabled()?field('Identificador ou e-mail','email','','text',true,'autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254"'):field('E-mail','email','','email',true,'autocomplete="username"');}
+  async function aliasSession(identifier,password,cfg){
+    const failure=()=>Error('Não foi possível entrar. Confira a identificação e a senha ou tente mais tarde.');
+    if(!aliasEnabled()||!window.IASDPIChurches?.enabled())throw Error('Login institucional ainda não ativado. Utilize seu e-mail.');
+    identifier=identifier.trim().toLowerCase();if(!/^[a-z][a-z0-9._-]{2,63}$/.test(identifier))throw failure();
+    const church=await IASDPIChurches.ensure(),path='/functions/v1/alias-login';
+    if(!remoteRequestAllowed(path,'POST'))throw failure();
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+    let response;try{response=await fetch(cfg.url+path,{method:'POST',redirect:'error',signal:controller.signal,headers:{apikey:cfg.key,'Content-Type':'application/json'},body:JSON.stringify({church,identifier,password})});}catch{throw failure();}finally{clearTimeout(timer);}
+    if(!response.ok)throw failure();let tokens;try{tokens=await response.json();}catch{throw failure();}
+    if(!tokens||typeof tokens.access_token!=='string'||typeof tokens.refresh_token!=='string'||!tokens.access_token||!tokens.refresh_token||church!==IASDPIChurches.selected())throw failure();
+    // Persistência e renovação exclusivamente pelo cliente Supabase já existente.
+    const result=await getClient().auth.setSession({access_token:tokens.access_token,refresh_token:tokens.refresh_token});
+    if(result.error)throw failure();return result;
+  }
+  async function login(email,password,key,inviteToken,identityOnly=false){
+    if(window.IASDPIChurches)await IASDPIChurches.ensure();
     const cfg=config();if(key)cfg.key=key.trim();validateConfig(cfg);
     if(client&&cfg.key!==config().key)throw Error('Recarregue a página após alterar a chave pública.');
     localStorage.setItem(IASDPIStorage.cloudConfig,JSON.stringify(cfg));
     signingIn=true;status('recovering','Confirmando acesso…');
     try{
-      const {data,error}=await getClient().auth.signInWithPassword({email,password});
+      const identifier=String(email||'').trim();
+      const {data,error}=identifier.includes('@')?await getClient().auth.signInWithPassword({email:identifier,password}):await aliasSession(identifier,password,cfg);
       if(error)throw Error('Não foi possível entrar. Confira e-mail, senha e conexão.');
       adopt(data.session);
       if(inviteToken)await jsonRequest('/rest/v1/rpc/iasdpi_accept_invite',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({p_token:inviteToken})});
-      await verify();window.dispatchEvent(new Event('iasdpi-auth-changed'));
+      if(identityOnly)await requireIdentity();else await verify();window.dispatchEvent(new Event('iasdpi-auth-changed'));
     }catch(error){invalidate('unavailable',error.message);throw error;}
     finally{signingIn=false;}
   }
@@ -144,6 +193,8 @@ window.IASDPIAuth = (() => {
     const {error}=await getClient().auth.signUp({email,password});if(error)throw Error('Não foi possível concluir o cadastro. Verifique sua conexão.');
   }
   async function logout(){
+    if(window.IASDPIScheduleManagement&&!IASDPIScheduleManagement.canLeave())return false;
+    if(window.IASDPISchedules&&!IASDPISchedules.canLeave())return false;
     if(window.IASDPIDrafts&&!await IASDPIDrafts.confirmLogout())return false;
     const draftOwner=session?.user.id;
     const {error}=await getClient().auth.signOut({scope:'local'});
@@ -224,8 +275,9 @@ window.IASDPIAuth = (() => {
   }
 
   function loginPage(){
-    return heading('ACESSO RESTRITO','Entrar no IASDPI','Cronogramas, registros, histórico e backups são exclusivos de administradores e líderes autorizados.')+
-      `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${field('E-mail','email','','email',true,'autocomplete="username"')}${field('Senha','password','','password',true,'autocomplete="current-password"')}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p><a href="#forgot-password" data-auth-page="forgot-password">Esqueci minha senha</a></p><p class="muted">A sessão é mantida pelo Supabase neste navegador. Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
+    if(window.IASDPIChurches?.enabled()&&!IASDPIChurches.ready())return IASDPIChurches.selectionPage();
+    return (window.IASDPIChurches?.selectedLabel()||'')+heading('ACESSO RESTRITO','Entrar no IASDPI','Cronogramas, registros, histórico e backups são exclusivos de administradores e líderes autorizados.')+
+      `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${loginIdentifierField()}${field('Senha','password','','password',true,'autocomplete="current-password"')}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p><a href="#forgot-password" data-auth-page="forgot-password">Esqueci minha senha</a></p>${window.IASDPIConfig?.governanceEnabled?'<p><a href="#access-request" data-auth-page="access-request">Solicitar acesso ou recuperação</a></p>':''}<p class="muted">A sessão é mantida pelo Supabase neste navegador. Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
   }
   document.addEventListener('visibilitychange',()=>{
     if(!client)return;
@@ -233,6 +285,6 @@ window.IASDPIAuth = (() => {
     else{client.auth.startAutoRefresh();void restore().catch(()=>{});}
   });
   setInterval(()=>{if(session&&!document.hidden)void requireAccess().catch(()=>{});},60000);
-  return {config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,restore,requestPasswordReset,handlePasswordCallback,updatePassword,passwordRecoveryActive,forgotPasswordPage,resetPasswordPage,
-    status:()=>({phase,message:statusMessage}),isPublic:page=>publicPages.has(page),session:()=>allowed()?session:null};
+  return {identityCurrent:token=>session?.access_token===token&&identityChurch===churchCode(),scopeValidated:()=>{scopedUser=session?.user.id;status('scoped','Sessão ministerial ativa. As demais áreas exigem autorização própria.');},requireIdentity,loginIdentifierField,loginIdentity:(email,password)=>login(email,password,null,null,true),config,remoteRequestAllowed,allowed,isAdmin:()=>allowed()&&access.role==='admin',requireAccess,jsonRequest,login,signup,logout,loginPage,restore,requestPasswordReset,handlePasswordCallback,updatePassword,passwordRecoveryActive,forgotPasswordPage,resetPasswordPage,
+    status:()=>({phase,message:statusMessage}),isPublic:page=>publicPages.has(page)||Boolean(window.IASDPIPortalAccess?.enabled()&&IASDPIPortalAccess.isPublic(page)),session:()=>allowed()?session:null};
 })();

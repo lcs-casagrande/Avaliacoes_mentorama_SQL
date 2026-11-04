@@ -1,0 +1,8 @@
+# Endpoints pré-autenticação específicos; nunca aplicar verify_jwt=false globalmente.
+# Login valida senha e orçamento; emissão de recuperação exige JWT e autorização reais.
+[functions.alias-login]
+verify_jwt = false
+
+# Envio público e consumo de capacidade; emissão exige JWT de usuário verificado.
+[functions.access-assistance]
+verify_jwt = false

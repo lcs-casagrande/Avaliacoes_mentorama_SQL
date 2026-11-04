@@ -104,7 +104,7 @@ async function cloudRequest(path,options={}){
   const authorization=await IASDPIAuth.requireAccess();
   if(!IASDPIAuth.remoteRequestAllowed(path,(options.method||'GET').toUpperCase()))throw Error('Homologação em modo de consulta: arquivamento remoto bloqueado.');
   const config=cloudConfig();
-  const response=await fetch(config.url+path,{...options,headers:{apikey:config.key,Authorization:'Bearer '+authorization.token,'Content-Type':'application/json',...options.headers}});
+  const response=await fetch(config.url+path,{...options,headers:{apikey:config.key,Authorization:'Bearer '+authorization.token,'Content-Type':'application/json',...options.headers,...(window.IASDPIChurches?.headers()||{})}});
   if(IASDPIAuth.session()?.access_token!==authorization.token)throw Error('Sessão encerrada.');
   if(!response.ok)throw Error(response.status===401?'Sessão expirada. Saia e conecte novamente.':'O banco não confirmou a operação. Verifique a tabela e as políticas de acesso. Os dados locais foram preservados.');
   return response.status===204?null:response.json();

@@ -101,6 +101,8 @@ class HourFormatBrowserTests(unittest.TestCase):
     def test_midnight_now_uses_sao_paulo_seconds_under_us_browser(self):
         self.enter();self.page.evaluate('navigate("actuals","clock-fixture")')
         self.page.clock.set_fixed_time('2026-10-22T03:00:05Z')
+        # O relógio é fictício: neutralizar o offset de poucos ms medido antes do congelamento.
+        self.page.evaluate('state.offset=0')
         self.page.locator('.actual-row').first.locator('[data-action="time-now"][data-field="start"]').click()
         self.page.wait_for_function('() => !state.busy')
         self.assertEqual(self.page.locator('.actual-row').first.locator('[name="start"]').input_value(),'00:00:05')

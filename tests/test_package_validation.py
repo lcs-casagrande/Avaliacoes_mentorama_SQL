@@ -97,7 +97,7 @@ class PackageValidationTests(unittest.TestCase):
 
     def test_unknown_manifest_version_rejected(self):
         original = self.manifest()
-        for value in (2, True, '1', None):
+        for value in (7, True, '1', None):
             with self.subTest(version=value):
                 self.write_manifest({**original, 'manifest_version': value})
                 self.reject('versão não suportada')

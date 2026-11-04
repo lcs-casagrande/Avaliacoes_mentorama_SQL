@@ -26,7 +26,7 @@ async function api(path = '', method = 'GET', body) {
   if(window.IASDPIOperational)return window.IASDPIOperational.request(path,method,body);
   const authorization=path==='health'?null:await IASDPIAuth.requireAccess();
   if (window.IASDPIDemo){const result=await window.IASDPIDemo.request(path,method,body);if(method!=='GET'&&cloudState.session)void cloudAutoArchive();return result;}
-  const response = await fetch(`/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(authorization?{Authorization:'Bearer '+authorization.token}:{}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const response = await fetch(`/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(authorization?{Authorization:'Bearer '+authorization.token}:{}),...(window.IASDPIChurches?.headers()||{}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   const result = await response.json();
   if(authorization&&IASDPIAuth.session()?.access_token!==authorization.token)throw Error('Sessão encerrada.');
   if (!response.ok) {if(response.status===401||response.status===403)void IASDPIAuth.restore().catch(()=>{});const failure=new Error(result.error||'Não foi possível concluir a operação.');if(response.status===409)failure.code='40001';throw failure;}
@@ -306,15 +306,23 @@ function render() {
   window.IASDPIDrafts?.beforeRender();
   const allowed=IASDPIAuth.allowed();
   if(!allowed&&!IASDPIAuth.isPublic(state.page))state.page='login';
-  document.querySelectorAll('nav a').forEach(a=>{a.hidden=['users','trash','models'].includes(a.dataset.page)?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
-  document.querySelector('#auth-logout').hidden=!allowed;
+  document.querySelectorAll('nav a').forEach(a=>{a.hidden=['users','trash','models','schedule-members','schedule-settings'].includes(a.dataset.page)?!IASDPIAuth.isAdmin():a.dataset.page==='login'?allowed:!allowed&&!IASDPIAuth.isPublic(a.dataset.page);});
+  if(window.IASDPIPortalAccess?.enabled()){document.querySelectorAll('nav [data-page=schedule-members],nav [data-page=schedule-settings]').forEach(a=>{a.hidden=!IASDPIPortalAccess.can(a.dataset.page);});document.querySelector('.brand').href='#church-home';document.querySelector('nav [data-page=home]').textContent='Cronoanálise';document.querySelector('nav [data-page=login]').textContent='Entrar na Cronoanálise';}
+  document.querySelectorAll('[data-portal-nav]').forEach(a=>{a.hidden=!window.IASDPIPortalAccess?.enabled()||(a.dataset.page==='portal-login'&&IASDPIPortalAccess.valid());});
+  document.querySelectorAll('[data-governance-nav]').forEach(a=>{a.hidden=!window.IASDPIGovernance?.enabled();});
+  if(window.IASDPIGovernance?.enabled())document.querySelectorAll('nav [data-page=users]').forEach(a=>a.hidden=true);
+  document.querySelector('#auth-logout').hidden=!allowed&&IASDPIAuth.status().phase!=='scoped';
 
-  const activePage=state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':['edit','plan-edit'].includes(state.page)?'programs':state.page;
+  const activePage=state.page==='schedule-calendar'?'agendas':state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':['edit','plan-edit'].includes(state.page)?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
+  if(window.IASDPIChurches?.enabled()&&!IASDPIChurches.ready()&&!['organization','agendas','schedule-calendar','forgot-password','reset-password','controlled-reset','church-home'].includes(state.page)){app.innerHTML=IASDPIChurches.selectionPage();return;}
+  if(window.IASDPIChurches?.enabled()&&IASDPIChurches.selected()&&IASDPIChurches.selected()!=='IASD_PI'&&['organization','agendas'].includes(state.page)){app.innerHTML=empty('Conteúdo público ainda não configurado','Esta igreja ainda não possui agenda ou organograma publicados.');return;}
+  const portalGate=window.IASDPIPortalAccess?.guard(state.page);if(portalGate){app.innerHTML=portalGate;return;}
   const missingRecord=['edit','plan-edit','actuals','tracking','summary'].includes(state.page)&&state.selected&&!selected();
   const needsPrograms=['home','programs','history','edit','plan-edit','actuals','tracking','summary','models'].includes(state.page);
-  app.innerHTML = allowed&&needsPrograms&&!['records','empty'].includes(state.programsLoad.status)?programsLoadView():allowed&&missingRecord?empty('Registro não encontrado','Este identificador não está entre os cultos ativos disponíveis. Confira o link ou as programações.',button('Ver programações','programs')):({home, models:modelsPage, trash: trashPage, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, 'forgot-password':IASDPIAuth.forgotPasswordPage,'reset-password':IASDPIAuth.resetPasswordPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
-  updateWeekday(); updateActuals(); tick(); window.IASDPIDrafts?.mount(); pageLayout.mount();
+  app.innerHTML = allowed&&needsPrograms&&!['records','empty'].includes(state.programsLoad.status)?programsLoadView():allowed&&missingRecord?empty('Registro não encontrado','Este identificador não está entre os cultos ativos disponíveis. Confira o link ou as programações.',button('Ver programações','programs')):({home, 'church-home':()=>IASDPIChurchPortal.home(), 'portal-login':()=>IASDPIPortalAccess.loginPage(), 'access-admin':()=>IASDPIGovernance.page(), 'access-request':()=>IASDPIGovernance.requestPage(), 'controlled-reset':()=>IASDPIGovernance.resetPage(), 'schedule-setup':()=>IASDPISchedules.page(), 'schedule-build':()=>IASDPIScheduleManagement.page(), 'schedule-members':()=>IASDPIScheduleDailyAdmin.page('schedule-members'), 'schedule-settings':()=>IASDPIScheduleDailyAdmin.page('schedule-settings'), 'schedule-calendar':()=>IASDPIScheduleCalendar.page(), models:modelsPage, trash: trashPage, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, 'forgot-password':IASDPIAuth.forgotPasswordPage,'reset-password':IASDPIAuth.resetPasswordPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
+  if(window.IASDPIPortalAccess?.enabled()&&['schedule-build','schedule-setup','schedule-members','schedule-settings','access-admin'].includes(state.page))app.insertAdjacentHTML('afterbegin',IASDPIPortalAccess.workspace());
+  updateWeekday(); updateActuals(); tick(); window.IASDPIDrafts?.mount(); pageLayout.mount();window.IASDPIScheduleCalendar?.mount();
 }
 function navigate(page,id,options){return IASDPINavigation.navigate(page,id,options);}
 function updateWeekday() {
@@ -562,7 +570,7 @@ async function performBoot() {
     if(id)state.selected=id;
     if (page === 'actuals' && !id) state.selected = null;
     // A rota atual é restaurada; novos cultos escolhem modelo e usam a data de São Paulo.
-    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash','models','forgot-password','reset-password'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':'organization'; bootInProgress=false;IASDPINavigation.start();render();
+    state.page = ['home','programs','tracking','history','edit','summary','actuals','agendas','archive','organization','login','users','invite','plan-edit','trash','models','forgot-password','reset-password','schedule-setup','schedule-calendar','schedule-build','schedule-members','schedule-settings','access-admin','access-request','controlled-reset','church-home','portal-login'].includes(page) ? (page==='login'&&IASDPIAuth.allowed()?'home':page) : IASDPIAuth.allowed()?'home':window.IASDPIPortalAccess?.enabled()?'church-home':'organization'; bootInProgress=false;IASDPINavigation.start();render();
   } catch (error) {
     bootInProgress=false;
     if(IASDPIAuth.allowed())state.programsLoad={status:'error',error:error.message};

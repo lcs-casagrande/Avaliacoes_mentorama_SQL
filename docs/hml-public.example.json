@@ -1,0 +1,9 @@
+{
+  "churchIsolationEnabled": true,
+  "aliasLoginEnabled": true,
+  "governanceEnabled": true,
+  "portalAccessEnabled": true,
+  "centralRegistryEnabled": true,
+  "supabaseUrl": "https://HML_PROJECT_REF.supabase.co",
+  "supabasePublishableKey": "CONFIGURAR_SOMENTE_A_CHAVE_PUBLISHABLE_DO_HML"
+}

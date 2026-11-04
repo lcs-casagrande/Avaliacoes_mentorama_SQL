@@ -7,6 +7,7 @@
   <title>IASDPI · Programação do culto</title>
   <link rel="stylesheet" href="styles.css">
   <script src="config.js" defer></script>
+  <script src="churches.js" defer></script>
   <script src="storage.js" defer></script>
   <script src="supabase-2.118.0.js" defer></script>
   <script src="auth.js" defer></script>
@@ -24,6 +25,11 @@
   <script src="navigation.js" defer></script>
   <script src="conflicts.js" defer></script>
   <script src="history.js" defer></script>
+  <script src="schedule-foundation.js" defer></script>
+  <script src="schedule-management.js" defer></script>
+  <script src="governance.js" defer></script>
+  <script src="church-portal.js" defer></script>
+  <script src="portal-access.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -31,17 +37,26 @@
   <header class="header">
     <a class="brand" href="#organization"><span class="brand-mark">I</span><span>IASDPI<small>Programação do culto</small></span></a>
     <nav aria-label="Navegação principal">
+      <a href="#church-home" data-page="church-home" data-portal-nav hidden>Início</a>
+      <a href="#schedule-calendar" data-page="schedule-calendar" data-portal-nav hidden>Escalas publicadas</a>
+      <a href="#schedule-build" data-page="schedule-build" data-portal-nav hidden>Montar escala</a>
+      <a href="#portal-login" data-page="portal-login" data-portal-nav hidden>Entrar nas escalas</a>
       <a href="#home" data-page="home" hidden>Início</a>
       <a href="#programs" data-page="programs" hidden>Programações</a>
       <a href="#actuals" data-page="actuals" hidden>Registrar culto</a>
       <a href="#tracking" data-page="tracking" hidden>Acompanhar</a>
       <a href="#agendas" data-page="agendas">Escalas e agendas</a>
+      <a href="#schedule-setup" data-page="schedule-setup">Cadastros de escalas</a>
+      <a href="#schedule-members" data-page="schedule-members">Cadastro Geral</a>
+      <a href="#schedule-settings" data-page="schedule-settings">Configurar escalas</a>
       <a href="#organization" data-page="organization">Organograma</a>
       <a href="#archive" data-page="archive" hidden>Arquivo e banco</a>
       <a href="#history" data-page="history" hidden>Histórico</a>
       <a href="#trash" data-page="trash" hidden>Administração · Lixeira</a>
       <a href="#models" data-page="models" hidden>Administração · Modelos</a>
       <a href="#users" data-page="users" hidden>Administração · Usuários</a>
+      <a href="#access-admin" data-page="access-admin" data-governance-nav hidden>Gestão de acessos</a>
+      <a href="#access-request" data-page="access-request" data-governance-nav hidden>Solicitar acesso</a>
       <a href="#login" data-page="login">Entrar</a>
       <button type="button" id="auth-logout" hidden>Sair</button>
     </nav>
