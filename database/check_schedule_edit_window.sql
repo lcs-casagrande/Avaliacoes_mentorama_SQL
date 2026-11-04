@@ -1,0 +1,6 @@
+-- Somente leitura, após 023; retorna somente irregularidades.
+WITH expected AS(SELECT unnest(ARRAY['iasdpi_schedule_prepare_month','iasdpi_schedule_plan_save','iasdpi_schedule_event_create','iasdpi_schedule_elder_save','iasdpi_schedule_settings_get','iasdpi_schedule_rotation_context']) name)
+SELECT 'RPC ausente/insegura: '||e.name AS irregularidade FROM expected e LEFT JOIN pg_proc p ON p.pronamespace='public'::regnamespace AND p.proname=e.name
+WHERE p.oid IS NULL OR NOT p.prosecdef OR pg_get_userbyid(p.proowner)<>'iasdpi_church_executor' OR has_function_privilege('anon',p.oid,'EXECUTE') OR NOT p.proconfig @> ARRAY['search_path=""']
+UNION ALL SELECT 'Helper temporal exposto: '||p.proname FROM pg_proc p WHERE p.pronamespace='iasdpi_schedule_private'::regnamespace AND (p.proname IN('edit_bounds','assert_edit_day','assert_edit_month','frozen_requirements') OR p.proname LIKE '%before_023') AND (has_function_privilege('authenticated',p.oid,'EXECUTE') OR has_function_privilege('anon',p.oid,'EXECUTE'))
+UNION ALL SELECT 'Núcleo sem preservação de datas encerradas' WHERE strpos(pg_get_functiondef('iasdpi_schedule_private.plan_save_007(uuid,bigint,jsonb,uuid)'::regprocedure),'schedule-edit-window-023')=0;

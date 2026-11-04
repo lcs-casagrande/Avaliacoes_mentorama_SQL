@@ -106,6 +106,7 @@ for name in ('config.js', 'churches.js', 'storage.js', 'supabase-2.118.0.js', 'a
     if name == 'app.js' and args.events_preview:
         script+='\n'+(root/'tests/fixtures/events-preview.js').read_text()
         if args.event_management_preview:script+='\n'+(root/'tests/fixtures/event-planning-preview.js').read_text()
+    if name == 'app.js' and args.registry_identities_preview:script+='\n'+(root/'tests/fixtures/schedule-edit-window-preview.js').read_text()
     script = script.replace('</script', '<\\/script')
     html = html.replace(f'  <script src="{name}" defer></script>\n', '')
     # Scripts executam após os elementos da página existirem.

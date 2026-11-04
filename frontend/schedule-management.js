@@ -36,10 +36,19 @@ window.IASDPIScheduleUI=(()=>{
   if(e.target.hasAttribute('data-month-option')){const buttons=[...host.querySelectorAll('[data-month-option]')],index=buttons.indexOf(e.target),delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:3,ArrowUp:-3}[e.key];if(delta||e.key==='Home'||e.key==='End'){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?11:(index+delta+12)%12].focus();}}
  });
  document.addEventListener('focusout',e=>{const host=e.target.closest('[data-month-picker]');if(host&&e.relatedTarget&&!host.contains(e.relatedTarget))closePicker(host);});
- return {isReview,help,feedback,departments,monthPicker,yearSelect,restoreMonth,mount};
+ return {isReview,help,feedback,departments,monthPicker,monthLabel,yearSelect,restoreMonth,mount};
 })();
 // B1.2: motor puro de proposta. A confirmação transacional continua no PostgreSQL.
+window.IASDPIScheduleEditWindow=(()=>{
+ const localDay=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ function bounds(settings={}){const today=settings.editable_from||settings.today||localDay(),month=today.slice(0,7),count=Number(settings.planning_months)||1,last=new Date(month+'-01T12:00:00Z');last.setUTCMonth(last.getUTCMonth()+count+1,0);return {from:today,until:settings.editable_until||last.toISOString().slice(0,10),month};}
+ function day(date,settings){if(!settings?.schedule_edit_policy)return true;const b=bounds(settings);return Boolean(date&&date>=b.from&&date<=b.until);}
+ function month(value,settings){if(!settings?.schedule_edit_policy)return true;const b=bounds(settings);return value>=b.month&&value<=b.until.slice(0,7);}
+ function period(row,settings){if(!settings?.schedule_edit_policy)return true;const b=bounds(settings);return row.ends_on>=b.from&&row.starts_on<=b.until;}
+ return {bounds,day,month,period};
+})();
 window.IASDPIScheduleRotation=(()=>{
+ const editWindow=window.IASDPIScheduleEditWindow||{day:()=>true,bounds:()=>({})};
  const event=(s,r)=>s.events.find(e=>e.id===r.event_id);
  function days(s,r,a){
   if(a?.timing_mode==='timed'&&a.starts_at&&a.ends_at){
@@ -58,6 +67,7 @@ window.IASDPIScheduleRotation=(()=>{
   if(!role?.active||role.department_id!==s.department||((!role.general_assignment||(s.context?.central_registry&&!manual))&&!s.catalog.qualifications.some(q=>q.membership_id===member?.id&&q.role_id===r.role_id)))out.push('Sem habilitação para a função — Pendente de confirmação');
   if(s.context?.central_registry&&!manual&&member?.participation_confirmed!==true)out.push('Participação — Pendente de confirmação');
   if(!date)out.push('Evento não encontrado');
+  if(!editWindow.day(date,s.context))out.push(date<editWindow.bounds(s.context).from?'Data encerrada':'Data fora do período de edição');
   const detail=context?.days.find(d=>d.date===date);
   const advisory=manual&&s.context?.availability_advisory,defaultAvailable=!s.context?.central_registry&&s.context?.availability_default==='available';
   if(s.context?.availability_enabled!==false&&!advisory&&detail?.state!=='available'&&!(defaultAvailable&&(!detail?.state||detail.state==='unknown')))out.push(detail?.state==='unavailable'?'Indisponível nesta data':'Disponibilidade desconhecida — Pendente de confirmação');
@@ -79,7 +89,7 @@ window.IASDPIScheduleRotation=(()=>{
   let cursor=latest?(order.indexOf(latest.person_id)+1)%order.length:0;
   const rows=[...plan.requirements].sort((a,b)=>(event(s,a)?.scheduled_on||'').localeCompare(event(s,b)?.scheduled_on||'')||a.role_id.localeCompare(b.role_id)||a.id.localeCompare(b.id));
   const allowed=r=>!Array.isArray(s.context.planning_weekdays)||s.context.planning_weekdays.includes(new Date(event(s,r)?.scheduled_on+'T12:00:00Z').getUTCDay())||(s.context.extra_dates||[]).includes(event(s,r)?.scheduled_on);
-  for(const r of rows)while(allowed(r)&&r.assignments.length<r.required_count){
+  for(const r of rows)while(allowed(r)&&editWindow.day(event(s,r)?.scheduled_on,s.context)&&r.assignments.length<r.required_count){
    let eligible=candidates(s,r).filter(c=>!c.reasons.length);if(!eligible.length)break;
    if(eligible.every(c=>round.has(c.person.id)))round.clear();
    const rank=p=>{const c=s.context.people.find(c=>c.person_id===p.id),count=new Set([...(c.department_days||[]),...usage(s,p.id)]).size;return [warnings(s,r,p.id).length,count,round.has(p.id)?1:0,c.history_count||0,(order.indexOf(p.id)-cursor+order.length)%order.length,p.id];};
@@ -95,7 +105,7 @@ window.IASDPIScheduleRotation=(()=>{
  }
  const manualReasons=(s,r,p,skip)=>reasons(s,r,p,skip,true);
  const preferences=(s,r,p,skip)=>reasons(s,r,p,skip).filter(reason=>!manualReasons(s,r,p,skip).includes(reason));
- function metrics(s){const rows=s.plan.requirements,total=rows.reduce((n,r)=>n+r.required_count,0),filled=rows.reduce((n,r)=>n+r.assignments.length,0),people=new Map();let conflicts=0,advisories=0;
+ function metrics(s){const rows=s.plan.requirements.filter(r=>editWindow.day(event(s,r)?.scheduled_on,s.context)),total=rows.reduce((n,r)=>n+r.required_count,0),filled=rows.reduce((n,r)=>n+r.assignments.length,0),people=new Map();let conflicts=0,advisories=0;
   for(const r of rows)for(const a of r.assignments){people.set(a.person_id,(people.get(a.person_id)||0)+1);if(manualReasons(s,r,a.person_id,a.id).length)conflicts++;if(preferences(s,r,a.person_id,a.id).length)advisories++;}
   return {total,filled,pending:Math.max(0,total-filled),people:[...people].map(([id,count])=>({id,count})),conflicts,advisories};
  }
@@ -117,12 +127,13 @@ window.IASDPIScheduleManagement=(()=>{
  const eventName=e=>e?`${displayDate(e.scheduled_on)} · ${e.title}${e.timing_mode==='day'?'':` · ${hour(e.starts_at)}–${hour(e.ends_at)}${m.settings?' (horário histórico)':''}`}`:'Evento indisponível';
  const lookup=(list,id)=>m.catalog?.[list]?.find(r=>r.id===id);
  const available=(person,event)=>m.availability.find(a=>a.person_id===person&&a.date===event?.scheduled_on)?.state||'unknown';
- const canPublish=()=>m.catalog?.departments.some(d=>d.id===m.department&&(d.can_publish??d.can_manage)&&d.active);
- const editable=()=>m.catalog?.departments.some(d=>d.id===m.department&&(d.can_edit??d.can_manage)&&d.active)&&(m.plan?.status!=='published'||canPublish());
+ const canPublish=()=>IASDPIScheduleEditWindow.month(m.month,m.settings)&&m.catalog?.departments.some(d=>d.id===m.department&&(d.can_publish??d.can_manage)&&d.active);
+ const editable=()=>IASDPIScheduleEditWindow.month(m.month,m.settings)&&m.catalog?.departments.some(d=>d.id===m.department&&(d.can_edit??d.can_manage)&&d.active)&&(m.plan?.status!=='published'||canPublish());
  const simple=()=>Boolean(m.settings?.simplified_daily);
  const clean=IASDPIScheduleUI.isReview;
  const musicAutomaticDisabled=()=>lookup('departments',m.department)?.code==='musica';
  const canStartMonth=()=>m.settings&&(m.settings.future_months.includes(m.month+'-01')||m.month===(m.settings.today||'').slice(0,7));
+ const canEditDay=day=>editable()&&IASDPIScheduleEditWindow.day(day,m.settings);
  const b=(text,action,extra='')=>`<button type="button" data-b1-action="${action}" ${clean()&&action==='prefill'?'class="schedule-auto-fill"':''} ${extra}>${h(text)}</button>`;
  const input=(label,name,value='',extra='')=>`<label>${h(label)}<input name="${name}" value="${h(value)}" ${extra}></label>`;
  const time=(label,name,value)=>input(label+' — HH:mm',name,value,'type="text" inputmode="numeric" placeholder="09:30" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" required');
@@ -132,7 +143,7 @@ window.IASDPIScheduleManagement=(()=>{
  function draft(row){return {id:row?.id||crypto.randomUUID(),department_id:m.department,month:m.month+'-01',title:row?.title||'Escala mensal',status:row?.status||'draft',version:row?.version||0,requirements:(row?.requirements||[]).map(r=>({id:r.id,event_id:r.event_id,role_id:r.role_id,required_count:r.required_count,notes:r.notes||'',assignments:(r.assignments||[]).map(a=>({id:a.id,person_id:a.person_id,starts_at:a.starts_at,ends_at:a.ends_at,...(a.timing_mode?{timing_mode:a.timing_mode}:{})}))}))};}
  function adopt(workspace){
   if(!workspace||!Array.isArray(workspace.events)||!Array.isArray(workspace.versions)||(workspace.plan&&!Array.isArray(workspace.plan.requirements)))throw Error('Resposta de escala inválida.');
-  m.monthly=Boolean(workspace.monthly);m.context=workspace.rotation_context||null;m.settings=workspace.settings||null;m.availability=workspace.availability||[];m.events=workspace.events;m.versions=workspace.versions;m.plan=draft(workspace.plan);m.dirty=false;m.selected=[];m.remote=null;m.history=null;m.request=crypto.randomUUID();
+  m.monthly=Boolean(workspace.monthly);m.context=workspace.rotation_context||null;m.settings=workspace.settings||null;m.availability=workspace.availability||[];m.events=workspace.events;m.versions=workspace.versions;m.plan=draft(workspace.plan);m.rotationReasons=[];m.dirty=false;m.selected=[];m.remote=null;m.history=null;m.request=crypto.randomUUID();
  }
  async function load(){
   const ticket=++m.generation;m.status='loading';m.error='';redraw();
@@ -148,13 +159,14 @@ window.IASDPIScheduleManagement=(()=>{
    if(!m.department)throw Error('Solicite ao administrador acesso de gestão ou consulta a um departamento.');
    const workspaceForMonth=async()=>{const settings=lookup('departments',m.department)?.code==='ancionato'?await rpc('iasdpi_schedule_settings_get'):null;return settings?.elder_periods?{settings,events:[],versions:[],plan:null}:rpc('iasdpi_schedule_workspace',{p_department:m.department,p_month:m.month+'-01'});};
    let workspace=await workspaceForMonth();
-   if(workspace.settings&&!m.periodInitialized){m.month=workspace.settings.future_months[0].slice(0,7);m.periodInitialized=true;workspace=await workspaceForMonth();}
+   if(workspace.settings&&!m.periodInitialized){m.month=workspace.settings.schedule_edit_policy?workspace.settings.today.slice(0,7):workspace.settings.future_months[0].slice(0,7);m.periodInitialized=true;workspace=await workspaceForMonth();}
    if(ticket!==m.generation)return;
    if(!(workspace.settings?.elder_periods&&lookup('departments',m.department)?.code==='ancionato')&&workspace.settings?.simplified_daily&&editable()&&!m.catalog.roles.some(r=>r.department_id===m.department&&r.general_assignment&&r.active)){
     const role=await rpc('iasdpi_schedule_daily_role',{p_department:m.department});if(ticket!==m.generation)return;m.catalog.roles.push(role);
    }
    if(!m.dirty)adopt(workspace);else{m.events=workspace.events;m.versions=workspace.versions;m.settings=workspace.settings||null;m.availability=workspace.availability||[];m.context=workspace.rotation_context||null;}
    ensureDailySlots();
+   if(simple()&&m.settings?.schedule_edit_policy&&editable()&&canStartMonth()&&!m.plan.requirements.some(r=>IASDPIScheduleEditWindow.day(m.events.find(e=>e.id===r.event_id)?.scheduled_on,m.settings))){await createDays(false);if(ticket!==m.generation)return;}
    m.status='ready';redraw();
   }catch(e){if(ticket!==m.generation)return;m.status='error';m.error=e.message;redraw();}
  }
@@ -167,15 +179,15 @@ window.IASDPIScheduleManagement=(()=>{
   if(m.dirty&&!confirm('Descartar somente as alterações ainda não salvas desta escala?'))return false;
   if(m.dirty){m.dirty=false;m.plan=null;m.status='idle';}return true;
  }
- function dirty(){m.dirty=true;m.request=crypto.randomUUID();m.feedback='Alterações pendentes, ainda não salvas.';m.remote=null;}
- function vacancies(plan=m.plan){return (plan?.requirements||[]).reduce((sum,r)=>sum+Math.max(0,r.required_count-r.assignments.length),0);}
+ function dirty(){m.rotationReasons=[];m.dirty=true;m.request=crypto.randomUUID();m.feedback='Alterações pendentes, ainda não salvas.';m.remote=null;}
+ function vacancies(plan=m.plan){return (plan?.requirements||[]).filter(r=>IASDPIScheduleEditWindow.day(m.events.find(e=>e.id===r.event_id)?.scheduled_on,m.settings)).reduce((sum,r)=>sum+Math.max(0,r.required_count-r.assignments.length),0);}
  function eligible(role){const general=lookup('roles',role)?.general_assignment;return (m.catalog?.people||[]).filter(p=>p.active&&m.catalog.memberships.some(member=>member.person_id===p.id&&member.department_id===m.department&&member.active&&(general||m.catalog.qualifications.some(q=>q.membership_id===member.id&&q.role_id===role))));}
  function departmentDay(event){const weekdays=m.settings?.department_weekdays?.[m.department];return !weekdays||weekdays.includes(new Date(event.scheduled_on+'T12:00:00Z').getUTCDay())||(m.settings.extra_dates||[]).includes(event.scheduled_on);}
  function ensureDailySlots(){
-  if(!simple()||!editable()||!m.plan||m.plan.status==='published')return;
+  if(!simple()||!editable()||!m.plan||m.plan.status==='published'&&!m.settings.schedule_edit_policy)return;
   const role=m.catalog.roles.find(r=>r.department_id===m.department&&r.active&&r.general_assignment);if(!role)return;
-  let added=0;for(const e of m.events.filter(e=>e.scheduled_on.slice(0,7)===m.month&&e.timing_mode==='day'&&departmentDay(e)))if(!m.plan.requirements.some(r=>r.event_id===e.id)){m.plan.requirements.push({id:crypto.randomUUID(),event_id:e.id,role_id:role.id,required_count:1,notes:'',assignments:[]});added++;}
-  if(added)dirty();
+  let added=0;for(const e of m.events.filter(e=>e.scheduled_on.slice(0,7)===m.month&&e.timing_mode==='day'&&departmentDay(e)&&IASDPIScheduleEditWindow.day(e.scheduled_on,m.settings)))if(!m.plan.requirements.some(r=>r.event_id===e.id)){m.plan.requirements.push({id:crypto.randomUUID(),event_id:e.id,role_id:role.id,required_count:1,notes:'',assignments:[]});added++;}
+  if(added&&(!m.settings.schedule_edit_policy||m.plan.version>0))dirty();
  }
  function rotationSource(){return {catalog:m.catalog,context:m.context,department:m.department,events:m.events,plan:m.plan};}
  function volunteerField(r,slot,prefix,compact=false){
@@ -235,19 +247,19 @@ window.IASDPIScheduleManagement=(()=>{
   const calendar=days.map(day=>{
    const events=m.events.filter(e=>e.scheduled_on===day&&(!simple()||departmentDay(e)||m.plan.requirements.some(r=>r.event_id===e.id))),rows=m.plan.requirements.filter(r=>events.some(e=>e.id===r.event_id)),names=rows.flatMap(r=>r.assignments.map(a=>lookup('people',a.person_id)?.display_name||'Pessoa não encontrada')),pending=rows.reduce((n,r)=>n+r.required_count-r.assignments.length,0);
    const label=displayDate(day)+(events.length?' · '+events.map(e=>e.title).join(', '):' · Sem evento')+(names.length?' · '+names.join(', '):'')+(pending?' · '+pending+' vagas pendentes':'');
-   const inline=editable()&&rows.length;
+   const inline=canEditDay(day)&&rows.length;
    const selectors=inline?'<div class="monthly-inline-selectors">'+rows.map(r=>{const role=lookup('roles',r.role_id),event=events.find(e=>e.id===r.event_id),prefix=(dept?.name||'')+' · '+eventName(event)+' · '+(role?.general_assignment?'Pessoa escalada':role?.name||'Função indisponível');return `<div data-requirement="${h(r.id)}">${rows.length>1?`<span class="monthly-slot-role" title="${h((event?.title||'')+' · '+(role?.name||''))}">${h(role?.general_assignment?'Pessoa escalada':role?.name||'Função')}</span>`:''}${musicTeam(r)?musicPeople(r,prefix):Array.from({length:r.required_count},(_,slot)=>volunteerField(r,slot,prefix,true)).join('')}${simple()&&event?.scheduled_on===m.day?`<details class="monthly-note"><summary>Observações${r.notes?' •':''}</summary><label><span class="sr-only">${h('Observações · '+prefix)}</span><textarea name="notes" rows="2" aria-label="${h('Observações · '+prefix)}">${h(r.notes)}</textarea></label></details>`:''}</div>`;}).join('')+'</div>':'';
-   return `<div class="monthly-cell ${events.length?'has-events':''} ${inline?'has-selectors':''}"><button type="button" class="monthly-day ${events.length?'has-events':''}" data-b1-action="day" data-day="${day}" aria-label="${h(label)}" aria-pressed="${day===m.day}"><span class="monthly-number">${Number(day.slice(8))}</span><span class="monthly-weekday">${h(new Intl.DateTimeFormat('pt-BR',{weekday:'short',timeZone:'America/Sao_Paulo'}).format(new Date(day+'T12:00:00Z')))}</span>${names.slice(0,3).map(name=>`<span class="monthly-name ${inline?'sr-only':''}">${h(name)}</span>`).join('')}${names.length>3?`<small>+${names.length-3}</small>`:''}${pending?`<small class="monthly-pending">${pending} pendente${pending>1?'s':''}</small>`:!rows.length&&events.length?'<small>Definir funções</small>':''}</button>${selectors}</div>`;
+   return `<div class="monthly-cell ${events.length?'has-events':''} ${inline?'has-selectors':''} ${!IASDPIScheduleEditWindow.day(day,m.settings)?'is-locked':''}"><button type="button" class="monthly-day ${events.length?'has-events':''}" data-b1-action="day" data-day="${day}" aria-label="${h(label)}" aria-pressed="${day===m.day}"><span class="monthly-number">${Number(day.slice(8))}</span><span class="monthly-weekday">${h(new Intl.DateTimeFormat('pt-BR',{weekday:'short',timeZone:'America/Sao_Paulo'}).format(new Date(day+'T12:00:00Z')))}</span>${names.slice(0,3).map(name=>`<span class="monthly-name ${inline?'sr-only':''}">${h(name)}</span>`).join('')}${names.length>3?`<small>+${names.length-3}</small>`:''}${!IASDPIScheduleEditWindow.day(day,m.settings)?'<small class="schedule-date-locked">'+(day<IASDPIScheduleEditWindow.bounds(m.settings).from?'Encerrado':'Fora do período')+'</small>':''}${pending&&IASDPIScheduleEditWindow.day(day,m.settings)?`<small class="monthly-pending">${pending} pendente${pending>1?'s':''}</small>`:!rows.length&&events.length?'<small>Definir funções</small>':''}</button>${selectors}</div>`;
   }).join('');
   return heading('ESCALAS · MONTAGEM MENSAL',dept.name,'Responsável ministerial: '+(responsibles.join(' · ')||'Não informado no cadastro')+'.')+
    (!clean()&&window.IASDPISchedulePreview?`<p class="demo-banner">${window.IASDPIKnownPreviewSeed?.catalog.reference_preview?(window.IASDPIKnownPreviewSeed?.elder_periods?'DEMONSTRAÇÃO — NOMES INFORMADOS; disponibilidade temporariamente desativada.':window.IASDPIKnownPreviewSeed?.simplified_daily?'DEMONSTRAÇÃO — NOMES INFORMADOS; disponibilidade padrão para o automático.':'DEMONSTRAÇÃO — NOMES INFORMADOS; disponibilidades pendentes de confirmação.'):'DEMONSTRAÇÃO — DADOS FICTÍCIOS.'} Salvamento em memória; reinicia ao recarregar.</p>`:'')+
    `<nav class="monthly-departments" aria-label="Departamentos das escalas">${IASDPIScheduleUI.departments(m.catalog).map(d=>b(d.name,'department','data-department="'+h(d.id)+'" aria-pressed="'+(d.id===m.department)+'"')).join('')}</nav>
-   <section class="panel"><form id="b1-scope" class="schedule-grid"><input type="hidden" name="department" value="${h(m.department)}">${clean()?IASDPIScheduleUI.monthPicker('schedule-month',m.month,m.saving):input('Mês e ano','month',m.month,'type="month" required')+'<button type="submit">Abrir mês</button>'}</form><div class="monthly-toolbar">${b('Mês anterior','month','data-direction="-1"')}${b('Próximo mês','month','data-direction="1"')}${editable()?b(simple()?'Preencher automaticamente':'Pré-preencher por rodízio','prefill','aria-describedby="rotation-requirements-help" '+(m.saving||musicAutomaticDisabled()||(!m.plan.requirements.length&&(!simple()||!canStartMonth()))?'disabled':'')+(musicAutomaticDisabled()?' title="Preenchimento automático da Música temporariamente desativado"':''))+b('Limpar escala','clear','class="schedule-clear" '+(m.saving||!m.plan.requirements.some(r=>r.assignments.length)?'disabled':''))+(simple()?'':b('Salvar rascunho','save',m.saving?'disabled':'')+(canPublish()?b('Publicar escala','publish',m.saving?'disabled':''):'')):''}${!editable()&&canPublish()?b('Publicar escala','publish',m.saving?'disabled':''):''}${b(clean()?'Recarregar escala':window.IASDPISchedulePreview?'Atualizar escala':'Atualizar do banco','reload',m.saving?'disabled':'')}</div>
+   <section class="panel"><form id="b1-scope" class="schedule-grid"><input type="hidden" name="department" value="${h(m.department)}">${clean()?IASDPIScheduleUI.monthPicker('schedule-month',m.month,m.saving):input('Mês e ano','month',m.month,'type="month" required')+'<button type="submit">Abrir mês</button>'}</form><div class="monthly-toolbar">${b('Mês anterior','month','data-direction="-1"')}${b('Próximo mês','month','data-direction="1"')}${m.catalog.is_admin?'<a class="button schedule-secondary" href="#schedule-settings" data-b1-nav="schedule-settings">Período de edição</a>':''}${editable()?b(simple()?'Preencher automaticamente':'Pré-preencher por rodízio','prefill','aria-describedby="rotation-requirements-help" '+(m.saving||musicAutomaticDisabled()||(!m.plan.requirements.length&&(!simple()||!canStartMonth()))?'disabled':'')+(musicAutomaticDisabled()?' title="Preenchimento automático da Música temporariamente desativado"':''))+b('Limpar escala','clear','class="schedule-clear" '+(m.saving||!m.plan.requirements.some(r=>r.assignments.length)?'disabled':''))+(simple()?'':b('Salvar rascunho','save',m.saving?'disabled':'')+(canPublish()?b('Publicar escala','publish',m.saving?'disabled':''):'')):''}${!editable()&&canPublish()?b('Publicar escala','publish',m.saving?'disabled':''):''}${b(clean()?'Recarregar escala':window.IASDPISchedulePreview?'Atualizar escala':'Atualizar do banco','reload',m.saving?'disabled':'')}</div>
    ${window.IASDPIScheduleDepartmentDays?.page(m.catalog,m.settings,m.department,m.month)||''}
    ${clean()?IASDPIScheduleUI.help('rotation-requirements-help','O preenchimento automático propõe nomes para as vagas vazias. Revise as escolhas antes de salvar. Salvar mantém um rascunho; publicar o exibe no calendário. Limpar escala retira somente os nomes do mês e departamento atuais, mantendo datas, vagas e observações. Recarregar escala recupera a última versão salva nesta aba e pede confirmação se houver alterações pendentes.','Ajuda sobre a montagem da escala'):`${m.catalog.is_admin?'<p><a href="#schedule-members" data-b1-nav="schedule-members">'+(m.settings.availability_enabled===false?'Membros — disponibilidade desativada':'Dias e restrições por voluntário')+'</a></p>':''}<p id="rotation-requirements-help">${!m.plan.requirements.length?(simple()?'Comece a escala deste mês para escolher as pessoas, ou use Preencher automaticamente para receber uma proposta.':'Para habilitar o rodízio, gere ou cadastre os eventos e adicione as funções e vagas nas datas. Abra “Preparar eventos e informações da escala” abaixo.'):'O rodízio preenche apenas as vagas vazias. Revise a proposta antes de salvar.'}</p><p role="status" id="b1-feedback">${h(m.feedback||(m.dirty?'Alterações pendentes.':'Nenhuma alteração pendente.'))}</p>${m.error?`<p role="alert">${h(m.error)}</p>`:''}<p>${m.plan.status==='published'?'Publicada':'Rascunho'} · versão ${m.plan.version}. Pré-preencher somente propõe; salvar não publica. ${!window.IASDPISchedulePreview?'Integração de novas escalas com o calendário público aguarda autorização.':''}</p>`}
    ${clean()?'':metricsView(stats)}</section>
    ${simple()&&!m.plan.requirements.length&&editable()&&canStartMonth()?b('Começar escala','start',m.saving?'disabled':''):''}<section class="panel monthly-calendar ${simple()?'simple-daily-calendar':''} monthly-${color}" aria-label="Calendário mensal de ${h(dept.name)}"><h2>${h(monthLabel)}</h2><div class="calendar-weekdays">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<span>${d}</span>`).join('')}</div><div class="monthly-days">${'<span aria-hidden="true"></span>'.repeat(new Date(m.month+'-01T12:00:00Z').getUTCDay())}${calendar}</div></section>
-   ${clean()?`<section class="panel schedule-summary" aria-label="Resumo da escala"><h2>Resumo da escala</h2><p role="status" id="b1-feedback">${h(IASDPIScheduleUI.feedback(m.feedback)||(m.dirty?'Alterações pendentes.':''))}</p>${m.error?`<p role="alert">${h(m.error)}</p>`:''}${metricsView(stats)}</section>`:''}
+   ${clean()?`<section class="panel schedule-summary" aria-label="Resumo da escala"><h2>Resumo da escala</h2><p role="status" id="b1-feedback">${h(IASDPIScheduleUI.feedback(m.feedback)||(m.dirty?'Alterações pendentes.':''))}</p>${m.error?`<p role="alert">${h(m.error)}</p>`:''}${m.rotationReasons?.length?'<div class="schedule-rotation-reasons"><a class="button schedule-secondary" href="#schedule-members" data-b1-nav="schedule-members">Conferir equipe</a>'+IASDPIScheduleUI.help('rotation-empty-reasons',m.rotationReasons.join('; '),'Por que não houve sugestões')+'</div>':''}${metricsView(stats)}</section>`:''}
    ${simple()?'':`<section class="panel" id="monthly-day-details" tabindex="-1"><h2>${displayDate(m.day)} — detalhes</h2>${dayEvents.length?'':'<p>Nenhuma escala prevista nesta data.</p>'}${requirements(m.plan,!editable(),m.day)||'<p>Nenhuma função definida nesta data.</p>'}
    ${editable()&&!simple()?`<fieldset ${m.saving?'disabled':''}><legend>Adicionar função no dia</legend><div class="b1-event-list">${dayEvents.map(e=>`<label class="checkbox"><input type="checkbox" name="event" value="${h(e.id)}" ${m.selected.includes(e.id)?'checked':''}>${h(e.title)}</label>`).join('')}</div><form id="b1-add" class="schedule-grid">${select('Função necessária','role',roles.map(r=>opt(r.id,r.name,m.form.role)).join(''))}${input('Vagas por evento','count',m.form.count,'type="number" min="1" max="100" required')}<button type="submit" ${dayEvents.length&&roles.length?'':'disabled'}>Adicionar função aos eventos selecionados</button></form></fieldset>`:''}</section>`}
    ${distributionTable(stats)}
@@ -296,7 +308,8 @@ window.IASDPIScheduleManagement=(()=>{
   try{
    if(!extra&&!canStartMonth())throw Error('Selecione o mês atual ou um mês do período de planejamento.');
    let result;
-   if(!extra&&m.month===(m.settings.today||'').slice(0,7)){
+   if(!extra&&m.settings.schedule_edit_policy){result=await rpc('iasdpi_schedule_prepare_month',{p_department:m.department,p_month:m.month+'-01',p_request_id:crypto.randomUUID(),p_title:f.title});}
+   else if(!extra&&m.month===(m.settings.today||'').slice(0,7)){
     const weekdays=m.settings.department_weekdays?.[m.department]||m.settings.weekdays,events=[];
     const days=[...new Set([...dates(m.month,weekdays),...(m.settings.extra_dates||[]).filter(day=>day.slice(0,7)===m.month)])].sort();
     for(const day of days)events.push(await rpc('iasdpi_schedule_event_create',{p_id:crypto.randomUUID(),p_data:{department_id:m.department,title:f.title,date:day},p_request_id:crypto.randomUUID()}));
@@ -345,14 +358,14 @@ window.IASDPIScheduleManagement=(()=>{
  document.addEventListener('input',e=>{
   if(state.page!=='schedule-build'||m.saving)return;const field=e.target,form=field.closest('form');if(form)capture(form);
   if(field.name==='planTitle'){m.plan.title=field.value;dirty();}
-  if(field.name==='notes'){const r=m.plan.requirements.find(r=>r.id===field.closest('[data-requirement]')?.dataset.requirement);if(r){r.notes=field.value;dirty();}}
+  if(field.name==='notes'){const r=m.plan.requirements.find(r=>r.id===field.closest('[data-requirement]')?.dataset.requirement);if(r&&canEditDay(m.events.find(e=>e.id===r.event_id)?.scheduled_on)){r.notes=field.value;dirty();}}
   const feedback=document.getElementById('b1-feedback');if(feedback&&m.dirty)feedback.textContent=m.feedback;
  });
  document.addEventListener('change',e=>{
   if(state.page!=='schedule-build'||m.saving)return;const field=e.target,form=field.closest('form');if(form)capture(form);
   if(field.name==='event')m.selected=[...document.querySelectorAll('.b1-event-list input:checked')].map(el=>el.value);
   if(field.hasAttribute('data-music-volunteer')){
-   const row=m.plan.requirements.find(r=>r.id===field.closest('[data-requirement]')?.dataset.requirement);if(!row||!musicTeam(row)||!editable())return;
+   const row=m.plan.requirements.find(r=>r.id===field.closest('[data-requirement]')?.dataset.requirement);if(!row||!musicTeam(row)||!canEditDay(m.events.find(e=>e.id===row.event_id)?.scheduled_on)){redraw();return;}
    m.musicPicker=row.id;
    const existing=row.assignments.find(a=>a.person_id===field.value);
    if(field.checked&&!existing){const reasons=IASDPIScheduleRotation.manualReasons(rotationSource(),row,field.value);if(reasons.length||row.assignments.length>=100){m.error=reasons.join('; ')||'Máximo de 100 pessoas por atividade.';redraw();return;}row.assignments.push({id:crypto.randomUUID(),person_id:field.value,timing_mode:'day',starts_at:null,ends_at:null});}
@@ -361,7 +374,7 @@ window.IASDPIScheduleManagement=(()=>{
    row.required_count=Math.max(1,row.assignments.length);m.day=m.events.find(event=>event.id===row.event_id)?.scheduled_on||m.day;dirty();m.error='';redraw();document.querySelector('[data-requirement="'+row.id+'"] [data-music-volunteer][value="'+field.value+'"]')?.focus({preventScroll:true});return;
   }
   if(field.name==='volunteer'){
-   const r=m.plan.requirements.find(r=>r.id===field.closest('[data-requirement]')?.dataset.requirement),slot=Number(field.dataset.slot);if(!r)return;
+   const r=m.plan.requirements.find(r=>r.id===field.closest('[data-requirement]')?.dataset.requirement),slot=Number(field.dataset.slot);if(!r||!canEditDay(m.events.find(e=>e.id===r.event_id)?.scheduled_on)){redraw();return;}
    const scope=field.closest('.monthly-inline-selectors')?'.monthly-inline-selectors':field.closest('#monthly-day-details')?'#monthly-day-details':'#b1-requirements';
    if(scope==='.monthly-inline-selectors'){m.day=m.events.find(e=>e.id===r.event_id)?.scheduled_on||m.day;m.selected=m.events.filter(e=>e.scheduled_on===m.day).map(e=>e.id);}
    if(field.value){const existing=r.assignments[slot];r.assignments[slot]=existing?.person_id===field.value?existing:{id:crypto.randomUUID(),person_id:field.value,...(m.settings?{timing_mode:'day'}:{})};}
@@ -387,7 +400,7 @@ window.IASDPIScheduleManagement=(()=>{
     if(!m.plan?.requirements.some(r=>r.assignments.length))return;
     const department=lookup('departments',m.department)?.name||'este departamento',month=m.month.slice(5)+'/'+m.month.slice(0,4);
     if(!confirm('Limpar os nomes da escala de '+department+' de '+month+'? Datas, vagas e observações serão mantidas. A limpeza ficará pendente até salvar.'))return;
-    for(const row of m.plan.requirements)row.assignments=[];
+    for(const row of m.plan.requirements)if(canEditDay(m.events.find(e=>e.id===row.event_id)?.scheduled_on))row.assignments=[];
     dirty();m.error='';m.feedback='Nomes removidos. Salve o rascunho para confirmar.';redraw();document.querySelector('[data-b1-action=prefill]')?.focus({preventScroll:true});
    }
    if(action==='prefill'&&editable()&&!musicAutomaticDisabled()){
@@ -395,13 +408,14 @@ window.IASDPIScheduleManagement=(()=>{
     const ticket=m.generation;m.saving=true;m.error='';m.feedback='Consultando disponibilidade, histórico e conflitos…';redraw();
     try{
      const catalog=await rpc('iasdpi_schedule_catalog');if(ticket!==m.generation)return;
-     if(catalog.actor_id!==m.owner||!catalog.departments.some(d=>d.id===m.department&&d.can_manage&&d.active))throw Error('Permissão de gestão mudou. Seu formulário foi preservado.');
+     if(catalog.actor_id!==m.owner||!catalog.departments.some(d=>d.id===m.department&&(d.can_edit??d.can_manage)&&d.active))throw Error('Permissão de gestão mudou. Seu formulário foi preservado.');
      const context=await rpc('iasdpi_schedule_rotation_context',{p_department:m.department,p_month:m.month+'-01'});
      if(ticket!==m.generation)return;
      if(context.department_id!==m.department||context.month!==m.month+'-01')throw Error('Contexto do rodízio inválido; seu formulário foi preservado.');
      m.catalog=catalog;m.context=context;const proposal=IASDPIScheduleRotation.propose(rotationSource());m.plan=proposal.plan;
      if(proposal.added)dirty();
-     m.feedback=`Proposta editável: ${proposal.added} vagas sugeridas; ${vacancies()} pendentes. Atribuições existentes preservadas. Revise antes de salvar ou publicar.`;
+     m.rotationReasons=[];if(!proposal.added&&vacancies()){const reasons=m.plan.requirements.filter(r=>r.assignments.length<r.required_count&&canEditDay(m.events.find(e=>e.id===r.event_id)?.scheduled_on)).flatMap(r=>IASDPIScheduleRotation.candidates(rotationSource(),r).flatMap(c=>c.reasons));m.rotationReasons=[...new Set(reasons)];}
+     m.feedback=proposal.added?`Proposta editável: ${proposal.added} vagas sugeridas; ${vacancies()} pendentes. Atribuições existentes preservadas. Revise antes de salvar ou publicar.`:vacancies()?'0 vagas sugeridas. Nenhuma pessoa elegível.':'0 vagas sugeridas. Nenhuma vaga pendente neste período.';
     }catch(error){m.error=error.message;}finally{m.saving=false;redraw();}
    }
    if(action==='retry')await load();
@@ -471,7 +485,7 @@ window.IASDPIScheduleDailyAdmin=(()=>{
  }
  function settings(){
   const s=m.data.settings,c=m.data.catalog;
-  return `<section class="panel"><form id="daily-settings"><h2>Período de planejamento</h2><label>Quantidade de meses<select name="planning_months">${[1,2,3,6].map(n=>option(n,n+' meses',s.planning_months)).join('')}</select></label><p>Sempre a partir do próximo mês, em America/Sao_Paulo: ${s.future_months.map(displayDate).join(' · ')}. Mudar esta configuração não apaga escalas existentes.</p>${s.department_days_enabled?'<p>Configure os dias na tela de cada departamento.</p>':`<fieldset><legend>Dias usados na geração</legend>${week.map((day,i)=>`<label class="checkbox"><input type="checkbox" name="weekday" value="${i}" ${s.weekdays.includes(i)?'checked':''}> ${day}</label>`).join('')}</fieldset>`}<label>Datas extraordinárias — dd/mm/aaaa, separadas por vírgula<textarea name="extra_dates" rows="2">${h(s.extra_dates.map(displayDate).join(', '))}</textarea></label><button type="submit" ${m.saving?'disabled':''}>Salvar configuração</button></form></section>
+  return `<section class="panel"><form id="daily-settings"><h2>Período de edição das escalas</h2><label>Meses futuros liberados<select name="planning_months">${[1,2,3,6].map(n=>option(n,n+' '+(n===1?'mês':'meses'),s.planning_months)).join('')}</select></label><p>O mês atual fica sempre aberto a partir de hoje. Futuros: ${s.future_months.map(value=>IASDPIScheduleUI.monthLabel(value.slice(0,7))).join(' · ')}.</p>${IASDPIScheduleUI.help('edit-window-settings','Dias encerrados ficam somente para consulta. Esta configuração libera os meses seguintes para criação e edição; a geração do período continua começando no próximo mês, sem apagar escalas existentes.','Como funciona o período de edição')}${s.department_days_enabled?'<p>Configure os dias na tela de cada departamento.</p>':`<fieldset><legend>Dias usados na geração</legend>${week.map((day,i)=>`<label class="checkbox"><input type="checkbox" name="weekday" value="${i}" ${s.weekdays.includes(i)?'checked':''}> ${day}</label>`).join('')}</fieldset>`}<label>Datas extraordinárias — dd/mm/aaaa, separadas por vírgula<textarea name="extra_dates" rows="2">${h(s.extra_dates.map(displayDate).join(', '))}</textarea></label><button type="submit" ${m.saving?'disabled':''}>Salvar configuração</button></form></section>
   <section class="panel"><h2>Autorizar exceção entre departamentos</h2><p>A autorização é por pessoa, data e par de departamentos. Não dispensa habilitação, disponibilidade confirmada ou limite mensal.</p><form id="daily-exception" class="schedule-grid"><label>Pessoa<select name="person_id">${c.people.filter(p=>p.active).map(p=>option(p.id,p.display_name,'')).join('')}</select></label><label>Data — dd/mm/aaaa<input name="day" required placeholder="10/11/2026"></label>${['a','b'].map((key,i)=>`<label>Departamento ${i+1}<select name="department_${key}">${c.departments.filter(d=>d.active).map((d,j)=>option(d.id,d.name,c.departments[i]?.id)).join('')}</select></label>`).join('')}<label>Justificativa<input name="reason" required minlength="10" maxlength="2000"></label><button type="submit" ${m.saving?'disabled':''}>Autorizar exceção</button></form><ul>${m.data.exceptions.map(x=>`<li>${h(displayDate(x.day))} · ${h(c.people.find(p=>p.id===x.person_id)?.display_name||x.person_id)} · ${h(x.reason)} · ${x.enabled?'Ativa':'Revogada'}<small>Autorizada por ${h(x.approved_by)} em ${h(x.approved_at)}</small>${x.enabled?b('Revogar','revoke','data-id="'+h(x.id)+'"'):''}</li>`).join('')||'<li>Nenhuma exceção autorizada.</li>'}</ul></section>`;
  }
  function collect(id,parse=false){const original=m.data.members.find(p=>p.id===id),form=document.getElementById('member-'+id),fd=new FormData(form),flags={};for(let i=0;i<7;i++)flags[i]=fd.has('unavailable_'+i)?'unavailable':fd.has('available_'+i)?'available':'unknown';return {...original,name:String(fd.get('name')),active:fd.has('active'),weekdays:m.data.settings.availability_enabled===false?original.weekdays:flags,raw_dates:m.data.settings.availability_enabled===false?original.raw_dates:String(fd.get('dates')),unavailable_dates:m.data.settings.availability_enabled===false?original.unavailable_dates:parse?dates(String(fd.get('dates'))):original.unavailable_dates,max_monthly_count:fd.get('max_monthly_count')===''?null:Number(fd.get('max_monthly_count'))};}
@@ -568,6 +582,7 @@ window.IASDPIScheduleElders=(()=>{
  }catch(e){if(ticket!==m.generation)return;m.status='error';m.error=e.message;redraw();}}
  function canLeave(){if(m.saving){alert('Aguarde a confirmação da escala de anciãos.');return false;}if(m.pending.size&&!confirm('Descartar somente as alterações de anciãos ainda não salvas?'))return false;m.pending.clear();return true;}
  function periodContents(row,manage,people){
+  manage=manage&&IASDPIScheduleEditWindow.period(row,m.settings);
   const label=displayDate(row.starts_on)+' a '+displayDate(row.ends_on),conflicts=row.person_id?engine.reasons(m.catalog,m.department,row,row.person_id,m.commitments):[],weekly=row.kind==='weekly';
   return `<div class="elder-period-assignment"><label>${weekly?'Ancião da semana':'Ancião do mês'}<select data-elder-person aria-label="${h((weekly?'Ancião da semana':'Ancião do mês')+' · '+label)}" ${!manage||m.saving?'disabled':''}><option value="">A definir</option>${people.map(p=>{const reasons=engine.reasons(m.catalog,m.department,row,p.id,m.commitments);return `<option value="${h(p.id)}" ${row.person_id===p.id?'selected':''} ${reasons.length&&row.person_id!==p.id?'disabled':''}>${h(p.display_name+(reasons.length?' · '+reasons.join('; '):''))}</option>`;}).join('')}</select></label>${clean()?`<div class="elder-period-meta"><small>${h(row.starts_on.slice(8)+'/'+row.starts_on.slice(5,7)+' – '+row.ends_on.slice(8)+'/'+row.ends_on.slice(5,7))} · ${row.status==='published'?'Publicado':'Rascunho'}</small>${IASDPIScheduleUI.help('period-help-'+row.id,'Período: '+label+'. Versão '+row.version+'.'+(row.source_name?' Referência da Agenda: '+row.source_name+'.':'')+(weekly?' Uma única escolha cobre toda a semana, inclusive na virada do mês.':' A escolha mensal é independente da semanal.'),'Detalhes do período '+label)}</div>`:`<small>${h(label)} · ${row.status==='published'?'Publicado':'Rascunho'} · versão ${row.version}</small>`}${!clean()&&row.source_name?`<small>Referência da Agenda: ${h(row.source_name)}. A fonte original não é alterada.</small>`:''}${!clean()&&weekly&&row.starts_on.slice(0,7)!==row.ends_on.slice(0,7)?'<small>A mesma semana aparece nos dois meses, com uma única atribuição.</small>':''}${conflicts.length?`<p role="alert">${h(conflicts.join('; '))}</p>`:''}${row.version?`<button type="button" data-elder-history="${h(engine.key(row))}" ${m.saving?'disabled':''}>Histórico</button>`:''}</div>`;
  }
@@ -593,11 +608,11 @@ window.IASDPIScheduleElders=(()=>{
   <section class="panel" aria-label="${m.kind==='weekly'?'Escala semanal de anciãos':'Escala anual de anciãos por mês'}"><h2>${h(m.kind==='weekly'?new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric',timeZone:'America/Sao_Paulo'}).format(new Date(month+'-01T12:00:00Z')):'Ancião do mês · '+month.slice(0,4))}</h2>${calendar(list,manage,people)}<p class="elder-summary">${filled} de ${list.length} períodos preenchidos.</p>
   <div class="monthly-toolbar schedule-publishbar" aria-label="Salvar e publicar escala de anciãos">${manage?action('Preencher automaticamente','prefill')+action('Limpar escala','clear','class="schedule-clear" '+(!m.saving&&!list.some(r=>r.person_id)?'disabled':''))+action('Salvar '+(m.kind==='weekly'?'semanas':'ano'),'save'):''}${publish?action('Publicar '+(m.kind==='weekly'?'semanas':'ano'),'publish','class="primary"'):''}${action(clean()?'Recarregar escala':'Atualizar períodos','reload')}<a class="button schedule-secondary" href="#schedule-calendar" data-b1-nav="schedule-calendar" data-schedule-month="${h(m.month)}" data-schedule-department="Ancionato">${clean()?'Ver calendário':'Ver no calendário'}</a></div><p role="status" id="elder-feedback">${h(IASDPIScheduleUI.feedback(m.feedback)||(m.pending.size?'Alterações pendentes.':clean()?'':'Nenhuma alteração pendente.'))}</p>${m.error?`<p role="alert">${h(m.error)}</p>`:''}${m.historyKey?`<details class="elder-history" open><summary>Histórico · ${m.historyKey.startsWith('weekly')?'Semana':'Mês'} de ${h(displayDate(m.historyKey.split(':')[1]))}</summary>${m.versions.length?m.versions.map(v=>`<p>Versão ${h(v.version)} · ${v.snapshot.status==='published'?'Publicada':'Rascunho'} · ${h(window.IASDPIRegistry?.personName(m.catalog,v.snapshot.person_id)||m.catalog.people.find(p=>p.id===v.snapshot.person_id)?.display_name||'A definir')}<small>${h(new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'medium',hourCycle:'h23'}).format(new Date(v.captured_at)))} · Autor: ${h(v.actor_id)}</small></p>`).join(''):'<p>Nenhuma versão.</p>'}</details>`:''}${clean()?'':'<p>Salvar e publicar nesta prévia são simulações. Cada aba é salva separadamente; recarregar a página reinicia a demonstração.</p>'}</section>`;
  }
- document.addEventListener('change',e=>{if(!e.target.matches('[data-elder-person]')||m.saving)return;const key=e.target.closest('[data-elder-period]').dataset.elderPeriod,row=m.pending.get(key)||m.rows.find(r=>engine.key(r)===key);if(!row)return;m.pending.set(key,{...row,person_id:e.target.value||null});m.error='';m.feedback='Alterações pendentes.';redraw();document.querySelector('[data-elder-period="'+key+'"] select')?.focus({preventScroll:true});});
+ document.addEventListener('change',e=>{if(!e.target.matches('[data-elder-person]')||m.saving)return;const key=e.target.closest('[data-elder-period]').dataset.elderPeriod,row=m.pending.get(key)||m.rows.find(r=>engine.key(r)===key);if(!row||!IASDPIScheduleEditWindow.period(row,m.settings)){redraw();return;}m.pending.set(key,{...row,person_id:e.target.value||null});m.error='';m.feedback='Alterações pendentes.';redraw();document.querySelector('[data-elder-period="'+key+'"] select')?.focus({preventScroll:true});});
  async function save(status){
   const d=m.catalog?.departments.find(d=>d.id===m.department);if(!d||!(status==='published'?(d.can_publish??d.can_manage):(d.can_edit??d.can_manage)))throw Error('Sem permissão para esta ação do Ancionato.');
   if(status==='published'&&!confirm(clean()?'Publicar os períodos desta aba?':'Publicar somente esta escala de anciãos na demonstração? A outra aba não será alterada.'))return;
-  const changes=rows().filter(r=>status==='published'||m.pending.has(engine.key(r)));if(!changes.length){m.feedback='Nenhuma alteração para salvar nesta aba.';redraw();return;}
+  const changes=rows().filter(r=>IASDPIScheduleEditWindow.period(r,m.settings)&&(status==='published'||m.pending.has(engine.key(r))));if(!changes.length){m.feedback='Nenhuma alteração para salvar nesta aba.';redraw();return;}
   const signature=JSON.stringify({department:m.department,status,changes});if(m.signature&&m.signature!==signature)m.request=crypto.randomUUID();m.signature=signature;
   m.saving=true;m.error='';m.feedback='Aguardando confirmação…';redraw();try{
    const result=await rpc('iasdpi_schedule_elder_save',{p_department:m.department,p_status:status,p_rows:changes.map(r=>({id:r.id,kind:r.kind,starts_on:r.starts_on,ends_on:r.ends_on,person_id:r.person_id,expected_version:r.version})),p_request_id:m.request});
@@ -617,13 +632,13 @@ window.IASDPIScheduleElders=(()=>{
   if(b.dataset.elderAction==='reload'&&canLeave())await load();
   if(b.dataset.elderAction==='clear'){
    if(!m.catalog.departments.some(d=>d.id===m.department&&d.active&&(d.can_edit??d.can_manage)))return;
-   const filled=rows().filter(r=>r.person_id);if(!filled.length)return;
+   const filled=rows().filter(r=>r.person_id&&IASDPIScheduleEditWindow.period(r,m.settings));if(!filled.length)return;
    const scope=m.kind==='weekly'?'das semanas exibidas em '+m.month.slice(5)+'/'+m.month.slice(0,4):'dos 12 meses de '+m.month.slice(0,4),other=m.kind==='weekly'?'A escala mensal':'A escala semanal';
    if(!confirm('Limpar os nomes '+scope+'? '+other+' será preservada. A limpeza ficará pendente até salvar.'))return;
    for(const row of filled)m.pending.set(engine.key(row),{...row,person_id:null});
    m.error='';m.feedback='Nomes removidos. Salve para confirmar.';redraw();document.querySelector('[data-elder-action=prefill]')?.focus({preventScroll:true});
   }
-  if(b.dataset.elderAction==='prefill'){const proposal=engine.propose(rows(),m.catalog,m.department,m.commitments,m.history.filter(r=>r.kind===m.kind));for(const row of proposal.rows)if(row.person_id!==(m.pending.get(engine.key(row))||m.rows.find(r=>engine.key(r)===engine.key(row)))?.person_id)m.pending.set(engine.key(row),row);m.feedback=`Proposta editável: ${proposal.added} períodos sugeridos. Revise antes de salvar.`;redraw();}
+  if(b.dataset.elderAction==='prefill'){const proposal=engine.propose(rows().filter(r=>IASDPIScheduleEditWindow.period(r,m.settings)),m.catalog,m.department,m.commitments,m.history.filter(r=>r.kind===m.kind));for(const row of proposal.rows)if(row.person_id!==(m.pending.get(engine.key(row))||m.rows.find(r=>engine.key(r)===engine.key(row)))?.person_id)m.pending.set(engine.key(row),row);m.feedback=`Proposta editável: ${proposal.added} períodos sugeridos. Revise antes de salvar.`;redraw();}
   if(b.dataset.elderAction==='save'||b.dataset.elderAction==='publish')await save(b.dataset.elderAction==='publish'?'published':'draft');
  })().catch(error=>{m.error=error.message;redraw();});});
  window.addEventListener('beforeunload',e=>{if(m.pending.size||m.saving){e.preventDefault();e.returnValue='';}});
