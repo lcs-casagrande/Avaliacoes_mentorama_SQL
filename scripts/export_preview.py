@@ -25,8 +25,10 @@ parser.add_argument('--department-days-preview',action='store_true',help='G7: di
 parser.add_argument('--registry-preview',action='store_true',help='G8.2: cadastro central integrado em demonstração isolada.')
 parser.add_argument('--registry-consolidation-preview',action='store_true',help='G8.3: auditoria e lacunas do cadastro central em prévia isolada.')
 parser.add_argument('--registry-identities-preview',action='store_true',help='G8.4: nomes confirmados e conciliação administrativa, sem rede externa.')
+parser.add_argument('--calendar-privacy-preview',action='store_true',help='Classificação e privacidade simuladas: eventos abertos e Ancionato públicos, demais escalas com login fictício.')
 parser.add_argument('--events-preview',action='store_true',help='E1: calendário unificado e gestão de eventos com acesso simulado, sem Supabase real.')
 args = parser.parse_args()
+if args.calendar_privacy_preview:args.events_preview=True
 if args.events_preview:
     args.registry_identities_preview=True
 if args.registry_identities_preview:
@@ -92,7 +94,7 @@ for name in ('config.js', 'churches.js', 'storage.js', 'supabase-2.118.0.js', 'a
             mode = ",remoteReadOnly:true,environment:'validation',storageNamespace:'iasdpi-schedule-preview-v1'"
         script += "\nwindow.IASDPIConfig=Object.freeze({...window.IASDPIConfig,storageMode:'browser'" + mode + "});\n"
     if name == 'config.js' and args.events_preview:
-        script+='\nwindow.IASDPIConfig=Object.freeze({...IASDPIConfig,eventsEnabled:true});'
+        script+='\nwindow.IASDPIConfig=Object.freeze({...IASDPIConfig,eventsEnabled:true,calendarPrivacyEnabled:'+str(args.calendar_privacy_preview).lower()+'});'
     if name == 'app.js' and args.events_preview:
         script+='\n'+(root/'tests/fixtures/events-preview.js').read_text()
     script = script.replace('</script', '<\\/script')
@@ -124,6 +126,7 @@ if args.events_preview:
         html=html.replace(old,new)
     html=html.replace('iasdpi-registry-g84-preview-v1','iasdpi-events-e1-preview-v1')
     html=html.replace('IASDPI · G8.4 — Cadastro Geral de Membros','IASDPI · Calendário e Eventos')
+if args.calendar_privacy_preview:html=html.replace('iasdpi-events-e1-preview-v1','iasdpi-calendar-privacy-preview-v1')
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(html, encoding='utf-8')
 with ZipFile(args.output.with_suffix('.zip'), 'w', ZIP_DEFLATED) as archive:

@@ -4,7 +4,7 @@ Data: 04/11/2026, America/Sao_Paulo. Branch: `feat/schedule-management-b1`.
 
 ## Escopo e arquitetura
 
-O calendário aprovado agora combina Escalas, Eventos da Igreja e Eventos de Departamentos. As três categorias podem ser combinadas; os filtros existentes de pessoas/departamentos continuam restritos às escalas. Não há filtro individual de eventos por departamento. Um dia pode conter várias escalas e eventos; detalhes, local, descrição e categoria ficam na seleção da data.
+O calendário combina escalas e eventos nos modos Tudo, Escalas e Eventos. O painel Filtros contém seleção múltipla de departamentos; em Escalas, também pessoas com pesquisa interna; em Eventos, categorias. Seleções no mesmo filtro usam OU; filtros distintos usam E. Sem seleção, todas as opções são consideradas. Trocar de modo limpa seleções que deixam de ser aplicáveis; navegar entre meses as preserva. Um dia pode conter várias escalas e eventos; detalhes, local, descrição e categoria ficam na seleção da data. A lista de pessoas usa somente nomes já autorizados nas fontes públicas, sem consultar cadastros pessoais privados. A opção provisória Evento Local foi substituída pelo novo pedido de classificação, cuja análise de impacto está em [event-classification-impact.md](event-classification-impact.md). A migração 020 e os registros existentes continuam preservados. A implementação local e a migração 021 estão descritas em [calendar-privacy-activation.md](calendar-privacy-activation.md), sem ativação no Supabase real.
 
 A Gestão de Eventos reutiliza a igreja selecionada, Auth, capacidades ministeriais, navegação, componentes e chamadas RPC existentes. Permite criar, editar, salvar rascunho, publicar, cancelar e consultar versões. Não vincula eventos automaticamente a escalas nem muda programações de cultos. Cronoanálise e seus horários foram preservados.
 
@@ -75,7 +75,7 @@ python scripts/prepare_integrated_review.py --events --historical-site /CAMINHO/
 
 ## Roteiro do revisor
 
-1. Sem login, abrir Calendário, outubro/2026, combinar as três categorias e selecionar 10/10; conferir escalas, anciãos e eventos sem duplicar o original.
+1. Sem login, abrir Calendário, outubro/2026, alternar Tudo/Escalas/Eventos, combinar seleções no painel Filtros e selecionar 10/10; conferir escalas, anciãos e eventos sem duplicar o original.
 2. Abrir Montar escala para selecionar IASD_PI e entrar com `admin.iasdpi`; acessar Gestão de Eventos.
 3. Conferir eventos da Agenda, selecionar outubro, revisar uma fonte. Salvar rascunho; confirmar que ainda não foi publicado como novo evento.
 4. Confirmar categoria/departamento e publicar. Voltar ao Calendário: a fonte vinculada deve ser substituída pela publicação, mantendo uma entrada.

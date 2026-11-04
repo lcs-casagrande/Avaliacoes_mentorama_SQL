@@ -1,0 +1,9 @@
+-- Somente leitura, como postgres, após 021. Retorna apenas irregularidades.
+WITH checks AS(
+ SELECT 'colunas' item WHERE (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='iasdpi_events' AND column_name IN('program_category','organizer_kind','audience','is_restricted','organizer_department_id'))<>5
+ UNION ALL SELECT 'anon executa RPC privada: '||sig FROM (VALUES('public.iasdpi_events_visible(date)'),('public.iasdpi_schedule_visible(date)')) f(sig) WHERE to_regprocedure(sig) IS NULL OR has_function_privilege('anon',to_regprocedure(sig),'execute')
+ UNION ALL SELECT 'helper exposto: '||sig FROM (VALUES('iasdpi_schedule_private.calendar_events_feed(date,boolean)'),('iasdpi_schedule_private.published_before_privacy(date)'),('iasdpi_schedule_private.registry_before_privacy()')) f(sig) WHERE to_regprocedure(sig) IS NULL OR has_function_privilege('authenticated',to_regprocedure(sig),'execute') OR has_function_privilege('anon',to_regprocedure(sig),'execute')
+ UNION ALL SELECT 'função sem proteção: '||p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN('iasdpi_events_visible','iasdpi_schedule_visible','iasdpi_events_published','iasdpi_schedule_published','iasdpi_registry_public','iasdpi_event_save') AND (p.proowner<>'iasdpi_church_executor'::regrole OR NOT p.prosecdef OR NOT 'search_path=""'=ANY(coalesce(p.proconfig,'{}')))
+ UNION ALL SELECT 'RLS/grant divergente' WHERE NOT EXISTS(SELECT 1 FROM pg_class WHERE oid='public.iasdpi_events'::regclass AND relrowsecurity AND relforcerowsecurity) OR has_table_privilege('anon','public.iasdpi_events','SELECT,INSERT,UPDATE,DELETE') OR has_table_privilege('authenticated','public.iasdpi_events','SELECT,INSERT,UPDATE,DELETE')
+)
+SELECT * FROM checks ORDER BY item;

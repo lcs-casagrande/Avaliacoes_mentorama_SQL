@@ -234,3 +234,46 @@ input,select,textarea{border-color:#7a8790}input::placeholder,textarea::placehol
 .event-form-fields{border:0;padding:0;margin:0;min-width:0}
 #event-editor .actions button{word-break:normal;overflow-wrap:normal}
 @media(max-width:600px){#event-editor .actions button{flex:1 1 140px}}
+
+/* Filtros do calendário unificado: seleções adicionais recolhidas. */
+.calendar-filter-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 14px;flex-wrap:wrap}
+.calendar-modes{display:flex;gap:4px;background:#edf1f3;border-radius:9px;padding:4px;min-width:0}
+.calendar-modes button{white-space:nowrap;overflow-wrap:normal;background:transparent;border-color:transparent;font-size:14px;padding:9px 16px}
+.calendar-modes button[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:#fff}
+#calendar-filters-toggle{display:inline-flex;align-items:center;gap:8px;min-width:106px;font-size:14px}
+#calendar-filters-toggle svg{width:18px;height:18px;flex:0 0 18px}
+#calendar-filters-toggle[aria-expanded=true]{background:#e8f0f5;border-color:#8ba7bb}
+.calendar-refine-panel{padding:18px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;margin-bottom:14px;min-width:0}
+.calendar-refine-panel h3{font-size:18px;margin-bottom:14px}
+.calendar-filter-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.calendar-filter-fields>:only-child{grid-column:1/-1;max-width:480px;width:100%}
+.calendar-multiselect{min-width:0;margin:0;border:1px solid #c9d4dc;border-radius:8px;background:white}
+.calendar-multiselect summary{min-height:48px;display:flex;align-items:center;gap:10px;padding:10px 12px;font-size:14px;cursor:pointer;list-style:none;border-radius:8px}
+.calendar-multiselect summary::-webkit-details-marker{display:none}
+.calendar-multiselect summary>span:first-child{flex:1;min-width:0}
+.calendar-filter-count{font-size:12px;color:var(--muted);font-weight:400;white-space:nowrap}
+.calendar-options-panel{padding:6px 10px 10px;border-top:1px solid var(--line);min-width:0}
+.calendar-options{max-height:240px;overflow-y:auto;overscroll-behavior:contain}
+.calendar-refine-panel .calendar-check-option{display:flex;flex-direction:row;text-align:left;justify-content:flex-start;gap:10px;align-items:center;min-height:44px;margin:0;padding:8px 4px;font-size:14px;line-height:1.4;cursor:pointer;font-weight:400}
+.calendar-check-option input[type=checkbox]{width:18px;height:18px;flex:0 0 18px;margin:0;padding:0;accent-color:var(--blue)}
+.calendar-check-option span{min-width:0;overflow-wrap:break-word}
+.calendar-person-search{display:block;font-size:13px;margin:6px 0 10px}
+.calendar-person-search input{width:100%;min-width:0;font-size:16px;margin:6px 0 0}
+.calendar-filter-hint,.calendar-option-note,.calendar-search-empty{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0}
+.calendar-filter-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.calendar-filter-actions button{font-size:13px;padding:9px 12px}
+.calendar-filter-actions button:last-child{margin-left:auto}
+.calendar-active-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 14px}
+.calendar-filter-chip{display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:5px 9px;background:#edf3f7;border-color:#d1dee7;font-size:12px;font-weight:500;max-width:100%}
+.calendar-filter-chip>span:first-child{max-width:25ch;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calendar-refine-panel[hidden],.calendar-check-option[hidden],.calendar-search-empty[hidden]{display:none}
+@media(max-width:600px){.calendar-filter-toolbar{gap:8px}.calendar-modes{flex:1}.calendar-modes button{flex:1 1 auto;padding:9px 7px;font-size:12px}#calendar-filters-toggle{padding:10px;min-width:0;font-size:13px}.calendar-refine-panel{padding:12px}.calendar-filter-fields{grid-template-columns:minmax(0,1fr)}.calendar-filter-fields>:only-child{max-width:none}.calendar-filter-actions button{flex:1 1 110px}.calendar-filter-actions button:last-child{margin-left:0}.calendar-filter-chip{min-height:36px}}
+
+/* Atalhos de departamentos compartilham a seleção do painel Filtros. */
+.calendar-quick-departments{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 14px;min-width:0}
+.calendar-quick-departments button{min-height:44px;padding:8px 12px;font-size:12px;gap:6px;border-radius:7px;white-space:normal;word-break:normal}
+.calendar-quick-filter[aria-pressed=true]{font-weight:700;box-shadow:inset 0 0 0 1px currentColor}
+.calendar-quick-all[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:white}
+@media(max-width:600px){.calendar-quick-departments{gap:6px}.calendar-quick-departments button{padding:8px;font-size:12px}}
+
+.calendar-login-reminder{display:inline-flex;align-items:center;min-height:44px;padding:4px;font-size:12px;font-weight:400;line-height:1.4;color:var(--blue);text-decoration:underline;text-underline-offset:3px}

@@ -24,18 +24,18 @@ class EventBrowserTests(unittest.TestCase):
     def save(self,status='draft'):
         self.page.locator('#event-editor button[value='+status+']').click();self.page.wait_for_function("()=>!document.querySelector('#event-editor[aria-busy=true]')&&(document.querySelector('#event-save-state')?.textContent.toLowerCase().includes('confirm')||document.querySelector('#app [role=alert]'))")
     def calendar(self):
-        self.go('schedule-calendar');self.page.wait_for_selector('.scale-calendar');self.page.evaluate("()=>{IASDPIScheduleCalendar.show({month:'2026-10'});render();}");self.page.wait_for_function("()=>!document.querySelector('.event-categories')?.nextElementSibling?.textContent.includes('Carregando eventos')")
+        self.go('schedule-calendar');self.page.wait_for_selector('.scale-calendar');self.page.evaluate("()=>{IASDPIScheduleCalendar.show({month:'2026-10'});render();}");self.page.wait_for_function("()=>![...document.querySelectorAll('[role=status]')].some(e=>/Carregando (eventos|escalas) gerenciad|Carregando escalas publicadas/.test(e.textContent))")
     def test_real_sources_twenty_assignments_seventeen_october_events_and_elders(self):
         self.calendar();self.assertEqual(self.page.evaluate('IASDPIScheduleCalendar.legacy().length'),20)
         self.assertEqual(self.page.evaluate("IASDPIEvents.sources().filter(e=>e.date.startsWith('2026-10')).length"),17)
         self.assertGreater(self.page.locator('.event-chip').count(),0);self.assertGreater(self.page.locator('.scale-band').count(),0)
-        self.assertEqual(self.page.locator('[data-event-category]').all_text_contents(),['Escalas','Eventos da Igreja','Eventos de Departamentos'])
+        self.assertEqual(self.page.locator('[data-calendar-mode]').all_text_contents(),['Tudo','Escalas','Eventos'])
     def test_category_filters_combine_and_scale_filters_do_not_hide_events(self):
-        self.calendar();count=self.page.locator('.event-chip').count();self.page.locator('[data-event-category=scales]').click();self.assertEqual(self.page.locator('.scale-chip,.scale-band,.scale-monthly').count(),0);self.assertEqual(self.page.locator('.event-chip').count(),count)
-        self.page.locator('[data-event-category=church]').click();self.page.locator('[data-event-category=department]').click();self.assertEqual(self.page.locator('.event-chip').count(),0)
-        self.page.locator('[data-event-category=department]').click();self.assertGreater(self.page.locator('.event-chip').count(),0)
-        self.page.locator('[data-scale-action=all]').click();self.assertGreater(self.page.locator('.event-chip').count(),0)
-        self.page.locator('[data-scale-action=next]').click();self.assertEqual(self.page.locator('[data-event-category=scales]').get_attribute('aria-pressed'),'false')
+        self.calendar();count=self.page.locator('.event-chip').count()
+        self.page.locator('[data-calendar-mode=scales]').click();self.assertEqual(self.page.locator('.event-chip').count(),0);self.assertGreater(self.page.locator('.scale-chip').count(),0)
+        self.page.locator('[data-calendar-mode=events]').click();self.assertEqual(self.page.locator('.scale-chip,.scale-band,.scale-monthly').count(),0);self.assertEqual(self.page.locator('.event-chip').count(),count)
+        self.page.locator('[data-calendar-mode=all]').click();self.assertGreater(self.page.locator('.scale-chip').count(),0)
+        self.page.locator('[data-scale-action=next]').click();self.assertEqual(self.page.locator('[data-calendar-mode=all]').get_attribute('aria-pressed'),'true')
     def test_aliases_iasdpi_use_same_profiles_and_old_test_alias_is_not_login(self):
         names=self.page.evaluate('IASDPIG4Demo.accounts().map(a=>a.alias)')
         for alias in ['admin.iasdpi','som.iasdpi','musica.iasdpi','anciao.iasdpi','multi.iasdpi','leitura.iasdpi']:self.assertIn(alias,names)
@@ -75,7 +75,7 @@ class EventBrowserTests(unittest.TestCase):
         self.calendar();self.page.locator('[data-scale-action=day][data-date="2026-10-10"]').click();self.assertGreater(self.page.locator('#scale-selected .event-details').count(),1)
         self.assertNotRegex(self.page.locator('#scale-selected').inner_text(),r'\b(?:AM|PM)\b')
         for width in [360,390,768,1024,1440]:self.page.set_viewport_size({'width':width,'height':900});self.assertLessEqual(self.page.evaluate('document.documentElement.scrollWidth'),width)
-        self.page.locator('[data-event-category=church]').focus();self.page.keyboard.press('Space');self.assertEqual(self.page.locator('[data-event-category=church]').get_attribute('aria-pressed'),'false')
+        self.page.locator('[data-calendar-mode=events]').focus();self.page.keyboard.press('Space');self.assertEqual(self.page.locator('[data-calendar-mode=events]').get_attribute('aria-pressed'),'true')
         self.login();self.form('Evento com título extenso para conferir a apresentação em dispositivos móveis')
         out=base.ROOT/'dist/events-e1';out.mkdir(parents=True,exist_ok=True)
         for width,label in [(390,'mobile'),(1440,'desktop')]:

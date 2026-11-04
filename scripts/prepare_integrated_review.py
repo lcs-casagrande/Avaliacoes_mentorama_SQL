@@ -94,12 +94,13 @@ def validate(folder):
         raise ValueError('Credencial ou referência ao Supabase real no pacote.')
     if set(re.findall(r'sb_publishable_[A-Za-z0-9_-]+', text)) != {FAKE_KEY}:
         raise ValueError('Somente o identificador explicitamente fictício do simulador é permitido.')
-    if ('iasdpi-events-e1-review-v1' if manifest.get('events') else NAMESPACE) not in text or 'Alterações temporárias: reiniciam ao recarregar' not in text:
+    if ('iasdpi-calendar-privacy-review-v1' if manifest.get('calendar_privacy') else 'iasdpi-events-e1-review-v1' if manifest.get('events') else NAMESPACE) not in text or 'Alterações temporárias: reiniciam ao recarregar' not in text:
         raise ValueError('Isolamento ou identificação da demonstração ausente.')
     return manifest
 
 
-def prepare(output, historical_site, events=False):
+def prepare(output, historical_site, events=False, privacy=False):
+    if privacy:events=True
     output, historical_site = Path(output), Path(historical_site)
     if output.exists():
         raise ValueError('Destino já existe; nenhum arquivo será sobrescrito.')
@@ -120,22 +121,24 @@ def prepare(output, historical_site, events=False):
         if events and target.exists() and not (stage/'integrada-g84').exists():
             shutil.copytree(target,stage/'integrada-g84')
         target.mkdir(exist_ok=events)
-        subprocess.run([sys.executable, str(ROOT / 'scripts/export_preview.py'), '--events-preview' if events else '--registry-identities-preview', '--output', str(target / 'index.html')], cwd=ROOT, check=True, capture_output=True)
+        subprocess.run([sys.executable, str(ROOT / 'scripts/export_preview.py'), '--calendar-privacy-preview' if privacy else '--events-preview' if events else '--registry-identities-preview', '--output', str(target / 'index.html')], cwd=ROOT, check=True, capture_output=True)
         # O ZIP local de revisão não pertence à publicação estática.
         (target / 'index.zip').unlink()
-        namespace='iasdpi-events-e1-review-v1' if events else NAMESPACE
-        text = (target / 'index.html').read_text().replace('iasdpi-registry-g84-preview-v1', namespace).replace('iasdpi-events-e1-preview-v1',namespace)
+        namespace='iasdpi-calendar-privacy-review-v1' if privacy else 'iasdpi-events-e1-review-v1' if events else NAMESPACE
+        text = (target / 'index.html').read_text().replace('iasdpi-registry-g84-preview-v1', namespace).replace('iasdpi-events-e1-preview-v1',namespace).replace('iasdpi-calendar-privacy-preview-v1',namespace)
         banner=BANNER if not events else '<aside class="review-banner" aria-label="Ambiente de homologação"><strong>IASDPI · Homologação</strong><p>Acesso simulado. Alterações temporárias: reiniciam ao recarregar.</p><a href="../">Início</a> · <a href="LEIA-ME.md">Ajuda e acessos</a></aside>'
         text = text.replace('</head>', STYLE + '</head>').replace('<body>', '<body>' + banner, 1)
         (target / 'index.html').write_text(text)
         guide=GUIDE if not events else GUIDE.replace('Esta prévia preserva G8.4; para Eventos e Calendário Unificado, gere com --events.','E1: Gestão de Eventos e Calendário Unificado. Abra Gestão de Eventos após entrar. A Agenda oficial é reutilizada; importar exige revisão administrativa e cria rascunho.').replace('.teste','.iasdpi')
+        if privacy:guide+='\nSem login: eventos não restritos e Ancionato. Demais escalas exigem login simulado e permissão. Gestão de Eventos separa classificação, organizador, público-alvo e Restrito. O simulador estático não oferece privacidade real; suas identidades são fictícias e os dados estão no HTML. Não publicar informações confidenciais nesta prévia. A proteção operacional depende da migração 021 e do Supabase Auth reais.\n'
+        if privacy:guide+='\n## Testar criação de escala com o administrador\n\n1. Abra Montar escala, escolha IASD_PI e entre com admin.iasdpi / Demonstracao#2026 (acesso exclusivamente fictício).\n2. Em Meus departamentos, escolha Sonoplastia e um mês futuro para testar.\n3. Para testar o preenchimento automático, abra Cadastro Geral, selecione Sonoplastia, confirme a participação e a função de uma pessoa de teste e marque os dias confirmados somente nesta demonstração. Sem confirmação, o rodízio mantém as vagas pendentes.\n4. Volte a Montar escala, use Preencher automaticamente ou escolha as pessoas nos dias. Salvar rascunho e Publicar são ações separadas.\n5. Confira o resultado no Calendário enquanto estiver logado. Após Sair, escalas de Sonoplastia deixam de aparecer; Ancionato e eventos não restritos permanecem públicos.\n6. Atualizar a página reinicia esta demonstração. As ações não gravam no Supabase e não validam a autenticação real.\n'
         (target / 'LEIA-ME.md').write_text(guide)
         commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         manifest = {'environment': 'isolated-demo', 'database_connected': False, 'remote_requests_allowed': False,
                     'temporary_edits': True, 'source_branch': 'feat/schedule-management-b1', 'source_commit': commit,
                     'source_dirty': bool(subprocess.check_output(['git', '--no-optional-locks', 'status', '--porcelain'], cwd=ROOT)),
                     'features': ['portal', 'agenda', 'organograma', 'cadastro-geral', 'escalas', 'rodizio', 'conflitos', 'acessos-demonstrativos'],
-                    'excluded': [] if events else ['E1'], 'events':events,'files': {name: sha(target / name) for name in sorted(FILES)}}
+                    'excluded': [] if events else ['E1'], 'events':events,'calendar_privacy':privacy,'files': {name: sha(target / name) for name in sorted(FILES)}}
         if events:manifest['features'].append('events')
         (target / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
         validate(target)
@@ -161,6 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('--historical-site', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--events', action='store_true',help='Atualiza a integrada com E1, preservando a versão G8.4.')
+    parser.add_argument('--privacy',action='store_true',help='Prévia da classificação e privacidade 021; autenticação simulada.')
     args = parser.parse_args()
-    prepare(args.output, args.historical_site, args.events)
+    prepare(args.output, args.historical_site, args.events,args.privacy)
     print(args.output / 'integrada/')

@@ -232,7 +232,11 @@ if __name__ == '__main__':
             prefix = 'window.IASDPIAgendaData = '
             if not old.startswith(prefix):
                 raise ValueError('Snapshot anterior não reconhecido; revisar sem sobrescrever.')
-            preserve_event_ids(payload, json.loads(old[len(prefix):].strip().rstrip(';')))
+            prior=json.loads(old[len(prefix):].strip().rstrip(';'))
+            preserve_event_ids(payload,prior)
+            if prior.get('privacyProjection')=='elders-only-v1':
+                payload['events']=[e for e in payload['events'] if e.get('kind') in ['weekly','monthly']]
+                payload['privacyProjection']='elders-only-v1'
         content = 'window.IASDPIAgendaData = ' + json.dumps(payload, ensure_ascii=False).replace('<', '\\u003c') + ';\n'
         temporary = args.output.with_suffix('.tmp')
         temporary.write_text(content, encoding='utf-8')

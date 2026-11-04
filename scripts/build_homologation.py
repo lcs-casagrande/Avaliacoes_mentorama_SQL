@@ -1,5 +1,9 @@
 """Prepara somente arquivos estáticos revisáveis; não faz commit/push/deploy."""
 import argparse
+try:
+    from calendar_privacy import sanitize as calendar_public_assets, validate as validate_calendar_public
+except ModuleNotFoundError:
+    from scripts.calendar_privacy import sanitize as calendar_public_assets, validate as validate_calendar_public
 import hashlib
 import base64
 import json
@@ -133,6 +137,7 @@ def _validate_contents(contents, manifest):
         if re.search(rb'sb_secret_[A-Za-z0-9_-]{10,}|-----BEGIN (?:RSA |EC )?PRIVATE KEY-----|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', contents[name]):
             raise ValueError('Material secreto no pacote: ' + name)
     _agenda(contents['agenda-data.js'])
+    if manifest.get('calendar_privacy'):validate_calendar_public(contents)
     html = _PackageHTML(contents)
     try:
         html.feed(contents['index.html'].decode('utf-8'))
@@ -223,6 +228,8 @@ def build_rollback(output, target_site, current_site):
     target, current = Path(target_site), Path(current_site)
     before = validate_package(target)
     now = validate_package(current)
+    if now.get('calendar_privacy') and not before.get('calendar_privacy'):
+        raise ValueError('Rollback recusado: pacote anterior voltaria a expor escalas privadas.')
     for name in ('site_url', 'environment', 'storage_namespace'):
         if before.get(name) != now.get(name):
             raise ValueError('Rollback de outro site/ambiente recusado.')
@@ -261,10 +268,14 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
         if not real_homologation or not isinstance(public_config,dict):
             raise ValueError('Configuração alternativa exige homologação real explícita.')
         cfg = dict(public_config)
-    if not {'supabaseUrl', 'supabasePublishableKey'} <= set(cfg) or set(cfg) - {'supabaseUrl', 'supabasePublishableKey', 'eventsEnabled', 'churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled', 'portalAccessEnabled', 'centralRegistryEnabled'} or type(cfg.get('churchIsolationEnabled',False)) is not bool or type(cfg.get('aliasLoginEnabled',False)) is not bool or (cfg.get('aliasLoginEnabled') and not cfg.get('churchIsolationEnabled')) or type(cfg.get('governanceEnabled',False)) is not bool or (cfg.get('governanceEnabled') and not (cfg.get('churchIsolationEnabled') and cfg.get('aliasLoginEnabled'))) or type(cfg.get('portalAccessEnabled',False)) is not bool or (cfg.get('portalAccessEnabled') and not cfg.get('governanceEnabled')) or type(cfg.get('centralRegistryEnabled',False)) is not bool or (cfg.get('centralRegistryEnabled') and not cfg.get('portalAccessEnabled')):
+    if not {'supabaseUrl', 'supabasePublishableKey'} <= set(cfg) or set(cfg) - {'supabaseUrl', 'supabasePublishableKey', 'eventsEnabled', 'calendarPrivacyEnabled', 'churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled', 'portalAccessEnabled', 'centralRegistryEnabled'} or type(cfg.get('churchIsolationEnabled',False)) is not bool or type(cfg.get('aliasLoginEnabled',False)) is not bool or (cfg.get('aliasLoginEnabled') and not cfg.get('churchIsolationEnabled')) or type(cfg.get('governanceEnabled',False)) is not bool or (cfg.get('governanceEnabled') and not (cfg.get('churchIsolationEnabled') and cfg.get('aliasLoginEnabled'))) or type(cfg.get('portalAccessEnabled',False)) is not bool or (cfg.get('portalAccessEnabled') and not cfg.get('governanceEnabled')) or type(cfg.get('centralRegistryEnabled',False)) is not bool or (cfg.get('centralRegistryEnabled') and not cfg.get('portalAccessEnabled')):
         raise ValueError('Revisar os campos da configuração antes de gerar o site.')
     if type(cfg.get('eventsEnabled',False)) is not bool or cfg.get('eventsEnabled') and not cfg.get('portalAccessEnabled'):
         raise ValueError('Eventos exigem portal autorizado e flag booleana.')
+    if type(cfg.get('calendarPrivacyEnabled',False)) is not bool or cfg.get('calendarPrivacyEnabled') and not cfg.get('eventsEnabled'):
+        raise ValueError('Privacidade do calendário exige Eventos e migração 021.')
+    if previous_site and bool(old_manifest.get('calendar_privacy')) != bool(cfg.get('calendarPrivacyEnabled')):
+        raise ValueError('Mudança de privacidade exige pacote limpo, sem reter recursos públicos antigos.')
     if not re.fullmatch(r'https://[a-z0-9]+\.supabase\.co', cfg['supabaseUrl']):
         raise ValueError('URL Supabase inválida.')
     if not re.fullmatch(r'sb_publishable_[A-Za-z0-9_-]{20,100}', cfg['supabasePublishableKey']):
@@ -291,6 +302,7 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
         agenda = Path(previous_site) / 'agenda-data.js'
     if agenda:
         contents['agenda-data.js'] = Path(agenda).read_bytes()
+    if cfg.get('calendarPrivacyEnabled'):contents=calendar_public_assets(contents)
     _agenda(contents['agenda-data.js'])
     legacy = {}
     retained = immutable_assets(previous_site)
@@ -337,7 +349,7 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
     contents.update(legacy)
     contents.update(retained)
     contents['index.html'] = html.encode()
-    manifest = {'manifest_version': 6, 'environment': cfg['environment'], 'site_url': site_url,
+    manifest = {'calendar_privacy':bool(cfg.get('calendarPrivacyEnabled')),'manifest_version': 6, 'environment': cfg['environment'], 'site_url': site_url,
                 'remote_read_only': cfg['remoteReadOnly'], 'storage_namespace': cfg['storageNamespace'],
                 'asset_strategy': 'immutable-bundle-sri-v1', 'legacy_compatibility_ready': bool(previous_site),
                 'mutable_assets': ['agenda-data.js'],
@@ -345,6 +357,7 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
                 'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                 'source_has_uncommitted_changes': bool(subprocess.check_output(['git', '--no-optional-locks', 'status', '--porcelain'], cwd=ROOT)),
                 'files': {name: hashlib.sha256(value).hexdigest() for name, value in contents.items()}}
+    if cfg.get('calendarPrivacyEnabled'):validate_calendar_public(contents)
     _validate_contents(contents, manifest)
     output.mkdir(parents=True, exist_ok=True)
     for name, value in contents.items():

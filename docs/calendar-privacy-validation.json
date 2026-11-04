@@ -1,0 +1,36 @@
+{
+  "python_distinct_passed": 149,
+  "node_passed": 22,
+  "total_distinct_passed": 171,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "groups": {
+    "postgresql": 13,
+    "privacy_browser": 10,
+    "interface_regression": 27,
+    "compatibility": 91,
+    "assets": 8
+  },
+  "widths": [
+    360,
+    390,
+    768,
+    1024,
+    1440
+  ],
+  "database": "PostgreSQL 17 descartável sem rede; 001–021",
+  "browser": "Chromium local",
+  "production_database_accessed": false,
+  "real_supabase_auth_tested": false,
+  "full_historical_suite_rerun": false,
+  "notes": [
+    "Contagem consolidada sem somar reexecuções.",
+    "A proteção real depende da migração 021, Auth e pacote operacional validado; o simulador estático não protege seus dados por login."
+  ],
+  "database_evidence": "dist/calendar-privacy/database-final/python-results.json",
+  "candidate_evidence": "dist/calendar-privacy/secure-browser-results.json",
+  "restricted_source_metadata_omitted": true,
+  "publication_performed_by_tests": false,
+  "publication_followup": "docs/calendar-demo-publication.md"
+}
