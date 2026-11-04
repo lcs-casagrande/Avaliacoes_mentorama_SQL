@@ -1,0 +1,19 @@
+{
+  "department": "musica",
+  "source": "Equipe informada e identidades confirmadas pela liderança",
+  "people": [
+    {"name": "Alexandre", "is_ministry_head": true},
+    {"name": "Ana Julia"},
+    {"name": "Gislaine"},
+    {"name": "Hélder"},
+    {"name": "Henrique Franco", "reported_name": "Henrique"},
+    {"name": "Izabelle Souza", "reported_name": "Izabelle"},
+    {"name": "Laura"},
+    {"name": "Letícia Ferreira", "reported_name": "Leticia"},
+    {"name": "Luisa"},
+    {"name": "Samuel Ferreira", "reported_name": "Samuel"},
+    {"name": "Sol"},
+    {"name": "Victória Scarpelini", "reported_name": "Victoria"},
+    {"name": "Weslley"}
+  ]
+}

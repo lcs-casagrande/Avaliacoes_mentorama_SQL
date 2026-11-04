@@ -1,0 +1,533 @@
+{
+  "scope": "Inventário do código; controles dinâmicos são modelos, não execução de todos os estados. Fluxos efetivamente testados no relatório UX.",
+  "routes": [
+    "home",
+    "programs",
+    "tracking",
+    "history",
+    "edit",
+    "summary",
+    "actuals",
+    "agendas",
+    "archive",
+    "organization",
+    "login",
+    "users",
+    "invite",
+    "plan-edit",
+    "trash",
+    "models",
+    "forgot-password",
+    "reset-password",
+    "schedule-setup",
+    "schedule-calendar",
+    "schedule-build",
+    "schedule-members",
+    "schedule-settings",
+    "access-admin",
+    "access-request",
+    "controlled-reset",
+    "church-home",
+    "portal-login",
+    "events"
+  ],
+  "previous_header": [
+    [
+      "church-home",
+      "Início"
+    ],
+    [
+      "schedule-calendar",
+      "Escalas publicadas"
+    ],
+    [
+      "schedule-build",
+      "Montar escala"
+    ],
+    [
+      "portal-login",
+      "Entrar nas escalas"
+    ],
+    [
+      "home",
+      "Início"
+    ],
+    [
+      "programs",
+      "Programações"
+    ],
+    [
+      "actuals",
+      "Registrar culto"
+    ],
+    [
+      "tracking",
+      "Acompanhar"
+    ],
+    [
+      "agendas",
+      "Escalas e agendas"
+    ],
+    [
+      "schedule-setup",
+      "Cadastros de escalas"
+    ],
+    [
+      "schedule-members",
+      "Cadastro Geral"
+    ],
+    [
+      "schedule-settings",
+      "Configurar escalas"
+    ],
+    [
+      "organization",
+      "Organograma"
+    ],
+    [
+      "archive",
+      "Arquivo e banco"
+    ],
+    [
+      "history",
+      "Histórico"
+    ],
+    [
+      "trash",
+      "Administração · Lixeira"
+    ],
+    [
+      "models",
+      "Administração · Modelos"
+    ],
+    [
+      "users",
+      "Administração · Usuários"
+    ],
+    [
+      "events",
+      "Gestão de Eventos"
+    ],
+    [
+      "access-admin",
+      "Gestão de acessos"
+    ],
+    [
+      "access-request",
+      "Solicitar acesso"
+    ],
+    [
+      "login",
+      "Entrar"
+    ]
+  ],
+  "source_controls": {
+    "actuals.js": {
+      "button_labels_and_actions": [
+        [
+          "Adicionar subatividade",
+          "add-subactivity"
+        ],
+        [
+          "Cancelar edição",
+          "cancel-record"
+        ],
+        [
+          "Editar programação prevista",
+          "edit-record-plan"
+        ],
+        [
+          "Editar registro",
+          "edit-record"
+        ],
+        [
+          "Remover evento",
+          "remove-extra"
+        ],
+        [
+          "Voltar às programações",
+          "programs"
+        ]
+      ],
+      "literal_or_template_controls": [
+        "remove-subactivity",
+        "time-now"
+      ]
+    },
+    "agenda.js": {
+      "button_labels_and_actions": [
+        [
+          "Calendário",
+          "agenda-calendar"
+        ],
+        [
+          "Lista",
+          "agenda-list"
+        ],
+        [
+          "Mês atual",
+          "agenda-current"
+        ]
+      ],
+      "literal_or_template_controls": [
+        "${amount>0?'agenda-next':'agenda-previous'}",
+        "agenda-day",
+        "agenda-next",
+        "agenda-previous",
+        "all",
+        "day",
+        "department",
+        "next",
+        "period",
+        "previous",
+        "today"
+      ]
+    },
+    "app.js": {
+      "button_labels_and_actions": [
+        [
+          "+ Adicionar atividade",
+          "add-item"
+        ],
+        [
+          "Abrir programação",
+          "edit"
+        ],
+        [
+          "Atualizar",
+          "refresh"
+        ],
+        [
+          "Conferir correção para 10/10/2026",
+          "correct-date"
+        ],
+        [
+          "Duplicar",
+          "duplicate"
+        ],
+        [
+          "Duplicar programação",
+          "duplicate"
+        ],
+        [
+          "Editar registro",
+          "actuals"
+        ],
+        [
+          "Excluir atividade",
+          "remove-item"
+        ],
+        [
+          "Gerenciar modelos",
+          "models-open"
+        ],
+        [
+          "Lixeira de cultos",
+          "trash-open"
+        ],
+        [
+          "Marcar programação como pronta",
+          "ready"
+        ],
+        [
+          "Mover para a lixeira",
+          "trash-move"
+        ],
+        [
+          "Nova programação",
+          "new"
+        ],
+        [
+          "Pausar acompanhamento",
+          "pause"
+        ],
+        [
+          "Registrar culto",
+          "chronogram"
+        ],
+        [
+          "Retomar acompanhamento",
+          "resume"
+        ],
+        [
+          "Tentar novamente",
+          "retry-programs"
+        ],
+        [
+          "Ver programações",
+          "programs"
+        ],
+        [
+          "Ver realizado",
+          "summary"
+        ],
+        [
+          "Voltar",
+          "programs"
+        ],
+        [
+          "↑ Subir",
+          "up"
+        ],
+        [
+          "↓ Descer",
+          "down"
+        ]
+      ],
+      "literal_or_template_controls": [
+        "${action}",
+        "add-item",
+        "agenda-current"
+      ]
+    },
+    "archive.js": {
+      "button_labels_and_actions": [
+        [
+          "Arquivar registros no banco",
+          "cloud-save"
+        ],
+        [
+          "Consultar arquivos",
+          "cloud-list"
+        ],
+        [
+          "Sair",
+          "cloud-signout"
+        ],
+        [
+          "Tentar novamente",
+          "cloud-list"
+        ]
+      ],
+      "literal_or_template_controls": []
+    },
+    "church-portal.js": {
+      "button_labels_and_actions": [],
+      "literal_or_template_controls": [
+        "'+action+'"
+      ]
+    },
+    "governance.js": {
+      "button_labels_and_actions": [],
+      "literal_or_template_controls": [
+        "${tab}",
+        "copy",
+        "history-next",
+        "history-previous",
+        "issue",
+        "next",
+        "options",
+        "permissions",
+        "previous",
+        "reload"
+      ]
+    },
+    "history.js": {
+      "button_labels_and_actions": [],
+      "literal_or_template_controls": [
+        "history-clear"
+      ]
+    },
+    "operational.js": {
+      "button_labels_and_actions": [
+        [
+          "Atualizar registros do banco",
+          "operational-refresh"
+        ],
+        [
+          "Conferir envios pendentes",
+          "operational-pending"
+        ],
+        [
+          "Conferir registros antigos deste navegador",
+          "operational-preview"
+        ],
+        [
+          "Confirmar importação dos selecionados",
+          "operational-import"
+        ],
+        [
+          "Descartar somente este envio",
+          "operational-discard"
+        ],
+        [
+          "Reenviar / conferir",
+          "operational-retry"
+        ]
+      ],
+      "literal_or_template_controls": []
+    },
+    "schedule-foundation.js": {
+      "button_labels_and_actions": [
+        [
+          "Atualizar",
+          "refresh"
+        ],
+        [
+          "Buscar conta existente",
+          "lookup-account"
+        ],
+        [
+          "Cancelar",
+          "cancel"
+        ],
+        [
+          "Editar",
+          "edit"
+        ],
+        [
+          "Limpar filtros",
+          "clear"
+        ],
+        [
+          "Sair",
+          "logout"
+        ],
+        [
+          "Tentar novamente",
+          "refresh"
+        ]
+      ],
+      "literal_or_template_controls": [
+        "${action}"
+      ]
+    },
+    "schedule-management.js": {
+      "button_labels_and_actions": [
+        [
+          "Atualizar do banco",
+          "reload"
+        ],
+        [
+          "Começar escala",
+          "start"
+        ],
+        [
+          "Comparar versão salva",
+          "compare"
+        ],
+        [
+          "Histórico",
+          "history"
+        ],
+        [
+          "Limpar escala",
+          "clear"
+        ],
+        [
+          "Montagem em lista e versões anteriores",
+          "layout"
+        ],
+        [
+          "Mês anterior",
+          "month"
+        ],
+        [
+          "Próximo mês",
+          "month"
+        ],
+        [
+          "Publicar escala",
+          "publish"
+        ],
+        [
+          "Remover função",
+          "remove"
+        ],
+        [
+          "Revogar",
+          "revoke"
+        ],
+        [
+          "Salvar rascunho",
+          "save"
+        ],
+        [
+          "Tentar novamente",
+          "reload"
+        ],
+        [
+          "Tentar novamente",
+          "retry"
+        ],
+        [
+          "Voltar à visão mensal",
+          "layout"
+        ]
+      ],
+      "literal_or_template_controls": [
+        "${action}",
+        "${name}",
+        "day",
+        "department",
+        "start"
+      ]
+    },
+    "trash.js": {
+      "button_labels_and_actions": [
+        [
+          "Atualizar lixeira",
+          "trash-refresh"
+        ],
+        [
+          "Fechar detalhes",
+          "trash-close"
+        ],
+        [
+          "Restaurar",
+          "trash-restore"
+        ],
+        [
+          "Restaurar culto",
+          "trash-restore"
+        ],
+        [
+          "Tentar novamente",
+          "trash-refresh"
+        ],
+        [
+          "Ver detalhes",
+          "trash-detail"
+        ],
+        [
+          "Voltar às programações",
+          "programs"
+        ]
+      ],
+      "literal_or_template_controls": []
+    },
+    "users.js": {
+      "button_labels_and_actions": [
+        [
+          "Anterior",
+          "users-previous"
+        ],
+        [
+          "Atualizar lista",
+          "users-refresh"
+        ],
+        [
+          "Autorizar como líder",
+          "users-authorize"
+        ],
+        [
+          "Copiar link",
+          "users-copy"
+        ],
+        [
+          "Próxima",
+          "users-next"
+        ],
+        [
+          "Revogar convite",
+          "users-revoke-invite"
+        ],
+        [
+          "Tentar novamente",
+          "users-refresh"
+        ]
+      ],
+      "literal_or_template_controls": []
+    }
+  }
+}

@@ -68,7 +68,7 @@ class RegistryIdentitiesBrowserTests(unittest.TestCase):
         self.assertEqual(self.page.evaluate('IASDPIConfig.storageNamespace'),'iasdpi-registry-g84-preview-v1')
         for key in ['programs','authSession','cloudConfig']:
             self.assertTrue(self.page.evaluate('key=>IASDPIStorage[key]',key).startswith('iasdpi-registry-g84-preview-v1:'),key)
-        self.admin();self.registry();self.assertEqual(self.page.locator('nav [data-page=schedule-members]').inner_text(),'Cadastro Geral')
+        self.admin();self.registry();self.page.locator('.portal-admin-menu>summary').click();self.assertEqual(self.page.locator('nav [data-page=schedule-members]').inner_text(),'Cadastro Geral')
     def test_old_snapshot_person_ids_resolve_without_duplicating_central_people(self):
         self.admin();self.registry();c=self.catalog();redirects=c['identity_redirects'];self.assertTrue(redirects);self.assertTrue(all(x['id'] not in {p['id'] for p in c['people']} for x in redirects));names=self.page.evaluate('c=>c.identity_redirects.map(x=>IASDPIRegistry.personName(c,x.id))',c);self.assertTrue(all(names));self.assertIn('Gabriel Macedo',names)
     def test_alias_duplicate_indicator_keeps_distinct_ids_until_confirmation(self):

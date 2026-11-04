@@ -23,6 +23,19 @@
  }
  const ready=(async()=>{await IASDPIG82Demo.ready;
   for(const rule of rules){const groupBefore=group(rule);if(groupBefore.people.length&&!groupBefore.blockers.length)apply(rule,groupBefore.people[0].id,actor.id);}
+  // Relação confirmada: alimenta apenas o catálogo central da prévia, sem rede.
+  // Participação não implica habilitação musical nem disponibilidade.
+  const roster=window.IASDPIMusicRoster,department=c.departments.find(d=>d.code===roster?.department);
+  if(department)for(const entry of roster.people){
+   let person=c.people.find(p=>p.name===entry.name);
+   if(!person){person={id:entry.person_id,name:entry.name,display_name:entry.name,active:true,version:1,max_monthly_count:null,aliases:[]};c.people.push(person);}
+   if(entry.reported_name)person.aliases=[...new Set([...(person.aliases||[]),entry.reported_name])];
+   let member=c.memberships.find(m=>m.person_id===person.id&&m.department_id===department.id);
+   if(!member){member={id:entry.membership_id,person_id:person.id,department_id:department.id,active:true,version:1,is_ministry_head:false,max_monthly_count:null,desired_monthly_count:null,availability_override:false,preferences:roster.source};c.memberships.push(member);}
+   member.participation_confirmed=true;
+   if(entry.is_ministry_head)member.is_ministry_head=true;
+  }
+  IASDPIKnownPreviewSeed.catalog=c;
   // Associa referências que a composição local já vinculou explicitamente; fonte original intacta.
   for(const row of IASDPIKnownPreviewSeed.legacy){const p=c.people.find(p=>p.id===row.person_id);if(!p?.aliases)continue;
    await prior(actor,'iasdpi_registry_source_save',{p_source_key:row.source_key,p_person:p.id,p_expected_version:0,p_request_id:crypto.randomUUID(),p_reference:{department_id:row.department_id,starts_on:row.date,ends_on:row.date,kind:'daily',original_name:row.original_name}});

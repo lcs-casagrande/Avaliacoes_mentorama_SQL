@@ -112,7 +112,14 @@ class IntegratedReviewBrowserTests(SiteFixture, unittest.TestCase):
 
     def go(self, route):
         self.page.wait_for_function('()=>!bootInProgress&&!state.busy')
-        self.page.get_by_role('navigation', name='Navegação principal', exact=True).locator('[data-page="' + route + '"]').click()
+        if not self.page.locator('.portal-primary-links').is_visible():self.page.locator('.portal-menu-toggle').click()
+        link=self.page.locator('.portal-header [data-page="'+route+'"]')
+        if route=='schedule-build' and link.get_attribute('hidden') is not None:
+            self.page.locator('.portal-header [data-page=portal-login]').click();return
+        if link.evaluate('e=>Boolean(e.closest(".portal-legacy-links"))'):
+            self.page.evaluate('(route)=>IASDPINavigation.navigate(route)',route);return
+        if link.evaluate('e=>Boolean(e.closest(".portal-admin-links"))') and not link.is_visible():self.page.locator('.portal-admin-menu>summary').click()
+        link.click()
 
     def login(self, alias='admin.teste'):
         self.go('schedule-build');self.page.wait_for_selector('#church-select')

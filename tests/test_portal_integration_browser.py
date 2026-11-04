@@ -83,7 +83,7 @@ class PortalIntegrationBrowserTests(unittest.TestCase):
     def test_delegate_enters_existing_governance_without_general_admin_role(self):
         self.login('som.teste');self.go('access-admin');self.page.wait_for_selector('.governance-tabs');self.assertEqual(self.page.locator('[data-gov-tab=aliases]').count(),0);self.assertFalse(self.page.evaluate('IASDPIAuth.isAdmin()'));self.page.locator('[data-gov-tab=members]').click();self.page.locator('[data-gov-form=members-load] button').click();self.page.wait_for_selector('[data-gov-form=member]')
     def test_portal_admin_can_reach_settings_using_server_scoped_role(self):
-        self.login('admin.teste');self.assertTrue(self.page.locator('nav [data-page=schedule-settings]').is_visible());self.go('schedule-settings');self.page.wait_for_selector('#daily-settings');self.assertEqual(self.page.locator('#portal-login-form').count(),0)
+        self.login('admin.teste');self.page.locator('.portal-admin-menu>summary').click();self.assertTrue(self.page.locator('nav [data-page=schedule-settings]').is_visible());self.go('schedule-settings');self.page.wait_for_selector('#daily-settings');self.assertEqual(self.page.locator('#portal-login-form').count(),0)
 
     def test_temporary_profile_failure_recovers_without_new_login(self):
         self.login();self.page.evaluate("()=>{const original=window.fetch;window.g4ContextFailure=true;window.fetch=(url,args)=>String(url).endsWith('/iasdpi_portal_context')&&window.g4ContextFailure?Promise.resolve(Response.json({error:'temporary'},{status:503})):original(url,args);window.dispatchEvent(new Event('iasdpi-auth-changed'));}")

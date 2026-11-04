@@ -50,7 +50,7 @@ class DepartmentDaysBrowserTests(g6.GovernanceIntegrationBrowserTests):
         for width in [360,390,768,1024,1440]:
             self.page.set_viewport_size(dict(width=width,height=900));self.assertLessEqual(self.page.evaluate('document.documentElement.scrollWidth'),width)
         self.page.locator('#department-days-form [value="1"]').focus();self.page.keyboard.press('Space');self.assertTrue(self.page.locator('#department-days-form [value="1"]').is_checked())
-        self.page.once('dialog',lambda d:d.accept());self.page.locator('[data-portal-department="'+D+'"]').click();self.page.wait_for_selector('.monthly-calendar');self.open_days()
+        self.page.once('dialog',lambda d:d.accept());self.page.locator('.monthly-departments [data-department="'+D+'"]').click();self.page.wait_for_selector('.monthly-calendar');self.open_days()
         out=base.ROOT/'dist/governance-g7';out.mkdir(exist_ok=True,parents=True)
         for width,label in [(390,'mobile'),(1440,'desktop')]:self.page.set_viewport_size(dict(width=width,height=900));self.page.screenshot(path=str(out/('g7-'+label+'.png')),full_page=True)
     def test_g7_missing_migration_message_and_remote_readonly_blocks_saving(self):

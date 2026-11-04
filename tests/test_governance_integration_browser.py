@@ -22,7 +22,7 @@ class GovernanceIntegrationBrowserTests(unittest.TestCase):
     prefill=g4.PortalIntegrationBrowserTests.prefill
     save=g4.PortalIntegrationBrowserTests.save
     def admin(self):
-        self.login('admin.pi.teste');self.page.locator('[data-portal-department="00000000-0000-4000-8000-000000000001"]').click();self.page.wait_for_selector('.simple-daily-calendar')
+        self.login('admin.pi.teste');self.page.locator('.monthly-departments [data-department="00000000-0000-4000-8000-000000000001"]').click();self.page.wait_for_selector('.simple-daily-calendar')
     def tab(self,tab):self.page.locator('[data-gov-tab='+tab+']').click()
     def test_profile_matrix_and_public_compatibility(self):
         # Um navegador isolado por perfil evita herdar sessões ou direitos.
@@ -52,7 +52,7 @@ class GovernanceIntegrationBrowserTests(unittest.TestCase):
         self.page.locator('[data-b1-action=department]').filter(has_text='Música').click();self.page.wait_for_selector('.music-team');team=self.page.locator('.music-team').first;self.assertEqual(team.locator('[data-music-volunteer]').count(),2)
         for field in team.locator('[data-music-volunteer]').all():field.check()
         self.save();self.assertEqual(self.page.locator('.music-team').first.locator('[data-music-volunteer]:checked').count(),2)
-        self.prefill();self.save(True);self.page.locator('[data-portal-department="00000000-0000-4000-8000-000000000001"]').click();self.page.wait_for_selector('[data-calendar-volunteer]');luan=self.page.evaluate("async()=> (await IASDPISchedules.request('iasdpi_schedule_catalog')).people.find(p=>p.name==='Luan').id");option=self.page.locator('[data-calendar-volunteer]').first.locator('option[value="'+luan+'"]');self.page.wait_for_function("id=>document.querySelector('[data-calendar-volunteer] option[value=\"'+id+'\"]')?.disabled",arg=luan);self.assertTrue(option.evaluate('e=>e.disabled'));self.assertIn('Conflito',option.inner_text())
+        self.prefill();self.save(True);self.page.locator('.monthly-departments [data-department="00000000-0000-4000-8000-000000000001"]').click();self.page.wait_for_selector('[data-calendar-volunteer]');luan=self.page.evaluate("async()=> (await IASDPISchedules.request('iasdpi_schedule_catalog')).people.find(p=>p.name==='Luan').id");option=self.page.locator('[data-calendar-volunteer]').first.locator('option[value="'+luan+'"]');self.page.wait_for_function("id=>document.querySelector('[data-calendar-volunteer] option[value=\"'+id+'\"]')?.disabled",arg=luan);self.assertTrue(option.evaluate('e=>e.disabled'));self.assertIn('⚠ Indisponível',option.inner_text())
     def test_alias_link_keeps_identity_permissions(self):
         self.admin();self.go('access-admin');self.page.wait_for_selector('.governance-tabs');self.tab('aliases');self.page.get_by_text('Novo identificador',exact=True).click();form=self.page.locator('[data-gov-form=alias]').last
         form.locator('[name=identifier]').fill('g6.som');target=self.page.evaluate("IASDPIG6Preview.accounts.find(a=>a.alias==='som.teste').id");form.locator('[name=user]').select_option(target);form.locator('[name=enabled]').check();form.locator('[name=reason]').fill('Vínculo de homologação fictício');form.locator('button').click();self.page.wait_for_function("()=>IASDPIG6Demo.aliases().some(a=>a.identifier==='g6.som')")

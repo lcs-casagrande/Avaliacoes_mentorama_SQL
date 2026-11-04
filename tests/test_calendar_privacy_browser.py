@@ -58,7 +58,7 @@ class CalendarPrivacyBrowserTests(unittest.TestCase):
         self.assertEqual(self.page.locator('.scale-chip').count(),0);self.assertGreater(self.page.locator('[role=alert]').count(),0)
 
     def test_admin_creates_saves_reopens_and_publishes_schedule_in_demo(self):
-        self.login();self.page.locator('[data-portal-department="00000000-0000-4000-8000-000000000001"]').click();self.page.wait_for_selector('[data-b1-action=prefill]')
+        self.login();self.page.locator('.monthly-departments [data-department="00000000-0000-4000-8000-000000000001"]').click();self.page.wait_for_selector('[data-b1-action=prefill]')
         self.go('schedule-members');self.page.wait_for_selector('#registry-department');self.page.select_option('#registry-department','00000000-0000-4000-8000-000000000001')
         member=self.page.evaluate("async()=>{const c=await IASDPISchedules.request('iasdpi_registry_catalog'),p=c.people.find(p=>p.name==='Luan Vaz');return c.memberships.find(m=>m.person_id===p.id&&m.department_id==='00000000-0000-4000-8000-000000000001');}")
         row=self.page.locator('[data-registry-member="'+member['id']+'"]');row.locator('[name=participation_confirmed]').check();row.locator('[name=role_ids]').first.check()

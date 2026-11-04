@@ -68,6 +68,12 @@ for name in ('config.js', 'churches.js', 'storage.js', 'supabase-2.118.0.js', 'a
                     if args.registry_identities_preview:
                         import json
                         fixture+='\nwindow.IASDPIConfirmedNames='+json.dumps(json.loads((root/'data/confirmed-person-names.json').read_text()),ensure_ascii=False)+';\n'
+                        import uuid
+                        roster=json.loads((root/'data/music-ministry-roster.json').read_text())
+                        for person in roster['people']:
+                            person['person_id']=str(uuid.uuid5(uuid.NAMESPACE_URL,'iasdpi-local-reference:person:'+person['name']))
+                            person['membership_id']=str(uuid.uuid5(uuid.NAMESPACE_URL,'iasdpi-music-roster:membership:'+person['name']))
+                        fixture+='window.IASDPIMusicRoster='+json.dumps(roster,ensure_ascii=False)+';\n'
                         fixture+=(root/'tests/fixtures/registry-identities-preview.js').read_text()
         else:
             runtime=(root/'tests/fixtures/schedule-demo-runtime.js').read_text()

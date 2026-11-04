@@ -22,14 +22,14 @@ Esta prévia preserva G8.4; para Eventos e Calendário Unificado, gere com --eve
 As alterações ficam em memória e reiniciam ao recarregar. Não inserir dados privados.
 Não há conexão com Supabase, envio de e-mails ou contas reais.
 
-1. Consulte Agenda, Organograma e Calendário sem login.
-2. Abra Montar escala e escolha IASD_PI.
+1. Consulte Calendário e Organograma sem login.
+2. Abra Entrar e escolha IASD_PI.
 3. Entre com uma identidade fictícia abaixo. Senha fictícia: `Demonstracao#2026`.
 4. Para testar o rodízio no Cadastro Geral integrado, confirme explicitamente
    a participação, habilitação e dias de uma pessoa de teste. Informação pendente
    não significa disponível. Responsabilidade ministerial não concede habilitação.
 5. Salve rascunho; publique separadamente e confira o Calendário na mesma aba.
-6. Confira Cadastro Geral e Gestão de Acessos com o administrador fictício.
+6. Abra Administração para consultar Cadastro Geral e Gestão de Acessos.
 
 | Identificador fictício | Alcance |
 | --- | --- |
@@ -126,12 +126,12 @@ def prepare(output, historical_site, events=False, privacy=False):
         (target / 'index.zip').unlink()
         namespace='iasdpi-calendar-privacy-review-v1' if privacy else 'iasdpi-events-e1-review-v1' if events else NAMESPACE
         text = (target / 'index.html').read_text().replace('iasdpi-registry-g84-preview-v1', namespace).replace('iasdpi-events-e1-preview-v1',namespace).replace('iasdpi-calendar-privacy-preview-v1',namespace)
-        banner=BANNER if not events else '<aside class="review-banner" aria-label="Ambiente de homologação"><strong>IASDPI · Homologação</strong><p>Acesso simulado. Alterações temporárias: reiniciam ao recarregar.</p><a href="../">Início</a> · <a href="LEIA-ME.md">Ajuda e acessos</a></aside>'
+        banner=BANNER if not events else '<aside class="review-banner" aria-label="Ambiente de homologação"><strong>IASDPI · Homologação</strong><p>Acesso simulado. Alterações temporárias: reiniciam ao recarregar.</p><a href="../">Outras prévias</a> · <a href="LEIA-ME.md">Ajuda e acessos</a></aside>'
         text = text.replace('</head>', STYLE + '</head>').replace('<body>', '<body>' + banner, 1)
         (target / 'index.html').write_text(text)
         guide=GUIDE if not events else GUIDE.replace('Esta prévia preserva G8.4; para Eventos e Calendário Unificado, gere com --events.','E1: Gestão de Eventos e Calendário Unificado. Abra Gestão de Eventos após entrar. A Agenda oficial é reutilizada; importar exige revisão administrativa e cria rascunho.').replace('.teste','.iasdpi')
         if privacy:guide+='\nSem login: eventos não restritos e Ancionato. Demais escalas exigem login simulado e permissão. Gestão de Eventos separa classificação, organizador, público-alvo e Restrito. O simulador estático não oferece privacidade real; suas identidades são fictícias e os dados estão no HTML. Não publicar informações confidenciais nesta prévia. A proteção operacional depende da migração 021 e do Supabase Auth reais.\n'
-        if privacy:guide+='\n## Testar criação de escala com o administrador\n\n1. Abra Montar escala, escolha IASD_PI e entre com admin.iasdpi / Demonstracao#2026 (acesso exclusivamente fictício).\n2. Em Meus departamentos, escolha Sonoplastia e um mês futuro para testar.\n3. Para testar o preenchimento automático, abra Cadastro Geral, selecione Sonoplastia, confirme a participação e a função de uma pessoa de teste e marque os dias confirmados somente nesta demonstração. Sem confirmação, o rodízio mantém as vagas pendentes.\n4. Volte a Montar escala, use Preencher automaticamente ou escolha as pessoas nos dias. Salvar rascunho e Publicar são ações separadas.\n5. Confira o resultado no Calendário enquanto estiver logado. Após Sair, escalas de Sonoplastia deixam de aparecer; Ancionato e eventos não restritos permanecem públicos.\n6. Atualizar a página reinicia esta demonstração. As ações não gravam no Supabase e não validam a autenticação real.\n'
+        if privacy:guide+='\n## Navegação e criação de escala\n\n1. Sem login, use Início, Calendário e Organograma. Abra Entrar, escolha IASD_PI e use admin.iasdpi / Demonstracao#2026 (acesso exclusivamente fictício).\n2. Em Escalas, escolha o departamento na única barra contextual e um mês futuro para testar. No celular, abra Menu para acessar os módulos.\n3. Administração reúne Cadastro Geral, Departamentos e funções, Configurações, Gestão de acessos, Solicitações, Modelos, Histórico, Arquivos e backups e Lixeira. As funções da Cronoanálise preservam sua própria autorização; uma sessão ministerial não concede esse acesso.\n4. Para testar o automático, confirme participação, habilitação e dias no Cadastro Geral, somente nesta demonstração. Informação desconhecida não significa disponível. Música inclui Alexandre e os 12 participantes informados, reutilizando os IDs confirmados, sem inventar habilitações ou disponibilidade.\n5. Volte a Escalas e escolha as pessoas nos dias ou use Preencher automaticamente. Salvar rascunho e Publicar continuam separados. Confira o resultado em Calendário. Ao sair, as demais escalas ficam ocultas; Ancionato e eventos não restritos permanecem públicos.\n6. Atualizar a página reinicia esta demonstração. Não há gravação no Supabase, autenticação real nem persistência compartilhada. As rotas antigas continuam disponíveis; Agenda e Calendário mostram a consulta unificada nesta versão.\n'
         (target / 'LEIA-ME.md').write_text(guide)
         commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         manifest = {'environment': 'isolated-demo', 'database_connected': False, 'remote_requests_allowed': False,

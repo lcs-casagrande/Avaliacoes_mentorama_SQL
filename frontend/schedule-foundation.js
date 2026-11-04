@@ -1,7 +1,7 @@
 'use strict';
 // Fase A: cadastros. Escalas legadas e calendário oficial mantêm fontes próprias.
 window.IASDPISchedules=(()=>{
-  const model={status:'idle',catalog:null,error:'',tab:'people',query:'',department:'',editor:null,dirty:false,saving:false,feedback:'',generation:0};
+  const model={status:'idle',catalog:null,error:'',tab:window.IASDPIConfig?.portalAccessEnabled?'departments':'people',query:'',department:'',editor:null,dirty:false,saving:false,feedback:'',generation:0};
   const tables={department:'departments',person:'people',role:'roles',membership:'memberships',availability:'availability',access:'access'};
   const titles={department:'Departamento',person:'Pessoa',role:'Função',membership:'Vínculo e habilitações',availability:'Disponibilidade',access:'Permissão ministerial'};
   const weekdays=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];

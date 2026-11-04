@@ -3,6 +3,7 @@
 !.env.example
 /data/*
 !/data/confirmed-person-names.json
+!/data/music-ministry-roster.json
 !/data/e1-source-review.json
 __pycache__/
 *.py[cod]

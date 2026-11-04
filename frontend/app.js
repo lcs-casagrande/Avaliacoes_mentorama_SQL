@@ -316,6 +316,7 @@ function render() {
   document.querySelectorAll('[data-event-nav]').forEach(a=>a.hidden=!window.IASDPIEvents?.enabled()||!IASDPIPortalAccess.valid()||!IASDPIPortalAccess.can('events'));
   const activePage=state.page==='schedule-calendar'?'agendas':state.page==='summary'?'history':['edit','tracking'].includes(state.page)&&selected()?.execution_mode==='manual'?'actuals':['edit','plan-edit'].includes(state.page)?'programs':state.page;
   document.querySelectorAll('nav a').forEach(a => {const active=a.dataset.page===activePage;a.classList.toggle('selected',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
+  window.IASDPIPortalNavigation?.sync(state.page);
   if(window.IASDPIChurches?.enabled()&&!IASDPIChurches.ready()&&!['organization','agendas','schedule-calendar','forgot-password','reset-password','controlled-reset','church-home'].includes(state.page)){app.innerHTML=IASDPIChurches.selectionPage();return;}
   if(window.IASDPIChurches?.enabled()&&IASDPIChurches.selected()&&IASDPIChurches.selected()!=='IASD_PI'&&['organization','agendas'].includes(state.page)){app.innerHTML=empty('Conteúdo público ainda não configurado','Esta igreja ainda não possui agenda ou organograma publicados.');return;}
   const portalGate=window.IASDPIPortalAccess?.guard(state.page);if(portalGate){app.innerHTML=portalGate;return;}
@@ -323,6 +324,7 @@ function render() {
   const needsPrograms=['home','programs','history','edit','plan-edit','actuals','tracking','summary','models'].includes(state.page);
   app.innerHTML = allowed&&needsPrograms&&!['records','empty'].includes(state.programsLoad.status)?programsLoadView():allowed&&missingRecord?empty('Registro não encontrado','Este identificador não está entre os cultos ativos disponíveis. Confira o link ou as programações.',button('Ver programações','programs')):({home, 'church-home':()=>IASDPIChurchPortal.home(), 'portal-login':()=>IASDPIPortalAccess.loginPage(), 'access-admin':()=>IASDPIGovernance.page(), 'access-request':()=>IASDPIGovernance.requestPage(), 'controlled-reset':()=>IASDPIGovernance.resetPage(), 'schedule-setup':()=>IASDPISchedules.page(), 'schedule-build':()=>IASDPIScheduleManagement.page(), 'schedule-members':()=>IASDPIScheduleDailyAdmin.page('schedule-members'), 'schedule-settings':()=>IASDPIScheduleDailyAdmin.page('schedule-settings'), 'schedule-calendar':()=>IASDPIScheduleCalendar.page(),events:()=>IASDPIEvents.page(), models:modelsPage, trash: trashPage, users: usersPage, invite: invitePage, login: IASDPIAuth.loginPage, 'forgot-password':IASDPIAuth.forgotPasswordPage,'reset-password':IASDPIAuth.resetPasswordPage, organization: organizationPage, archive: archivePage, agendas: agendasPage, programs: programsPage, history: historyPage, edit: () => editor(selected()), 'plan-edit':()=>editor(selected(),true), actuals: () => actualsForm(selected()), tracking: () => tracking(selected()), summary: () => selected() ? summary(selected()) : historyPage()}[state.page] || home)();
   if(window.IASDPIPortalAccess?.enabled()&&['schedule-build','schedule-setup','schedule-members','schedule-settings','access-admin','events'].includes(state.page))app.insertAdjacentHTML('afterbegin',IASDPIPortalAccess.workspace());
+  window.IASDPIPortalNavigation?.context(state.page);
   updateWeekday(); updateActuals(); tick(); window.IASDPIDrafts?.mount(); pageLayout.mount();window.IASDPIScheduleCalendar?.mount();
 }
 function navigate(page,id,options){return IASDPINavigation.navigate(page,id,options);}
@@ -606,7 +608,7 @@ document.querySelector('#correct-date-confirm').addEventListener('click',()=>gua
 window.addEventListener('iasdpi-session-status',()=>{
   let banner=document.querySelector('#session-status');
   if(!banner){banner=document.createElement('aside');banner.id='session-status';banner.className='demo-banner';banner.setAttribute('role','status');document.querySelector('.header').after(banner);}
-  const status=IASDPIAuth.status();banner.hidden=status.phase==='authenticated'||status.phase==='anonymous';banner.textContent=status.message;
+  const status=IASDPIAuth.status();banner.dataset.authPhase=status.phase;banner.hidden=status.phase==='authenticated'||status.phase==='anonymous';banner.textContent=status.message;
   const recovered=IASDPIAuth.allowed()&&!sessionWasAuthorized;sessionWasAuthorized=IASDPIAuth.allowed();
   if(recovered&&!state.busy&&!bootInProgress)void boot();
 });

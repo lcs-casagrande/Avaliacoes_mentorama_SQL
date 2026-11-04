@@ -21,7 +21,7 @@ window.IASDPIPortalAccess=(()=>{
  function switcher(){return s.churches.length&&(s.churches.length>1||!s.churches.some(c=>c.code===church()))?`<label>Igreja autorizada<select id="portal-church">${!s.churches.some(c=>c.code===church())?'<option value="">Escolha uma igreja autorizada</option>':''}${s.churches.map(c=>`<option value="${h(c.code)}" ${c.code===church()?'selected':''}>${h(c.name)}</option>`).join('')}</select></label>`:'';}
  function loginPage(){return heading('ACESSO MINISTERIAL',window.IASDPIEvents?.enabled()?'Entrar no IASDPI':'Entrar para gerenciar escalas',IASDPIChurches.current()?.name||'Selecione a igreja e entre com sua identidade autorizada.')+`<section class="panel auth-panel">${switcher()}${s.error?`<p role="alert">${h(s.error)}</p><button type="button" data-portal-retry>Tentar novamente</button>`:''}<form id="portal-login-form">${IASDPIAuth.loginIdentifierField()}${field('Senha','password','','password',true,'autocomplete="current-password"')}<button class="primary">Entrar nas escalas</button><p role="status" data-portal-feedback></p></form><p><a href="#access-request" data-page="access-request">Solicitar acesso ou recuperação</a></p><p><a href="#login" data-page="login">Entrar na Cronoanálise</a></p></section>`;}
  function guard(page){if(!enabled()||!memberPages.has(page))return null;if(s.phase==='ready'&&!valid())s.phase='idle';if(s.phase==='idle'){queueMicrotask(ensure);return '<p role="status">Recuperando acesso ministerial…</p>';}if(s.phase==='loading')return '<p role="status">Verificando permissões da igreja…</p>';if(!valid())return loginPage();if(!can(page))return `<section class="panel"><h1>Acesso restrito</h1><p>Você não possui autorização para esta área na igreja selecionada.</p><a href="#church-home" data-page="church-home">Voltar ao início</a></section>`;return null;}
- function workspace(){if(!enabled()||!valid())return '';return `<section class="panel portal-workspace"><strong>${h(IASDPIChurches.current()?.name||'IASD Parada Inglesa')}</strong>${switcher()}<nav aria-label="Meus departamentos">${departments().map(d=>`<a class="button" href="#schedule-build" data-portal-department="${h(d.id)}">${h(d.name)}</a>`).join('')}${can('access-admin')?'<a href="#access-admin" data-page="access-admin">Gestão de acessos</a>':''}</nav></section>`;}
+ function workspace(){if(!enabled()||!valid())return '';const selector=switcher();return selector?`<section class="portal-workspace" aria-label="Igreja selecionada">${selector}</section>`:'';}
  function feedKey(month){return church()+':'+month+(window.IASDPIConfig?.calendarPrivacyEnabled?':'+(IASDPIAuth.identityKey()||'public'):'');}
  function feed(month){const key=feedKey(month);if(!feeds.has(key)){feeds.set(key,{phase:'loading',rows:[],error:''});queueMicrotask(()=>refreshFeed(month));}return feeds.get(key);}
  async function refreshFeed(month){const key=feedKey(month);feeds.set(key,{phase:'loading',rows:[],error:''});try{
@@ -40,5 +40,71 @@ window.IASDPIPortalAccess=(()=>{
  document.addEventListener('click',e=>{if(!enabled())return;if(e.target.closest('[data-portal-retry]')){e.preventDefault();void ensure();redraw();return;}const pageLink=e.target.closest('#app a[data-page]');if(pageLink){e.preventDefault();navigate(pageLink.dataset.page);return;}const retry=e.target.closest('[data-portal-feed]'),department=e.target.closest('[data-portal-department]');if(retry){e.preventDefault();void refreshFeed(retry.dataset.portalFeed);redraw();}if(department){e.preventDefault();if(!departments().some(d=>d.id===department.dataset.portalDepartment))return;if(!canLeaveRegistration())return;s.preferred=department.dataset.portalDepartment;void IASDPIScheduleManagement.load();navigate('schedule-build');}},true);
  document.addEventListener('change',e=>{if(!enabled()||e.target.id!=='portal-church')return;const code=e.target.value;if(!s.churches.some(c=>c.code===code)||!canLeaveRegistration()){e.target.value=church();return;}try{IASDPIChurches.switchAuthorized(code);}catch(error){s.error=error.message;s.phase='error';redraw();}});
  document.addEventListener('submit',e=>{if(!enabled()||e.target.id!=='portal-login-form')return;e.preventDefault();e.stopImmediatePropagation();const f=e.target,password=f.elements.password.value;f.elements.password.value='';const button=f.querySelector('button'),feedback=f.querySelector('[data-portal-feedback]');button.disabled=true;feedback.textContent='Confirmando identidade…';void(async()=>{await IASDPIAuth.loginIdentity(f.elements.email.value,password);await ensure();if(valid()){if(state.page==='portal-login')navigate('schedule-build');else redraw();}})().catch(error=>{s.generation++;loading=null;s.phase='error';s.catalog=null;s.error=error.message;redraw();}).finally(()=>{button.disabled=false;});},true);
- return {enabled,can,guard,ensure,departments,workspace,valid,preferred:()=>{const d=s.preferred;s.preferred='';return d;},isPublic:page=>publicPages.has(page)||memberPages.has(page),loginPage,feedRows,feedStatus,refreshFeed};
+ return {enabled,can,guard,ensure,departments,workspace,valid,status:()=>s.phase,isAdmin:()=>valid()&&s.catalog.is_admin,preferred:()=>{const d=s.preferred;s.preferred='';return d;},isPublic:page=>publicPages.has(page)||memberPages.has(page),loginPage,feedRows,feedStatus,refreshFeed};
+})();
+
+// Organização visual do portal. As rotas e as autorizações permanecem nos módulos.
+window.IASDPIPortalNavigation=(()=>{
+ const crono=new Set(['home','programs','edit','plan-edit','actuals','tracking','summary','history','archive','models','trash','login','forgot-password','reset-password','invite']);
+ const administration=new Set(['schedule-members','schedule-setup','schedule-settings','access-admin','access-request','users','models','archive','trash']);
+ let shell=null;
+ const anchor=(page,label)=>`<a href="#${page}" data-portal-route="${page}">${esc(label)}</a>`;
+ function module(page){if(page==='agendas'||page==='schedule-calendar')return 'schedule-calendar';if(administration.has(page))return 'administration';if(crono.has(page))return 'home';if(page==='schedule-build')return 'schedule-build';return page;}
+ function install(){
+  const header=document.querySelector('.header'),nav=header.querySelector('nav'),links=new Map([...nav.querySelectorAll('a[data-page]')].map(a=>[a.dataset.page,a])),logout=document.getElementById('auth-logout');
+  const create=(tag,cls)=>{const el=document.createElement(tag);el.className=cls;return el;},primary=create('div','portal-primary-links'),legacy=create('span','portal-legacy-links');legacy.hidden=true;
+  const admin=create('details','portal-admin-menu'),summary=create('summary','');summary.textContent='Administração';admin.append(summary);
+  const groups=create('div','portal-admin-links');admin.append(groups);
+  for(const [title,pages] of [['Pessoas e equipes',['schedule-members','schedule-setup']],['Governança',['schedule-settings','access-admin','users','access-request']],['Registros da Cronoanálise',['models','history','archive','trash']]]){
+   const section=create('section','portal-admin-group'),heading=create('h2','');heading.textContent=title;section.append(heading);groups.append(section);
+   for(const page of pages)if(links.has(page))section.append(links.get(page));
+  }
+  const labels={'church-home':'Início','schedule-calendar':'Calendário','schedule-build':'Escalas',events:'Eventos',organization:'Organograma',home:'Cronoanálise','portal-login':'Entrar','schedule-members':'Cadastro Geral','schedule-setup':'Departamentos e funções','schedule-settings':'Configurações de escalas','access-admin':'Gestão de acessos','access-request':'Solicitações e recuperação',models:'Modelos de liturgia',history:'Histórico de cultos',archive:'Arquivos e backups',trash:'Lixeira',users:'Usuários da Cronoanálise'};
+  for(const page of ['church-home','schedule-calendar','schedule-build','events','organization','home','portal-login'])if(links.has(page))primary.append(links.get(page));
+  const account=create('div','portal-account');account.setAttribute('aria-label','Conta conectada');account.innerHTML='<span class="portal-account-avatar" aria-hidden="true">●</span><span class="portal-account-identity"><strong data-account-label>Minha conta</strong><small data-account-church></small></span>';account.append(logout);
+  for(const a of links.values())if(a.parentNode===nav)legacy.append(a);
+  nav.replaceChildren(primary,admin,account,legacy);nav.id='portal-main-navigation';
+  const toggle=create('button','portal-menu-toggle');toggle.type='button';toggle.textContent='Menu';toggle.setAttribute('aria-controls',nav.id);toggle.setAttribute('aria-expanded','false');header.insertBefore(toggle,nav);
+  header.classList.add('portal-header');document.body.classList.add('portal-navigation-ready');
+  shell={header,nav,links,primary,admin,groups,account,logout,toggle,labels};return shell;
+ }
+ function sync(page){
+  if(!window.IASDPIPortalAccess?.enabled())return;
+  const n=shell||install(),portal=IASDPIPortalAccess,signed=Boolean(IASDPIAuth.identityKey()),admin=portal.isAdmin()||IASDPIAuth.isAdmin();
+  if(signed&&portal.status()==='idle')queueMicrotask(()=>portal.ensure());
+  for(const [page,a] of n.links){if(n.labels[page])a.textContent=n.labels[page];a.hidden=true;a.classList.remove('selected');a.removeAttribute('aria-current');}
+  const show=page=>{const a=n.links.get(page);if(a)a.hidden=false;};
+  for(const target of ['church-home','schedule-calendar','organization'])show(target);
+  if(signed){if(portal.can('schedule-build'))show('schedule-build');if(window.IASDPIEvents?.enabled()&&portal.can('events'))show('events');show('home');}
+  else show('portal-login');
+  for(const page of ['schedule-members','schedule-setup','schedule-settings','access-admin'])if(portal.valid()&&portal.can(page))show(page);
+  if(admin){for(const page of ['models','history','archive','trash','access-request'])show(page);if(!window.IASDPIGovernance?.enabled())show('users');}
+  n.groups.querySelectorAll('section').forEach(s=>s.hidden=![...s.querySelectorAll('a')].some(a=>!a.hidden));
+  n.admin.hidden=![...n.groups.querySelectorAll('a')].some(a=>!a.hidden);
+  n.account.hidden=!signed;n.logout.hidden=!signed;
+  n.account.querySelector('[data-account-label]').textContent=admin?'Administrador':'Minha conta';
+  n.account.querySelector('[data-account-church]').textContent=IASDPIChurches.current()?.name||'IASD Parada Inglesa';
+  n.header.querySelector('.brand').href='#church-home';n.header.querySelector('.brand small').textContent='Parada Inglesa';
+  const active=!signed&&!['church-home','agendas','schedule-calendar','organization'].includes(page)?'portal-login':module(page),link=n.links.get(active);
+  if(link&&!link.hidden){link.classList.add('selected');link.setAttribute('aria-current','page');}
+  if(active==='administration'&&!n.admin.hidden)n.admin.querySelector('summary').setAttribute('aria-current','page');else n.admin.querySelector('summary').removeAttribute('aria-current');
+  for(const a of n.groups.querySelectorAll('a'))if(a.dataset.page===page){a.classList.add('selected');a.setAttribute('aria-current','page');}
+ }
+ function context(page){
+  if(!window.IASDPIPortalAccess?.enabled())return;
+  let content='';
+  if(crono.has(page)&&IASDPIAuth.allowed())content=`<nav class="portal-context-nav" aria-label="Cronoanálise">${[['home','Visão geral'],['programs','Programações'],['actuals','Registrar culto'],['tracking','Acompanhar'],['history','Histórico']].map(([target,label])=>anchor(target,label)).join('')}</nav>`;
+  if(administration.has(page)&&page!=='access-request')content=`<div class="portal-breadcrumb">${anchor('church-home','Início')}<span aria-hidden="true">/</span><span>Administração</span></div>`+content;
+  if(content){app.insertAdjacentHTML('afterbegin',content);const target=page==='summary'?'history':['edit','plan-edit'].includes(page)?'programs':page;app.querySelectorAll('[data-portal-route]').forEach(a=>{if(a.dataset.portalRoute===target)a.setAttribute('aria-current','page');});}
+ }
+ function close(){if(!shell)return;shell.header.dataset.menuOpen='false';shell.toggle.setAttribute('aria-expanded','false');shell.header.querySelectorAll('details').forEach(d=>d.open=false);}
+ document.addEventListener('click',e=>{
+  if(!window.IASDPIPortalAccess?.enabled())return;
+  if(e.target.closest('.portal-menu-toggle')){const open=shell.header.dataset.menuOpen!=='true';shell.header.dataset.menuOpen=String(open);shell.toggle.setAttribute('aria-expanded',String(open));return;}
+  const route=e.target.closest('[data-portal-route]');if(route){e.preventDefault();openNavigation(route.dataset.portalRoute);close();return;}
+  if(e.target.closest('.portal-header a[data-page],#auth-logout'))close();
+  else if(shell&&!e.target.closest('.portal-header'))shell.header.querySelectorAll('details').forEach(d=>d.open=false);
+ });
+ document.addEventListener('keydown',e=>{if(e.key!=='Escape'||!shell)return;const details=e.target.closest('.portal-header details[open]');if(details){details.open=false;details.querySelector('summary').focus();e.preventDefault();}else if(shell.header.dataset.menuOpen==='true'){close();shell.toggle.focus();e.preventDefault();}});
+ return {sync,context,module};
 })();
