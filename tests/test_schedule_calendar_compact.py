@@ -15,12 +15,12 @@ class CompactCalendarTests(unittest.TestCase):
     tearDown=calendar.ScheduleCalendarTests.tearDown
     month=calendar.ScheduleCalendarTests.month
     only=calendar.ScheduleCalendarTests.only
-    def test_people_above_departments_and_no_clear_button(self):
+    def test_people_below_calendar_and_no_clear_button(self):
         self.assertEqual(self.page.get_by_role('button',name='Limpar filtros',exact=True).count(),0)
         for width in [360,390,768,1024,1440]:
             self.page.set_viewport_size({'width':width,'height':1000})
-            person=self.page.locator('#scale-person').bounding_box();departments=self.page.locator('.scale-filter-bar').bounding_box()
-            self.assertLessEqual(person['y']+person['height'],departments['y'])
+            person=self.page.locator('#scale-person').bounding_box();calendar=self.page.locator('.scale-calendar').bounding_box()
+            self.assertLessEqual(calendar['y']+calendar['height'],person['y'])
             self.assertLessEqual(self.page.evaluate('document.documentElement.scrollWidth'),width)
     def test_all_toggle_none_all_and_partial_with_person_and_month_preserved(self):
         self.page.locator('#scale-person').select_option('Rafa')
