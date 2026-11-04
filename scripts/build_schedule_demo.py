@@ -45,7 +45,7 @@ def build(output, calendar_preview=False, management_preview=False, homologation
         official={k:snapshot.get(k) for k in ['status','syncedAt','fromMonth','toMonth']}
         official['events']=[{k:e.get(k) for k in ['id','kind','person','startDate','endDate']} for e in snapshot.get('events',[]) if e.get('kind') in ['monthly','weekly']]
         runtime=runtime.replace("page:'schedule-setup'", "page:'schedule-calendar'",1).replace("document.querySelector('#app').innerHTML=IASDPISchedules.page();", "document.querySelector('#app').innerHTML=state.page==='schedule-calendar'?IASDPIScheduleCalendar.page():IASDPISchedules.page();window.IASDPIScheduleCalendar?.mount();",1)
-        calendar=agenda[agenda.index('// Calendário de consulta:'):]
+        calendar=agenda[agenda.index('// Calendário de consulta:'):].split('// E1: publicação editorial',1)[0]
         bootstrap='window.IASDPICalendarSource=()=>'+json.dumps(rows,ensure_ascii=False)+';\nwindow.IASDPICalendarOfficialSource=()=>('+json.dumps(official,ensure_ascii=False)+');\n'
         nav="""document.addEventListener('click',e=>{const el=e.target.closest('[data-demo-view], [data-calendar-nav]');if(!el)return;e.preventDefault();if(!IASDPISchedules.canLeave())return;state.page=el.dataset.demoView||'schedule-setup';render();document.querySelector('#app').focus();});"""
         js=runtime+'\n'+bootstrap+calendar+'\n'+module+'\n'+nav+'\nrender();\n'
@@ -94,7 +94,7 @@ def build(output, calendar_preview=False, management_preview=False, homologation
         module=module[:a]+'''  function sources(){return '<section class="panel"><h2>Escalas manuais preservadas</h2><p>15 registros de Sonoplastia e 5 de Comunicação, com os nomes históricos originais. Nenhum compromisso é apagado ao editar cadastros.</p><a href="#schedule-calendar" data-b1-nav="schedule-calendar">Consultar calendário histórico</a></section>';}
 '''+module[z:]
         module=module.replace("['sources','Fontes fictícias']","['sources','Fontes das escalas']")
-        calendar=agenda[agenda.index('// Calendário de consulta:'):]
+        calendar=agenda[agenda.index('// Calendário de consulta:'):].split('// E1: publicação editorial',1)[0]
         bootstrap='window.IASDPICalendarOfficialSource=()=>('+json.dumps(official,ensure_ascii=False)+');\n'
         adapter=(ROOT/'tests/fixtures/schedule-known-preview.js').read_text()
         if simplified_daily:adapter+='\n'+(ROOT/'tests/fixtures/schedule-simple-daily-ready.js').read_text()

@@ -17,7 +17,7 @@ FILES = {'index.html', 'LEIA-ME.md'}
 GUIDE = '''# IASDPI — Homologação integrada
 
 Portal, Agenda, Organograma, Cadastro Geral, Escalas e acessos demonstrativos.
-E1 (Gestão de Eventos) não está implementada nesta candidata.
+Esta prévia preserva G8.4; para Eventos e Calendário Unificado, gere com --events.
 
 As alterações ficam em memória e reiniciam ao recarregar. Não inserir dados privados.
 Não há conexão com Supabase, envio de e-mails ou contas reais.
@@ -94,12 +94,12 @@ def validate(folder):
         raise ValueError('Credencial ou referência ao Supabase real no pacote.')
     if set(re.findall(r'sb_publishable_[A-Za-z0-9_-]+', text)) != {FAKE_KEY}:
         raise ValueError('Somente o identificador explicitamente fictício do simulador é permitido.')
-    if NAMESPACE not in text or 'Alterações temporárias: reiniciam ao recarregar' not in text:
+    if ('iasdpi-events-e1-review-v1' if manifest.get('events') else NAMESPACE) not in text or 'Alterações temporárias: reiniciam ao recarregar' not in text:
         raise ValueError('Isolamento ou identificação da demonstração ausente.')
     return manifest
 
 
-def prepare(output, historical_site):
+def prepare(output, historical_site, events=False):
     output, historical_site = Path(output), Path(historical_site)
     if output.exists():
         raise ValueError('Destino já existe; nenhum arquivo será sobrescrito.')
@@ -116,32 +116,39 @@ def prepare(output, historical_site):
         stage = Path(temp) / 'site';stage.mkdir()
         for name in files:
             target = stage / name;target.parent.mkdir(parents=True, exist_ok=True);shutil.copyfile(historical_site / name, target)
-        target = stage / 'integrada';target.mkdir()
-        subprocess.run([sys.executable, str(ROOT / 'scripts/export_preview.py'), '--registry-identities-preview', '--output', str(target / 'index.html')], cwd=ROOT, check=True, capture_output=True)
+        target = stage / 'integrada'
+        if events and target.exists() and not (stage/'integrada-g84').exists():
+            shutil.copytree(target,stage/'integrada-g84')
+        target.mkdir(exist_ok=events)
+        subprocess.run([sys.executable, str(ROOT / 'scripts/export_preview.py'), '--events-preview' if events else '--registry-identities-preview', '--output', str(target / 'index.html')], cwd=ROOT, check=True, capture_output=True)
         # O ZIP local de revisão não pertence à publicação estática.
         (target / 'index.zip').unlink()
-        text = (target / 'index.html').read_text().replace('iasdpi-registry-g84-preview-v1', NAMESPACE)
-        text = text.replace('</head>', STYLE + '</head>').replace('<body>', '<body>' + BANNER, 1)
+        namespace='iasdpi-events-e1-review-v1' if events else NAMESPACE
+        text = (target / 'index.html').read_text().replace('iasdpi-registry-g84-preview-v1', namespace).replace('iasdpi-events-e1-preview-v1',namespace)
+        banner=BANNER if not events else '<aside class="review-banner" aria-label="Ambiente de homologação"><strong>IASDPI · Homologação</strong><p>Acesso simulado. Alterações temporárias: reiniciam ao recarregar.</p><a href="../">Início</a> · <a href="LEIA-ME.md">Ajuda e acessos</a></aside>'
+        text = text.replace('</head>', STYLE + '</head>').replace('<body>', '<body>' + banner, 1)
         (target / 'index.html').write_text(text)
-        (target / 'LEIA-ME.md').write_text(GUIDE)
+        guide=GUIDE if not events else GUIDE.replace('Esta prévia preserva G8.4; para Eventos e Calendário Unificado, gere com --events.','E1: Gestão de Eventos e Calendário Unificado. Abra Gestão de Eventos após entrar. A Agenda oficial é reutilizada; importar exige revisão administrativa e cria rascunho.').replace('.teste','.iasdpi')
+        (target / 'LEIA-ME.md').write_text(guide)
         commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         manifest = {'environment': 'isolated-demo', 'database_connected': False, 'remote_requests_allowed': False,
                     'temporary_edits': True, 'source_branch': 'feat/schedule-management-b1', 'source_commit': commit,
                     'source_dirty': bool(subprocess.check_output(['git', '--no-optional-locks', 'status', '--porcelain'], cwd=ROOT)),
                     'features': ['portal', 'agenda', 'organograma', 'cadastro-geral', 'escalas', 'rodizio', 'conflitos', 'acessos-demonstrativos'],
-                    'excluded': ['E1'], 'files': {name: sha(target / name) for name in sorted(FILES)}}
+                    'excluded': [] if events else ['E1'], 'events':events,'files': {name: sha(target / name) for name in sorted(FILES)}}
+        if events:manifest['features'].append('events')
         (target / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
         validate(target)
         root = stage / 'index.html';html = root.read_text()
-        if 'href="integrada/"' in html:
+        if 'href="integrada/"' in html and not events:
             raise ValueError('A entrada integrada já existe; revisar atualização explicitamente.')
-        root.write_text(html.replace('</nav></header>', '<a href="integrada/">Homologação integrada</a></nav></header>', 1))
-        if root.read_text() == html:
+        root.write_text(html if 'href="integrada/"' in html else html.replace('</nav></header>', '<a href="integrada/">Homologação integrada</a></nav></header>', 1))
+        if root.read_text() == html and 'href="integrada/"' not in html:
             raise ValueError('Cabeçalho anterior não reconhecido.')
         old_manifest = json.loads((stage / 'manifest.json').read_text());old_manifest['files']['index.html'] = sha(root)
         (stage / 'manifest.json').write_text(json.dumps(old_manifest, ensure_ascii=False, indent=2) + '\n')
         for name, digest in before.items():
-            if name not in {'index.html', 'manifest.json'} and sha(stage / name) != digest:
+            if name not in {'index.html', 'manifest.json'} and not (events and name.startswith('integrada/')) and sha(stage / name) != digest:
                 raise ValueError('Demonstração anterior foi alterada: ' + name)
         if before != {name: sha(historical_site / name) for name in files}:
             raise ValueError('Site anterior sofreu alteração externa durante a preparação.')
@@ -153,6 +160,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--historical-site', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--events', action='store_true',help='Atualiza a integrada com E1, preservando a versão G8.4.')
     args = parser.parse_args()
-    prepare(args.output, args.historical_site)
+    prepare(args.output, args.historical_site, args.events)
     print(args.output / 'integrada/')

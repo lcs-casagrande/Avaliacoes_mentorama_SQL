@@ -4,11 +4,12 @@ MVP para cadastrar uma programação e acompanhar o planejado × realizado, com 
 
 ## Revisão do desenvolvimento
 
-A branch `feat/schedule-management-b1` reúne Escalas B1–B1.2, governança G1–G8.4 e a preparação G9. O Cadastro Geral consolidado reaproveita as pessoas e os vínculos existentes. **E1 — Gestão de Eventos não está implementada nesta candidata.**
+A branch `feat/schedule-management-b1` reúne Escalas B1–B1.2, governança G1–G8.4, a preparação G9 e E1 — Gestão de Eventos e Calendário Unificado. O Cadastro Geral consolidado reaproveita as pessoas e os vínculos existentes. E1 está disponível na homologação estática; sua persistência real depende da revisão e instalação autorizada da migração 020.
 
 - [Demonstração integrada isolada](https://lcs-casagrande.github.io/IASDPI-homologacao/integrada/): contas fictícias, alterações em memória, sem Supabase real.
 - [Escopo, testes, pendências e rollback da homologação](docs/review-publication.md).
 - [Ordem das migrações e preparação G9](docs/governance-g9-homologation.md).
+- [E1: implementação, fontes, testes e ativação](docs/events-e1.md).
 - [Checklist de Auth/RLS reais, ainda pendente](docs/g9-real-validation.md).
 
 Os flags G1–G4/Cadastro Geral do frontend operacional permanecem desativados. Publicar esta branch não instala migrações, não ativa Edge Functions e não substitui o GitHub Pages oficial.

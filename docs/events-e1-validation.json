@@ -1,0 +1,42 @@
+{
+  "python_cases": 253,
+  "python_passed": 253,
+  "python_failures": 0,
+  "python_errors": 0,
+  "python_skipped": 0,
+  "node_passed": 22,
+  "unique_cases_passed": 275,
+  "by_python_module": {
+    "test_events_sql": 14,
+    "test_events_browser": 13,
+    "test_events_sources": 6,
+    "test_schedule_calendar": 13,
+    "test_schedule_calendar_compact": 15,
+    "test_schedule_calendar_adjustments": 8,
+    "test_portal_integration_browser": 19,
+    "test_governance_integration_browser": 9,
+    "test_registry_identities_browser": 14,
+    "test_registry_integration_browser": 11,
+    "test_registry_consolidation_browser": 18,
+    "test_hour_format": 6,
+    "test_drafts": 20,
+    "test_navigation_conflicts": 38,
+    "test_package_validation": 39,
+    "test_integrated_review": 10
+  },
+  "exact_package_browser_rechecks": 13,
+  "exact_package_successful": true,
+  "production_tested": false,
+  "browsers": [
+    "Chromium local"
+  ],
+  "widths": [
+    360,
+    390,
+    768,
+    1024,
+    1440
+  ],
+  "new_e1_cases": 33,
+  "prior_full_g9_suite_rerun": false
+}

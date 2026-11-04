@@ -222,3 +222,15 @@ input,select,textarea{border-color:#7a8790}input::placeholder,textarea::placehol
 .registry-identity-group p,.registry-directory-table small {overflow-wrap:anywhere}
 .registry-identity-group select {width:100%;min-height:44px;max-width:100%}
 #registry-audit table {min-width:620px}
+
+/* E1: categorias independentes; filtros ministeriais existentes seguem exclusivos das escalas. */
+.event-categories{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.event-categories button[aria-pressed=true]{background:#124f75;color:#fff;border-color:#124f75}.event-categories button{min-height:44px}
+.event-chip{display:block;border-left:3px solid #146065;border-radius:4px;background:#e9f6f4;color:#174e53;padding:3px 5px;font-size:12px;line-height:1.35;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.event-church{border-color:#75447d;background:#f6ecf7;color:#63336c}.event-pending{border-color:#805d15;background:#fff6db;color:#654910}
+.event-details{min-width:0;overflow-wrap:break-word}.event-details h3{margin:0 0 6px}.event-manager-list,.event-source-list{list-style:none;padding:0}.event-manager-list li,.event-source-list li{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid #d9e0e6;padding:12px 0}.event-source-list li>strong,.event-manager-list li>strong{flex:1 1 220px;overflow-wrap:break-word}.event-source-list li>span{flex:1 1 180px}.event-history{overflow-wrap:anywhere}#event-editor select{min-height:44px;font:inherit;padding:9px}#event-editor input,#event-editor textarea{font:inherit;min-width:0}#event-editor .actions{flex-wrap:wrap}
+@media(max-width:600px){#event-editor .form-grid{grid-template-columns:1fr}.event-chip{font-size:11px;padding:2px 3px}.event-source-list li,.event-manager-list li{align-items:flex-start}.event-source-list li>strong,.event-manager-list li>strong{flex-basis:100%}}
+
+.event-chip{position:relative}.event-chip .sr-only{left:0;top:0}
+
+.event-form-fields{border:0;padding:0;margin:0;min-width:0}
+#event-editor .actions button{word-break:normal;overflow-wrap:normal}
+@media(max-width:600px){#event-editor .actions button{flex:1 1 140px}}

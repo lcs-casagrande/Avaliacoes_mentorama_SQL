@@ -1,5 +1,7 @@
 # Consolidação para revisão técnica e homologação estática
 
+> Registro da consolidação anterior G8.4, commit `676ac5c`. A atualização E1 é documentada em [events-e1.md](events-e1.md); as referências abaixo à ausência de E1 descrevem a entrega anterior, não a candidata atual.
+
 Data: 04/11/2026 (America/Sao_Paulo). Branch autorizada: `feat/schedule-management-b1` no repositório `lcs-casagrande/Avaliacoes_mentorama_SQL`. A publicação estática é exclusiva de `lcs-casagrande/IASDPI-homologacao`.
 
 ## Estado do código e escopo

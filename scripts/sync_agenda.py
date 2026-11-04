@@ -196,6 +196,26 @@ def sync(site, calendar_ids, first_month, last_month):
                 toMonth=last_month, calendars=calendar_ids, duplicateCount=len(records) - len(unique), events=list(unique.values()))
 
 
+def preserve_event_ids(payload, previous):
+    """Mantém IDs por correspondência exata; UID novo da origem não duplica o evento."""
+    fields = ('title', 'start', 'end', 'department', 'location', 'kind', 'person', 'allDay', 'wholeDay')
+    signature = lambda row: tuple(row.get(key) for key in fields)
+    index = {}
+    for row in previous.get('events', []):
+        index.setdefault(signature(row), set()).add(row['id'])
+    used = set()
+    for row in payload['events']:
+        candidates = index.get(signature(row), set())
+        if len(candidates) > 1:
+            raise ValueError('Correspondência de eventos ambígua; revisar IDs anteriores antes de sincronizar.')
+        if candidates:
+            row['id'] = next(iter(candidates))
+        if row['id'] in used:
+            raise ValueError('IDs de eventos em conflito; última agenda preservada.')
+        used.add(row['id'])
+    return payload
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--site', default='https://iasd-paradainglesa.netlify.app/')
@@ -207,6 +227,12 @@ if __name__ == '__main__':
     # A fonte inteira precisa ser validada antes de substituir a última sincronização.
     try:
         payload = sync(args.site, args.calendar_id, args.from_month, args.to_month)
+        if args.output.exists():
+            old = args.output.read_text(encoding='utf-8')
+            prefix = 'window.IASDPIAgendaData = '
+            if not old.startswith(prefix):
+                raise ValueError('Snapshot anterior não reconhecido; revisar sem sobrescrever.')
+            preserve_event_ids(payload, json.loads(old[len(prefix):].strip().rstrip(';')))
         content = 'window.IASDPIAgendaData = ' + json.dumps(payload, ensure_ascii=False).replace('<', '\\u003c') + ';\n'
         temporary = args.output.with_suffix('.tmp')
         temporary.write_text(content, encoding='utf-8')

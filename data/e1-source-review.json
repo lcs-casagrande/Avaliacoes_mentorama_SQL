@@ -1,0 +1,99 @@
+{
+  "source": "https://iasd-paradainglesa.netlify.app/",
+  "checked_at": "2026-11-04T09:34:57.193007-03:00",
+  "records_checked": 209,
+  "content_matches_existing_snapshot": true,
+  "existing_ids_preserved": true,
+  "ids_changed_in_source_but_exactly_matched": [
+    {
+      "source_id": "d017fdac3553e86e082a89bc1eb0253a",
+      "preserved_id": "9d7177d0e63c7ac62a91a2bceb50d637"
+    },
+    {
+      "source_id": "1a7caa069949bcc09ee4eaf562c78ca1",
+      "preserved_id": "54c3adb0f6e61f4e2790933481979c99"
+    },
+    {
+      "source_id": "758e3b01db825532d68281aaae20dc99",
+      "preserved_id": "dbcea86ce49f42b5e7d341cc910a4e45"
+    },
+    {
+      "source_id": "ae52764bf3c6612e28910e84c4c70ddb",
+      "preserved_id": "e9695fc5de1bd0c96533081457800d49"
+    },
+    {
+      "source_id": "49d113c577bd8c3e556cbe96a4a12ec9",
+      "preserved_id": "a2cbda12310eb4cbaa2098c6816473dd"
+    },
+    {
+      "source_id": "d8206d1fe0b3ff8e4678e4112399ecb0",
+      "preserved_id": "91e09ef087354e7ddd0a8b428be450fd"
+    },
+    {
+      "source_id": "c68d01b5609050b74d2c99b4a17d4748",
+      "preserved_id": "d39b62c3c00a62a8431922a3c436a52e"
+    },
+    {
+      "source_id": "91b3b50987b9555b53feb45f594bf13e",
+      "preserved_id": "50c45b814865e348e202d94cb0ae3e15"
+    },
+    {
+      "source_id": "4903a12a5079caa5d11845377f0d7052",
+      "preserved_id": "8336f0902255919c02170c57cf192be2"
+    },
+    {
+      "source_id": "d9455b2cca8f96e90142bf91db0c6062",
+      "preserved_id": "2d37fd63f6c37444dcf38b29345c5fa0"
+    },
+    {
+      "source_id": "52931c7f95c2d21b218500dc8ae50ff8",
+      "preserved_id": "fa2035765e4bc5d29c77ef8e614b9d02"
+    },
+    {
+      "source_id": "e88f1b78b0b7789c620425a68a220f22",
+      "preserved_id": "ea14116ac840255934aa18714228390d"
+    },
+    {
+      "source_id": "0c3b981b50e270ced5f792da12ac0c99",
+      "preserved_id": "289e99d5e8a95752bb2e9e0f97c5d4eb"
+    },
+    {
+      "source_id": "49ca4800e2e10b3ed7e45213d373f1bc",
+      "preserved_id": "04ad08aabd828c7be9bc9b88917971c3"
+    },
+    {
+      "source_id": "e88a05a7c206c2a2ad0b7b49217aea16",
+      "preserved_id": "84df4b2fe9ba5649da92771c714d5d9e"
+    },
+    {
+      "source_id": "b01a1f431ce57c09b3a7209352be4956",
+      "preserved_id": "fec80cdae4a7e8d53319851e06e42b99"
+    },
+    {
+      "source_id": "9a9fdf0a23c7bf97b7962d8c1b27e7dc",
+      "preserved_id": "13b95b0b20419d9e1863efda5a73d6ca"
+    },
+    {
+      "source_id": "fae867ea698175917ad4a34a990d49f4",
+      "preserved_id": "880e72ebe40799c4442e457660e556ce"
+    },
+    {
+      "source_id": "7dcb98a6ea41a1a003356f5797358017",
+      "preserved_id": "54bc0ea6cf4c3e3d10a334f5d1e1d4ec"
+    },
+    {
+      "source_id": "74f18f119d77bab36732a415316f37f2",
+      "preserved_id": "273c5a964b1c6dfb58b21bcb178e1fcf"
+    },
+    {
+      "source_id": "7c705c083f956c5d785766fcd3e3c4da",
+      "preserved_id": "b9c12b54524f7abbba97eebda97251d0"
+    }
+  ],
+  "october_2026_events": 17,
+  "sonoplastia_historical_rows_preserved": 15,
+  "communication_historical_rows_preserved": 5,
+  "image_available_in_workspace": false,
+  "unknown_information_not_inferred": true,
+  "database_import_executed": false
+}
