@@ -97,13 +97,17 @@ class MusicRosterBrowserTests(unittest.TestCase):
           const day=document.querySelector('[data-calendar-volunteer]').closest('.monthly-cell').querySelector('[data-day]').dataset.day;
           IASDPIB1Preview.legacy.push({source_key:'test-only-conflict',person_id:person.id,department_id:department.id,date:day,original_name:person.name});
         }""")
-        self.page.once('dialog', lambda d: d.accept())
         self.page.locator('[data-b1-action=reload]').click()
-        self.page.wait_for_function("()=>[...document.querySelectorAll('[data-calendar-volunteer] option')].some(o=>o.textContent==='Henrique Franco · ⚠ Indisponível'&&o.disabled)")
-        option = self.page.locator('[data-calendar-volunteer]').first.locator('option').filter(has_text='Henrique Franco')
-        self.assertEqual(option.inner_text(), 'Henrique Franco · ⚠ Indisponível')
+        self.page.wait_for_function("()=>[...document.querySelectorAll('[data-calendar-volunteer] option')].some(o=>o.textContent==='Henrique Franco'&&!o.disabled)")
+        compatible=self.page.locator('[data-calendar-volunteer]').first.locator('option').filter(has_text='Henrique Franco')
+        self.assertEqual(compatible.inner_text(),'Henrique Franco');self.assertFalse(compatible.evaluate('e=>e.disabled'))
+        day=self.page.evaluate("IASDPIB1Preview.legacy.find(r=>r.source_key==='test-only-conflict').date")
+        self.page.evaluate("""async()=>{const c=await IASDPISchedules.request('iasdpi_registry_catalog'),p=c.people.find(p=>p.name==='Henrique Franco'),d=c.departments.find(d=>d.code==='sonoplastia'),m=c.memberships.find(m=>m.person_id===p.id&&m.department_id===d.id);await IASDPISchedules.request('iasdpi_registry_save',{p_person:p.id,p_expected_person_version:p.version,p_person_patch:{},p_links:[{department_id:d.id,expected_version:m?.version||0,patch:{active:true}}],p_request_id:crypto.randomUUID()});}""")
+        self.department('sonoplastia')
+        option=self.page.locator('.monthly-cell:has([data-day="'+day+'"]) [data-calendar-volunteer]').first.locator('option').filter(has_text='Henrique Franco')
+        self.assertEqual(option.inner_text(),'Henrique Franco · ⚠ Indisponível')
         self.assertTrue(option.evaluate('e=>e.disabled'))
-        self.assertEqual(option.get_attribute('class'), 'schedule-person-unavailable')
+        self.assertEqual(option.get_attribute('class'),'schedule-person-unavailable')
 
     def test_historical_sources_unchanged_and_five_widths_no_overflow(self):
         self.login()

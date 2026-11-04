@@ -1,5 +1,5 @@
 'use strict';
-// Somente simulação em memória. SQL 022 é validada separadamente em PostgreSQL.
+// Somente simulação em memória. SQL 022/025 é validada separadamente em PostgreSQL.
 (()=>{
  const prior=window.fetch,store=IASDPIE1Demo,series=new Map(),seriesVersions=new Map(),receipts=new Map(),clone=v=>structuredClone(v),engine=IASDPIEventPlanning;
  const spaces=[{code:'nave',name:'Nave',exclusive:true},{code:'quadra',name:'Quadra',exclusive:true},{code:'patio',name:'Pátio',exclusive:true},{code:'salas',name:'Salas',exclusive:false},{code:'externo',name:'Externo',exclusive:false}];let queue=Promise.resolve();
@@ -15,10 +15,10 @@
  const clean=p=>Object.fromEntries(Object.entries(p).filter(([k])=>!['recurrence','recurrence_weekday','recurrence_ordinal','reservation_conflicts','preview_from','recurrence_until'].includes(k)));
  async function write(a,id,version,patch,options,meta={},pending=false){
   const old=store.events.get(id),candidate={...old,...patch};if(!can(a,candidate,'edit')||old&&!can(a,old,'edit')||['published','cancelled'].includes(patch.status)&&(!can(a,candidate,'publish')||old&&!can(a,old,'publish')))fail('Sem permissão para salvar/publicar.');
-  const approval=['pending','rejected'].includes(old?.approval_status)?old.approval_status:pending||candidate.program_category==='general'?'pending':old?.approval_status||'not_required';
+  const approval='not_required';
   const conflicts=patch.status==='cancelled'?[]:preview(a,{...candidate,recurrence:'none'},old?[id]:[]).occurrences[0].reservation_conflicts;
-  if(conflicts.length&&!pending)fail(conflicts.map(c=>c.space_name+' · '+c.date+' · '+c.occupied+' · '+c.event_title).join('; '));
-  const payload=clean(patch);if(approval==='pending'&&payload.status==='published')payload.status='draft';
+  if(conflicts.length&&candidate.status==='published')fail(conflicts.map(c=>c.space_name+' · '+c.date+' · '+c.occupied+' · '+c.event_title).join('; '));
+  const payload=clean(patch);
   if(payload.status==='published'&&candidate.spaces?.some(code=>spaces.find(s=>s.code===code)?.exclusive)&&!engine.interval(candidate))fail('Informe início e término ou marque Dia inteiro para confirmar a reserva exclusiva.');
   if(candidate.spaces!=null&&(!Array.isArray(candidate.spaces)||new Set(candidate.spaces).size!==candidate.spaces.length||candidate.spaces.some(code=>!spaces.some(s=>s.code===code))))fail('Locais inválidos ou duplicados.');
   const saved=await json('iasdpi_event_save',{p_id:id,p_expected_version:version,p_patch:payload,p_request_id:crypto.randomUUID()},options);
@@ -33,17 +33,16 @@
   if(name==='iasdpi_event_submit'){
    if((base?.version||0)!==b.p_expected_version)fail('Evento alterado em outro dispositivo.');
    const plan=preview(a,{...candidate,recurrence:'none'},base?[base.id]:[]);
-   if(base?.series_id&&plan.conflict_count&&!b.p_accept_conflicts)return {...plan,requires_confirmation:true};
    const event=await write(a,b.p_id,b.p_expected_version,b.p_patch,options,{},Boolean(base?.series_id&&plan.conflict_count));
-   if(base?.series_id){const root=series.get(base.series_id);root.version++;if(event.approval_status==='pending')root.approval_status='pending';}
+   if(base?.series_id){const root=series.get(base.series_id);root.version++;root.approval_status='not_required';}
    const result={event,requires_confirmation:false};receipts.set(b.p_request_id,{signature,result:clone(result)});return result;
   }
   if((oldSeries?.version||0)!==b.p_expected_version||!['all','following'].includes(b.p_scope))fail('A série mudou ou a abrangência é inválida.');
   const selected=store.events.get(b.p_occurrence);if(b.p_scope==='following'&&(!selected||selected.series_id!==b.p_id))fail('Ocorrência não pertence à série.');
   const cutoff=b.p_scope==='following'?selected.occurrence_on:null,oldRows=[...store.events.values()].filter(e=>e.series_id===b.p_id&&(!cutoff||e.occurrence_on>=cutoff));
   const plan=preview(a,{...candidate,recurrence_until:oldSeries?.until_date||engine.yearEnd(),...(cutoff?{preview_from:cutoff}:{})},oldRows.map(e=>e.id));
-  if(plan.conflict_count&&!b.p_accept_conflicts&&candidate.status!=='cancelled')return {...plan,requires_confirmation:true};
-  const pending=candidate.program_category==='general'||plan.conflict_count>0||oldSeries?.approval_status==='pending',root={id:b.p_id,definition:clone(candidate),until_date:oldSeries?.until_date||plan.until,version:(oldSeries?.version||0)+1,approval_status:pending?'pending':'not_required',category:candidate.category,department_id:candidate.department_id};
+  if(plan.conflict_count&&candidate.status==='published')fail('Reserva em conflito. Resolva os locais e horários antes de publicar a série.');
+  const pending=false,root={id:b.p_id,definition:clone(candidate),until_date:oldSeries?.until_date||plan.until,version:(oldSeries?.version||0)+1,approval_status:'not_required',category:candidate.category,department_id:candidate.department_id};
   series.set(root.id,root);const events=[];
   for(const row of oldRows.filter(e=>!plan.occurrences.some(x=>x.date===e.occurrence_on)))await write(a,row.id,row.version,{status:'cancelled'},options,{},true);
   for(const item of plan.occurrences){const old=oldRows.find(e=>e.occurrence_on===item.date);events.push(await write(a,old?.id||crypto.randomUUID(),old?.version||0,clean(item),options,{series_id:root.id,occurrence_on:item.date},Boolean(pending)));}
@@ -53,8 +52,8 @@
  window.fetch=async(input,options={})=>{
   const url=new URL(typeof input==='string'?input:input.url),name=url.pathname.split('/').pop();
   if(url.origin!=='https://g4demo.supabase.co')return prior(input,options);
-  if(['iasdpi_events_published','iasdpi_events_visible'].includes(name)){const response=await prior(input,options);if(!response.ok)return response;const data=await response.json();data.events=data.events.filter(e=>!['pending','rejected'].includes(e.approval_status)&&!['pending','rejected'].includes(series.get(e.series_id)?.approval_status)).map(e=>{const result={...e,space_names:(e.spaces||[]).map(code=>spaces.find(s=>s.code===code)?.name||code)};delete result.reservation_conflicts;return result;});return Response.json(data);}
-  if(name==='iasdpi_events_catalog'){const response=await prior(input,options);if(!response.ok)return response;const c=await response.json();for(const e of store.events.values()){if(!e.approval_status)e.approval_status='legacy';if(!('spaces' in e))e.spaces=null;}c.events=c.events.map(e=>({...e,approval_status:e.approval_status||'legacy',spaces:e.spaces??null}));return Response.json({...c,event_management_v2:true,spaces,organizer_options:[{value:'local_church',label:'Igreja Local'},{value:'association',label:'Associação / Missão'},{value:'school',label:'Escola Adventista'},{value:'other',label:'Outros'},...c.departments.map(d=>({value:'department:'+d.id,label:d.name}))],series:[...series.values()].filter(s=>c.is_admin||c.departments.some(d=>d.id===s.department_id)).map(clone)});}
+  if(['iasdpi_events_published','iasdpi_events_visible'].includes(name)){const response=await prior(input,options);if(!response.ok)return response;const data=await response.json();data.events=data.events.map(e=>{const result={...e,space_names:(e.spaces||[]).map(code=>spaces.find(s=>s.code===code)?.name||code)};delete result.reservation_conflicts;return result;});return Response.json(data);}
+  if(name==='iasdpi_events_catalog'){const response=await prior(input,options);if(!response.ok)return response;const c=await response.json();for(const e of store.events.values()){if(!e.approval_status)e.approval_status='legacy';if(!('spaces' in e))e.spaces=null;}c.events=c.events.map(e=>({...e,approval_status:e.approval_status||'legacy',spaces:e.spaces??null}));return Response.json({...c,event_management_v2:true,event_approval_required:false,spaces,organizer_options:[{value:'local_church',label:'Igreja Local'},{value:'association',label:'Associação / Missão'},{value:'school',label:'Escola Adventista'},{value:'other',label:'Outros'},...c.departments.map(d=>({value:'department:'+d.id,label:d.name}))],series:[...series.values()].filter(s=>c.is_admin||c.departments.some(d=>d.id===s.department_id)).map(clone)});}
   if(!['iasdpi_event_submit','iasdpi_event_series_save','iasdpi_event_preview'].includes(name))return prior(input,options);
   try{
    await IASDPIG84Demo.ready;const headers=new Headers(options.headers);if(headers.get('x-iasdpi-church')!=='IASD_PI')fail('Igreja não autorizada.');

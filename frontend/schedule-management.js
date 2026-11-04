@@ -47,6 +47,14 @@ window.IASDPIScheduleEditWindow=(()=>{
  function period(row,settings){if(!settings?.schedule_edit_policy)return true;const b=bounds(settings);return row.ends_on>=b.from&&row.starts_on<=b.until;}
  return {bounds,day,month,period};
 })();
+// Regras comuns de apresentação e compatibilidade; IDs e ordem persistida não mudam.
+window.IASDPIScheduleRules=(()=>{
+ const compareNames=(a,b)=>String(a||'').localeCompare(String(b||''),'pt-BR',{sensitivity:'base',numeric:true})||String(a||'').localeCompare(String(b||''),'pt-BR');
+ const comparePeople=(a,b)=>compareNames(a.display_name||a.name,b.display_name||b.name)||String(a.id||'').localeCompare(String(b.id||''));
+ const communication=(catalog,id)=>catalog?.departments?.some(d=>d.id===id&&d.code==='comunicacao')||false;
+ const departmentsConflict=(catalog,a,b)=>!(a&&b&&a===b)&&!communication(catalog,a)&&!communication(catalog,b);
+ return {compareNames,comparePeople,communication,departmentsConflict};
+})();
 window.IASDPIScheduleRotation=(()=>{
  const editWindow=window.IASDPIScheduleEditWindow||{day:()=>true,bounds:()=>({})};
  const event=(s,r)=>s.events.find(e=>e.id===r.event_id);
@@ -71,8 +79,8 @@ window.IASDPIScheduleRotation=(()=>{
   const detail=context?.days.find(d=>d.date===date);
   const advisory=manual&&s.context?.availability_advisory,defaultAvailable=!s.context?.central_registry&&s.context?.availability_default==='available';
   if(s.context?.availability_enabled!==false&&!advisory&&detail?.state!=='available'&&!(defaultAvailable&&(!detail?.state||detail.state==='unknown')))out.push(detail?.state==='unavailable'?'Indisponível nesta data':'Disponibilidade desconhecida — Pendente de confirmação');
-  if(detail?.conflict)out.push('Conflito com outro departamento nesta data');
-  if((s.batchAssignments||[]).some(a=>a.person_id===person&&a.date===date&&a.department_id!==s.department))out.push('Conflito com proposta deste lote em outro departamento');
+  if(detail?.conflict&&!window.IASDPIScheduleRules?.communication(s.catalog,s.department))out.push('Conflito com outro departamento nesta data');
+  if((s.batchAssignments||[]).some(a=>a.person_id===person&&a.date===date&&(window.IASDPIScheduleRules?window.IASDPIScheduleRules.departmentsConflict(s.catalog,a.department_id,s.department):a.department_id!==s.department)))out.push('Conflito com proposta deste lote em outro departamento');
   if(r.assignments.some(a=>a.person_id===person&&a.id!==skip))out.push('Já ocupa esta função no evento');
   const used=usage(s,person,skip);if(date)used.add(date);
   const global=new Set([...(context?.global_days||[]),...used]),department=new Set([...(context?.department_days||[]),...used]);
@@ -192,7 +200,7 @@ window.IASDPIScheduleManagement=(()=>{
  function rotationSource(){return {catalog:m.catalog,context:m.context,department:m.department,events:m.events,plan:m.plan};}
  function volunteerField(r,slot,prefix,compact=false){
   const event=m.events.find(e=>e.id===r.event_id),people=eligible(r.role_id),a=r.assignments[slot],current=lookup('people',a?.person_id),choices=m.monthly?m.catalog.people.filter(p=>m.catalog.memberships.some(member=>member.person_id===p.id&&member.department_id===m.department)):[...people];
-  if(current&&!choices.some(p=>p.id===current.id))choices.push(current);
+  if(current&&!choices.some(p=>p.id===current.id))choices.push(current);choices.sort(IASDPIScheduleRules.comparePeople);
   const options=opt('','Vaga pendente',a?.person_id||'')+choices.map(p=>{
    const status=available(p.id,event),reasons=m.monthly?IASDPIScheduleRotation.manualReasons(rotationSource(),r,p.id,a?.id):[];
    const blocked=Boolean(m.monthly?reasons.length:m.settings&&status!=='available'),warning=blocked||status==='unavailable';
@@ -204,7 +212,8 @@ window.IASDPIScheduleManagement=(()=>{
  function musicPeople(row,prefix){
   const choices=m.catalog.people.filter(person=>m.catalog.memberships.some(member=>member.person_id===person.id&&member.department_id===m.department));
   for(const assignment of row.assignments)if(!choices.some(person=>person.id===assignment.person_id))choices.push(m.catalog.people.find(person=>person.id===assignment.person_id)||{id:assignment.person_id,display_name:'Pessoa não encontrada'});
-  const names=row.assignments.map(a=>choices.find(p=>p.id===a.person_id)?.display_name).filter(Boolean),label=names.length===1?names[0]:names.length+' membros';
+  choices.sort(IASDPIScheduleRules.comparePeople);
+  const names=row.assignments.map(a=>choices.find(p=>p.id===a.person_id)?.display_name).filter(Boolean).sort(IASDPIScheduleRules.compareNames),label=names.length===1?names[0]:names.length+' membros';
   return `<details class="music-picker" data-music-picker="${h(row.id)}" ${m.musicPicker===row.id?'open':''}><summary aria-label="${h('Selecionar membros · '+prefix+(names.length?' · '+names.join(', '):''))}"><span>${names.length?h(label):'Selecionar membros'}</span><span aria-hidden="true">⌄</span></summary><fieldset class="music-team"><legend class="sr-only">Pessoas escaladas · ${h(prefix)}</legend>${choices.map(person=>{const current=row.assignments.find(a=>a.person_id===person.id),reasons=IASDPIScheduleRotation.manualReasons(rotationSource(),row,person.id,current?.id),warning=reasons.length||available(person.id,m.events.find(e=>e.id===row.event_id))==='unavailable';return `<div class="music-person"><label class="checkbox"><input type="checkbox" name="music-volunteer" data-music-volunteer value="${h(person.id)}" aria-label="${h(person.display_name+' · '+prefix)}" ${current?'checked':''} ${m.saving||!editable()||reasons.length&&!current?'disabled':''}><span>${h(person.display_name)}${warning?'<small class="schedule-person-unavailable"> ⚠ Indisponível</small>':''}</span></label></div>`;}).join('')||'<p>Nenhuma pessoa vinculada à Música.</p>'}</fieldset></details>`;
  }
  function positionMusicPickers(){
@@ -230,7 +239,7 @@ window.IASDPIScheduleManagement=(()=>{
  }
  function page(){if(m.status==='ready'&&m.settings?.elder_periods&&lookup('departments',m.department)?.code==='ancionato')return IASDPIScheduleElders.page(m.catalog,m.settings,m.department,m.month,month=>{m.month=month;m.periodInitialized=true;redraw();});return m.status==='ready'&&m.monthly&&m.layout==='monthly'?monthlyPage():manualPage();}
  function distributionTable(stats){
-  const people=m.catalog.people.filter(p=>m.catalog.memberships.some(member=>member.person_id===p.id&&member.department_id===m.department));
+  const people=m.catalog.people.filter(p=>m.catalog.memberships.some(member=>member.person_id===p.id&&member.department_id===m.department)).sort(IASDPIScheduleRules.comparePeople);
   const monthLabel=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric',timeZone:'America/Sao_Paulo'}).format(new Date(m.month+'-01T12:00:00Z'));
   return `<section class="panel"><h2>Pessoas e distribuição${clean()?IASDPIScheduleUI.help('distribution-help','Atribuições contam vagas; dias contam datas distintas no mês. O histórico considera os dias publicados antes do mês selecionado.','Ajuda sobre a distribuição'):''}</h2><div class="table-scroll schedule-distribution-scroll" tabindex="0" aria-label="Distribuição de escalas por pessoa"><table class="schedule-distribution"><caption>${h(monthLabel)}${clean()?'':' · histórico publicado antes de '+h(displayDate(m.month+'-01'))}</caption><thead><tr><th scope="col">Pessoa</th><th scope="col">Atribuições no mês</th><th scope="col">Dias no mês</th><th scope="col">Histórico anterior (dias)</th></tr></thead><tbody>${people.map(p=>{const count=stats.people.find(row=>row.id===p.id)?.count||0,days=new Set(m.plan.requirements.filter(r=>r.assignments.some(a=>a.person_id===p.id)).map(r=>m.events.find(e=>e.id===r.event_id)?.scheduled_on).filter(Boolean)).size,history=m.context?.people.find(row=>row.person_id===p.id)?.history_count;return `<tr><th scope="row">${h(p.display_name)}</th><td>${count}</td><td>${days}</td><td>${history==null?'—':h(history)}</td></tr>`;}).join('')||'<tr><td colspan="4">Nenhuma pessoa cadastrada neste departamento.</td></tr>'}</tbody></table></div><small class="schedule-table-hint">Deslize a tabela para ver todas as colunas.</small></section>`;
  }
@@ -245,7 +254,7 @@ window.IASDPIScheduleManagement=(()=>{
   const responsibles=heads.length?heads:reference;
   const color=['sonoplastia','diaconato','musica','ancionato','comunicacao'].includes(dept.code)?dept.code:'other';
   const calendar=days.map(day=>{
-   const events=m.events.filter(e=>e.scheduled_on===day&&(!simple()||departmentDay(e)||m.plan.requirements.some(r=>r.event_id===e.id))),rows=m.plan.requirements.filter(r=>events.some(e=>e.id===r.event_id)),names=rows.flatMap(r=>r.assignments.map(a=>lookup('people',a.person_id)?.display_name||'Pessoa não encontrada')),pending=rows.reduce((n,r)=>n+r.required_count-r.assignments.length,0);
+   const events=m.events.filter(e=>e.scheduled_on===day&&(!simple()||departmentDay(e)||m.plan.requirements.some(r=>r.event_id===e.id))),rows=m.plan.requirements.filter(r=>events.some(e=>e.id===r.event_id)),names=rows.flatMap(r=>r.assignments.map(a=>lookup('people',a.person_id)?.display_name||'Pessoa não encontrada')).sort(IASDPIScheduleRules.compareNames),pending=rows.reduce((n,r)=>n+r.required_count-r.assignments.length,0);
    const label=displayDate(day)+(events.length?' · '+events.map(e=>e.title).join(', '):' · Sem evento')+(names.length?' · '+names.join(', '):'')+(pending?' · '+pending+' vagas pendentes':'');
    const inline=canEditDay(day)&&rows.length;
    const selectors=inline?'<div class="monthly-inline-selectors">'+rows.map(r=>{const role=lookup('roles',r.role_id),event=events.find(e=>e.id===r.event_id),prefix=(dept?.name||'')+' · '+eventName(event)+' · '+(role?.general_assignment?'Pessoa escalada':role?.name||'Função indisponível');return `<div data-requirement="${h(r.id)}">${rows.length>1?`<span class="monthly-slot-role" title="${h((event?.title||'')+' · '+(role?.name||''))}">${h(role?.general_assignment?'Pessoa escalada':role?.name||'Função')}</span>`:''}${musicTeam(r)?musicPeople(r,prefix):Array.from({length:r.required_count},(_,slot)=>volunteerField(r,slot,prefix,true)).join('')}${simple()&&event?.scheduled_on===m.day?`<details class="monthly-note"><summary>Observações${r.notes?' •':''}</summary><label><span class="sr-only">${h('Observações · '+prefix)}</span><textarea name="notes" rows="2" aria-label="${h('Observações · '+prefix)}">${h(r.notes)}</textarea></label></details>`:''}</div>`;}).join('')+'</div>':'';
@@ -330,7 +339,7 @@ window.IASDPIScheduleManagement=(()=>{
  async function save(status){
   if((status==='published'?!canPublish():!editable())||m.saving)return;
   if(!m.plan.title.trim())throw Error('Informe o título da escala.');
-  if(status==='published'&&!confirm('Publicar esta escala após validar todas as vagas e conflitos?'))return;
+  if(status==='published'&&!confirm(vacancies()&&m.settings?.allow_pending_publication?'Publicar esta escala com '+vacancies()+' vaga(s) pendente(s)? Elas aparecerão como A definir.':'Publicar esta escala após validar os conflitos?'))return;
   if(status==='draft'&&m.plan.status==='published'&&!confirm(window.IASDPISchedulePreview?'Salvar esta revisão como rascunho? A publicação anterior continua no calendário e no histórico até publicar novamente.':'Salvar como rascunho muda o estado atual desta escala publicada. A versão anterior continuará no histórico. Continuar?'))return;
   const id=m.plan.id,expected=m.plan.version;
   const data=editable()?{department_id:m.department,month:m.month+'-01',title:m.plan.title,status,requirements:structuredClone(m.plan.requirements)}:{status};
@@ -551,7 +560,7 @@ window.IASDPIElderPeriods=(()=>{
  function reasons(catalog,department,row,person,commitments,automatic=false,pending=[]){
   const p=catalog.people.find(p=>p.id===person),m=catalog.memberships.find(m=>m.person_id===person&&m.department_id===department),out=[],days=range(row.starts_on,row.ends_on);
   if(!p?.active||!m?.active)out.push('Pessoa inativa ou sem vínculo ativo no Ancionato');
-  if(conflictsEnabled(row)&&commitments.some(a=>conflictsEnabled(a)&&a.person_id===person&&a.department_id!==department&&a.status==='published'&&days.includes(a.date)))out.push('Conflito com outro departamento em uma data deste período');
+  if(conflictsEnabled(row)&&commitments.some(a=>conflictsEnabled(a)&&a.person_id===person&&(window.IASDPIScheduleRules?.departmentsConflict(catalog,a.department_id,department)??a.department_id!==department)&&a.status==='published'&&days.includes(a.date)))out.push('Conflito com outro departamento em uma data deste período');
   if(automatic&&catalog.central_registry)out.push(...IASDPIRegistry.periodReasons(catalog,department,row,person));
   if(automatic)for(const [maximum,onlyDepartment] of [[p?.max_monthly_count,false],[m?.max_monthly_count,true]]){if(maximum==null)continue;const dates=new Set([...commitments.filter(a=>a.person_id===person&&a.status==='published'&&(!onlyDepartment||a.department_id===department)),...pending.filter(a=>a.person_id===person).flatMap(a=>range(a.starts_on,a.ends_on).map(date=>({date})))].map(a=>a.date));for(const date of days)dates.add(date);if([...new Set(days.map(d=>d.slice(0,7)))].some(mon=>[...dates].filter(d=>d.slice(0,7)===mon).length>maximum))out.push('Limite mensal informado: período não sugerido automaticamente');}
   return out;
@@ -599,7 +608,7 @@ window.IASDPIScheduleElders=(()=>{
   if(m.status==='idle'){queueMicrotask(load);return title+nav+'<p role="status">Carregando semanas e escala mensal…</p>';}
   if(m.status==='loading')return title+nav+'<p role="status">Carregando semanas e escala mensal…</p>';
   if(m.status==='error')return title+nav+`<p role="alert">${h(m.error)}</p>${action('Tentar novamente','reload')}`;
-  const list=rows(),filled=list.filter(r=>r.person_id).length,people=catalog.people.filter(p=>catalog.memberships.some(member=>member.department_id===department&&member.person_id===p.id&&member.active));
+  const list=rows(),filled=list.filter(r=>r.person_id).length,people=catalog.people.filter(p=>catalog.memberships.some(member=>member.department_id===department&&member.person_id===p.id&&member.active)).sort(IASDPIScheduleRules.comparePeople);
   return title+nav+`${clean()?'':'<p class="demo-banner">PRÉVIA — alterações somente na memória desta aba. Disponibilidade temporariamente desativada; dados anteriores preservados.</p>'}
   <section class="panel"><div class="elder-tabs" role="group" aria-label="Tipo de escala do Ancionato">${action('Ancião da semana','kind','data-kind="weekly" aria-pressed="'+(m.kind==='weekly')+'"')}${action('Ancião do mês — ano','kind','data-kind="monthly" aria-pressed="'+(m.kind==='monthly')+'"')}</div>
   ${m.kind==='weekly'?`<form id="elder-month" class="schedule-grid">${clean()?IASDPIScheduleUI.monthPicker('elder-month-value',month,m.saving):`<label>Mês e ano<input type="month" name="month" value="${h(month)}" required ${m.saving?'disabled':''}></label><button type="submit" ${m.saving?'disabled':''}>Abrir mês</button>`}</form><div class="monthly-toolbar">${action('Mês anterior','month','data-direction="-1"')}${action('Próximo mês','month','data-direction="1"')}</div>`:`<form id="elder-year" class="schedule-grid">${clean()?IASDPIScheduleUI.yearSelect('elder-year-value',month.slice(0,4),m.saving):`<label>Ano<input type="number" name="year" min="1000" max="9998" step="1" value="${h(month.slice(0,4))}" required ${m.saving?'disabled':''}></label><button type="submit" ${m.saving?'disabled':''}>Abrir ano</button>`}</form><div class="monthly-toolbar">${action('Ano anterior','year','data-direction="-1"')}${action('Próximo ano','year','data-direction="1"')}</div>`}

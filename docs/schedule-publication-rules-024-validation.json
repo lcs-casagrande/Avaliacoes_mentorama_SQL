@@ -1,0 +1,450 @@
+{
+  "checked_at_utc": "2026-11-04T22:13:53.831393+00:00",
+  "branch": "feat/schedule-management-b1",
+  "unique_selected_cases_passed": 137,
+  "python_passed": 99,
+  "postgresql_passed": 14,
+  "node_passed": 38,
+  "final_failures": 0,
+  "final_errors": 0,
+  "final_skipped": 0,
+  "by_python_module": {
+    "test_calendar_privacy_browser": 11,
+    "test_event_planning_browser": 11,
+    "test_music_roster_browser": 5,
+    "test_package_validation": 39,
+    "test_schedule_edit_window_browser": 12,
+    "test_schedule_publication_rules_browser": 7,
+    "test_schedule_publication_rules_sql": 14
+  },
+  "full_historical_suite_rerun": false,
+  "counting": "Último resultado por ID. Reexecuções não somadas; expectativas antigas de bloqueio de Comunicação foram atualizadas para a regra autorizada, preservando prova de bloqueio Música × Sonoplastia.",
+  "new_native_environment": "PostgreSQL 17 descartável, network none, sem portas. Migrações 001–024. Contêiner removido após validação; não é clone de produção.",
+  "browsers": [
+    "Chromium local"
+  ],
+  "widths": [
+    390,
+    1440
+  ],
+  "exact_preview_rechecks_passed": 7,
+  "real_supabase_touched": false,
+  "migrations_applied_to_supabase": false,
+  "committed": false,
+  "pushed": false,
+  "published": false,
+  "preview_sha256": "9425e406df7c06c7858a6a68870e44bce2ef082c4093b30d5fc1670d21a6ae97",
+  "event_approval_available": false,
+  "remaining": [
+    "Tela/RPC de aprovação e rejeição de eventos permanece para etapa futura.",
+    "Persistência e autenticação reais exigem ativação autorizada separada no Supabase.",
+    "Safari, Firefox e aparelhos físicos não testados nesta execução."
+  ],
+  "evidence": [
+    "postgres-final.log",
+    "browser-final.log",
+    "browser-verified.log",
+    "regression.log",
+    "regression-correction.log",
+    "exact-preview.log",
+    "node-verified.log"
+  ],
+  "python_results": {
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_admin_creates_saves_reopens_and_publishes_schedule_in_demo": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_anonymous_calendar_only_elder_scales_and_published_events": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_classification_organizer_audience_and_restriction_roundtrip": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_leader_sees_only_authorized_private_department": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_login_loads_private_scales_logout_and_agenda_route_hide_them": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_private_endpoints_reject_anonymous_forgery": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_reserved_category_does_not_implicitly_restrict_and_old_data_stays_pending": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_responsive_form_and_independent_organizer_department": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_restricted_draft_hides_old_publication_and_unrestrict_requires_publish": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_revoked_identity_refresh_clears_private_calendar_rows": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_calendar_privacy_browser.CalendarPrivacyBrowserTests.test_session_refresh_preserves_pending_event_form": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_all_day_disables_hours_and_can_be_unchecked": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_edit_old_event_preserves_unknown_fields_and_source_identity": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_five_widths_keyboard_and_captures": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_four_sections_no_duplicate_organizer_or_audience": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_general_with_department_organizer_is_pending_and_hidden": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_monthly_first_thursday_shared_spaces_publishes": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_multi_space_public_event_then_unique_conflict_detailed": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_refresh_does_not_rebase_unsaved_series_over_newer_version": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_same_title_and_time_in_different_rooms_is_not_a_duplicate": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_series_edit_all_and_cancel_single_from_interface": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_weekly_series_conflict_continue_pending_not_published": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_music_roster_browser.MusicRosterBrowserTests.test_historical_sources_unchanged_and_five_widths_no_overflow": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_music_roster_browser.MusicRosterBrowserTests.test_music_multiple_selection_saves_and_reopens_same_central_ids": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_music_roster_browser.MusicRosterBrowserTests.test_new_member_publishes_with_central_name_and_stays_private_without_login": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_music_roster_browser.MusicRosterBrowserTests.test_short_options_keep_conflicts_blocked_and_sonoplastia_visible": {
+      "result": "ok",
+      "evidence": "regression-correction.log"
+    },
+    "test_music_roster_browser.MusicRosterBrowserTests.test_thirteen_members_share_existing_identities_without_invented_details": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_agenda_hash_mismatch_is_never_silently_accepted": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_arbitrary_mutable_assets_not_allowed": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_duplicate_or_missing_entry_tag_in_html_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_duplicate_resource_attributes_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_dynamic_loader_bundle_sri_tampering_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_dynamic_loader_empty_bundle_sri_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_dynamic_loader_missing_bundle_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_entry_resources_and_versions_required": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_external_and_traversing_html_dependencies_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_generated_package_validated_before_any_output": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_hash_format_is_validated": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_html_missing_dependency_rejected_with_updated_html_hash": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_html_sri_tampering_rejected_even_with_updated_html_hash": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_immutable_tampering_rejected_even_with_updated_manifest_hash": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_invalid_manifest_json_and_duplicate_keys_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_invalid_manifest_types_rejected_with_clear_message": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_legacy_html_cannot_omit_boot_dependencies": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_malformed_agenda_rejected_even_with_matching_hash": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_manifest_entry_must_match_loader_bundle": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_manifest_path_traversal_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_active_immutable_bundle_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_css_import_dependency_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_css_url_dependency_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_loader_dependency_metadata_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_manifest_rejected_before_output": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_origin_version_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_required_manifest_entry_rejected_even_when_file_exists": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_missing_retained_bundle_is_not_ignored": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_required_javascript_missing_on_disk_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_required_stylesheet_missing_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_rollback_rejects_incomplete_current_package": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_rollback_rejects_incomplete_target": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_root_hash_tampering_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_stylesheet_hash_tampering_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_symlink_file_or_assets_directory_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_undeclared_extra_file_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_unknown_manifest_version_rejected": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_valid_legacy_modern_retained_cohorts_and_rollback": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_package_validation.PackageValidationTests.test_validate_cli_is_readonly_and_returns_nonzero_on_invalid_package": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_admin_can_change_future_window_without_locking_current_or_deleting": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_annual_elder_calendar_only_enables_active_and_released_months": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_clear_and_save_keep_past_assignments_unchanged": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_current_manual_save_reload_and_historical_twenty_preserved": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_forged_past_event_and_future_month_are_rejected_by_demo_rpc": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_leader_cannot_change_administrative_window": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_mobile_and_december_boundary_use_sao_paulo": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_november_opens_with_selectors_today_and_future_only": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_prefill_after_confirmation_balances_and_preserves_manual_choice": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_prefill_consults_communication_commitment_without_blocking": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_publisher_without_edit_permission_can_only_publish_existing_draft": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_edit_window_browser.ScheduleEditWindowBrowserTests.test_unknown_availability_reports_reason_without_inventing_assignments": {
+      "result": "ok",
+      "evidence": "regression.log"
+    },
+    "test_schedule_publication_rules_browser.SchedulePublicationRulesBrowserTests.test_ancionato_can_publish_a_real_unassigned_month": {
+      "result": "ok",
+      "evidence": "exact-preview.log"
+    },
+    "test_schedule_publication_rules_browser.SchedulePublicationRulesBrowserTests.test_calendar_sorts_people_across_departments_and_preserves_selected_ids": {
+      "result": "ok",
+      "evidence": "exact-preview.log"
+    },
+    "test_schedule_publication_rules_browser.SchedulePublicationRulesBrowserTests.test_draft_with_pending_is_not_published_and_later_publication_is_visible": {
+      "result": "ok",
+      "evidence": "exact-preview.log"
+    },
+    "test_schedule_publication_rules_browser.SchedulePublicationRulesBrowserTests.test_general_event_remains_pending_and_explains_approval_is_not_available": {
+      "result": "ok",
+      "evidence": "exact-preview.log"
+    },
+    "test_schedule_publication_rules_browser.SchedulePublicationRulesBrowserTests.test_publish_with_all_vacancies_shows_a_definir_only_to_authorized_view": {
+      "result": "ok",
+      "evidence": "exact-preview.log"
+    },
+    "test_schedule_publication_rules_browser.SchedulePublicationRulesBrowserTests.test_same_person_can_be_in_communication_and_sound_same_day": {
+      "result": "ok",
+      "evidence": "exact-preview.log"
+    },
+    "test_schedule_publication_rules_browser.SchedulePublicationRulesBrowserTests.test_single_and_multiple_person_lists_are_alphabetical": {
+      "result": "ok",
+      "evidence": "exact-preview.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_closed_dates_still_blocked_and_cas_preserved": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_communication_does_not_block_weekly_elder": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_communication_then_sound_allowed_without_admin_exception": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_concurrent_communication_and_sound_both_succeed": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_elders_can_publish_real_unassigned_period_and_public_feed_shows_it": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_empty_plan_still_blocked": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_missing_publisher_permission_still_blocks": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_other_departments_still_block_even_when_communication_coexists": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_partial_publication_includes_assigned_and_pending_without_duplication": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_private_revision_preserves_pending_publication_until_republished": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_publish_all_vacancies_visible_authorized_and_not_anonymous": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_rollback_empty_preserves_data_and_populated_history_refuses": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_security_and_privacy_postinstall_checks": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    },
+    "test_schedule_publication_rules_sql.SchedulePublicationRulesSQLTests.test_sound_then_communication_also_allowed": {
+      "result": "ok",
+      "evidence": "postgres-final.log"
+    }
+  }
+}

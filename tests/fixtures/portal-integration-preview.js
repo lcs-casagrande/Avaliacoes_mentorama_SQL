@@ -63,7 +63,20 @@
   if(name==='iasdpi_schedule_exceptions'&&a.globalRole!=='admin')return [];
   const result=await raw(name,b);if(name==='iasdpi_schedule_elder_save')for(const row of result.periods){const version=store.elderPeriodVersions.find(v=>v.id===row.id&&v.version===row.version);if(version)version.actor_id=a.id;}if(name==='iasdpi_schedule_workspace')result.settings={...result.settings,simplified_daily:true};return result;
  }
- async function published(month){await seeded;const c=await raw('iasdpi_schedule_catalog'),result=[];for(const versions of store.versions.values()){const p=versions.filter(v=>v.status==='published'&&v.month===month).sort((a,b)=>b.version-a.version)[0];if(!p)continue;for(const r of p.requirements)for(const assignment of r.assignments){const e=store.events.find(e=>e.id===r.event_id);result.push({id:'published:'+p.id+':'+assignment.id,date:e.scheduled_on,department_id:p.department_id,department:c.departments.find(d=>d.id===p.department_id).name,person:c.people.find(person=>person.id===assignment.person_id).display_name,role:c.roles.find(role=>role.id===r.role_id).name,origin:'Escala publicada no sistema',version:p.version,published_at:'2026-10-30T12:00:00Z'});}}const latest=new Map();for(const p of store.elderPeriodVersions||[])if(p.status==='published')latest.set(p.id,p);for(const p of latest.values())if(p.starts_on<month.slice(0,7)+'-32'&&p.ends_on>=month)result.push({id:'elder:'+p.id,date:p.starts_on,startDate:p.starts_on,endDate:p.ends_on,kind:p.kind,department_id:p.department_id,department:'Ancionato',person:c.people.find(x=>x.id===p.person_id)?.display_name||'',role:p.kind==='weekly'?'Ancião da Semana':'Ancião do Mês',version:p.version,published_at:p.captured_at,origin:'Escala publicada no sistema'});return result;}
+ async function published(month){
+  await seeded;const c=await raw('iasdpi_schedule_catalog'),result=[];
+  for(const versions of store.versions.values()){
+   const p=versions.filter(v=>v.status==='published'&&v.month===month).sort((a,b)=>b.version-a.version)[0];if(!p)continue;
+   for(const r of p.requirements){const e=store.events.find(e=>e.id===r.event_id),department=c.departments.find(d=>d.id===p.department_id).name,role=c.roles.find(role=>role.id===r.role_id).name;
+    for(const assignment of r.assignments)result.push({id:'published:'+p.id+':'+assignment.id,date:e.scheduled_on,department_id:p.department_id,department,person:c.people.find(person=>person.id===assignment.person_id).display_name,role,origin:'Escala publicada no sistema',version:p.version,published_at:'2026-10-30T12:00:00Z'});
+    if(window.IASDPISchedulePublicationPreview&&r.assignments.length<r.required_count)result.push({id:'pending:'+p.id+':'+r.id,date:e.scheduled_on,department_id:p.department_id,department,person:'',role,pending:true,vacancy_count:r.required_count-r.assignments.length,origin:'Escala publicada no sistema',version:p.version,published_at:'2026-10-30T12:00:00Z'});
+   }
+  }
+  const latest=new Map();for(const p of store.elderPeriodVersions||[])if(p.status==='published')latest.set(p.id,p);
+  for(const p of latest.values())if(p.starts_on<month.slice(0,7)+'-32'&&p.ends_on>=month)result.push({id:'elder:'+p.id,date:p.starts_on,startDate:p.starts_on,endDate:p.ends_on,kind:p.kind,department_id:p.department_id,department:'Ancionato',person:c.people.find(x=>x.id===p.person_id)?.display_name||'',role:p.kind==='weekly'?'Ancião da Semana':'Ancião do Mês',pending:!p.person_id,vacancy_count:p.person_id?0:1,version:p.version,published_at:p.captured_at,origin:'Escala publicada no sistema'});
+  return result;
+ }
+
  delete window.IASDPICalendarManagedPeriodsSource;
  // O caminho usado pelos componentes também passa pela autorização simulada.
  IASDPISchedulePreview.request=async(name,b={})=>{const identity=await IASDPIAuth.requireIdentity();return protectedRpc(identity.token,IASDPIChurches.selected(),name,b);};
