@@ -1,0 +1,52 @@
+{
+  "validated_at_utc": "2026-11-05T18:43:06.845267+00:00",
+  "source_branch": "feat/schedule-management-b1",
+  "source_base": "2a50af5989dbdb32a580d3f2702d2245329e6dfc",
+  "homologation_base": "8968a02b8634e70cec49781d0d60298d7181761c",
+  "source_dirty_at_validation": true,
+  "selected_unique_tests_passed": 149,
+  "suites": {
+    "postgres.log": 37,
+    "postgres-functional.log": 4,
+    "browser-release.log": 17,
+    "browser-g11-release.log": 8,
+    "crono-regression.log": 9,
+    "navigation-regression.log": 8,
+    "package-isolation.log": 11,
+    "node-release.log": 55
+  },
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "reruns_counted": false,
+  "full_historical_suite_rerun": false,
+  "viewports": [
+    360,
+    390,
+    768,
+    1024,
+    1440
+  ],
+  "release_html_sha256": "a14ef70a3d7a33302f2f5f4f3fdc48f6e1dd05b05d44bd0124b19d6bafdbcffc",
+  "screenshots": [
+    "dist/governance-g12/access-admin.png",
+    "dist/governance-g12/access-audit.png"
+  ],
+  "immutable_source_sha256": {
+    "frontend/styles.css": "c10ef821f4738bf5fc489a7725528d3cbe55b26b8cd19f4dc55a69855a9a1d1b",
+    "frontend/config.js": "3bae73629b6239ce4d6439a12ef96f3ccd22eb2c6ceedefc2e02551cb95dc662",
+    "frontend/agenda-data.js": "7fbd6d7aeb9fc600f51cfd416db1d5d72e2f774bea4a3fb5c0dd9e5d1fc53c7b",
+    "frontend/organization.js": "88929bf1620a88948845b73c20690630834a16daf440dbd5724a508a0da2a29c"
+  },
+  "migrations_new_or_modified": [],
+  "migration_027_applied_to_real_supabase": false,
+  "database": "PostgreSQL 17 descartável --network none; Auth sintético",
+  "browser": "Chromium local; pacote exato; nenhuma requisição externa",
+  "real_auth_edge_gotrue_smtp_validated": false,
+  "real_supabase_changed": false,
+  "real_accounts_created": false,
+  "official_site_changed": false,
+  "backup_recoverable": "Pendente, adiado pelo usuário; obrigatório para implantação real",
+  "shared_persistence": "Somente backend PostgreSQL local validado; Pages é por aba e reinicia ao recarregar",
+  "report": "docs/governance-g12.md"
+}
