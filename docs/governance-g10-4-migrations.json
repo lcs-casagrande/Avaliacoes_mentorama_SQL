@@ -1,0 +1,486 @@
+{
+  "format": "IASDPI_G10_4_INSTALLATION_REVIEW",
+  "version": 1,
+  "prepared_at_utc": "2026-11-05T15:36:43.092805+00:00",
+  "branch": "feat/schedule-management-b1",
+  "base_commit": "f7922c281d53a33a103f2510728fa02cdb69d58c",
+  "worktree_has_uncommitted_changes": true,
+  "mode": "review-only",
+  "target_label_informed_by_user": "IASD_Parada",
+  "remote_schema_independently_validated": false,
+  "input_evidence": "Resumo G10.1 fornecido pelo usuário: 001–004 compatíveis; 005–025 ausentes; 12 tabelas, 22 funções, RLS ativa, sem executor/ledger.",
+  "g10_2_report_available": false,
+  "g10_2_audit_repeated": false,
+  "existing_migrations_to_skip": [
+    "001",
+    "002",
+    "003",
+    "004"
+  ],
+  "required_forward_count": 22,
+  "steps": [
+    {
+      "order": 1,
+      "migration": 5,
+      "file": "database/005_schedule_foundation.sql",
+      "sha256": "90dc1d81bfbda421a3657acd76c79c1cb38d972f7867534ae9b44d8ea202fca7",
+      "purpose": "Cadastro central e ministérios",
+      "predecessor": "004",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_schedule_foundation.sql",
+          "sha256": "e81b83a6ca0cc285ca2b79d61036a13fe9f8d5f81d4ae89aa991fce79800c4b9"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 2,
+      "migration": 6,
+      "file": "database/006_schedule_management.sql",
+      "sha256": "b5b9e309f26b9fec6d5d969b3462cbc28846afad9805dcf8ae247fc5346e7d9b",
+      "purpose": "Planos, atribuições e histórico",
+      "predecessor": "005",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_schedule_management.sql",
+          "sha256": "134251d317d4226a01551c6db2e0f009f19cbfe3b97d04ed833738654e531cd3"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 3,
+      "migration": 7,
+      "file": "database/007_daily_schedules.sql",
+      "sha256": "53fa846385bd17141bd6aadb755d475630a54d8857c8e30e991cd41f483b2b9d",
+      "purpose": "Datas e configuração de planejamento",
+      "predecessor": "006",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_daily_schedules.sql",
+          "sha256": "7591ebb2daf1d7e594cc6cebc9be38065b65341e35540dfa33064cc2a214d3e6"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 4,
+      "migration": 8,
+      "file": "database/008_monthly_rotation.sql",
+      "sha256": "ae6119df0c707641c0408e47375411edbbd0bce6a666aeaa7b385757aa5511e7",
+      "purpose": "Montagem mensal e rodízio",
+      "predecessor": "007",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_monthly_rotation.sql",
+          "sha256": "831776d8b568aa0f1e37e4c90d834e480724a0716417c3ce3394a62b3954a61f"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 5,
+      "migration": 9,
+      "file": "database/009_confirmed_schedule_conflicts.sql",
+      "sha256": "8df57ae289327c385d74b52e6ba5f4333df7ce8357c44620cf2ad316bb5542b8",
+      "purpose": "Conflitos e compromissos históricos",
+      "predecessor": "008",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_confirmed_schedule_conflicts.sql",
+          "sha256": "786b7e474931625513bb5265246336eb8923016b2e0160ea2fac232d5f78ab55"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 6,
+      "migration": 10,
+      "file": "database/010_simple_daily_schedules.sql",
+      "sha256": "9caf1b073776be9fb03ca59b7b7c84f2e689a8acd3383f2ef43c38c7bdec50e8",
+      "purpose": "Montagem manual simplificada",
+      "predecessor": "009",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_daily_schedules.sql",
+          "sha256": "7591ebb2daf1d7e594cc6cebc9be38065b65341e35540dfa33064cc2a214d3e6"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 7,
+      "migration": 11,
+      "file": "database/011_church_isolation.sql",
+      "sha256": "622c572931e4fd253c44fbb7af6cadc0db7a84b8cb7a27f193517e003589da21",
+      "purpose": "Igreja, backfill, chaves, RLS e executor",
+      "predecessor": "010",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_church_isolation.sql",
+          "sha256": "d2d2d96f17c633f3a18608d0a73385e42f35efdda057f9f43ff6b9ccb847bbd3"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 8,
+      "migration": 12,
+      "file": "database/012_alias_login.sql",
+      "sha256": "338c28ca599ca1153c3f778e6e1edad3ae0f149ede6c807ee0211f739d958efe",
+      "purpose": "Login por apelido",
+      "predecessor": "011",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_alias_login.sql",
+          "sha256": "ac96565894db23869fb16e1bee71a49ceb25c52e7741c7542cb74b287b49a4ce"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 9,
+      "migration": 13,
+      "file": "database/013_access_governance.sql",
+      "sha256": "5d87b249f0ddd99d9d136e7248c967e2d1919d337a56a92600fac14defec14b7",
+      "purpose": "Capacidades e recuperação administrativa",
+      "predecessor": "012",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_access_governance.sql",
+          "sha256": "2d1c749d6b1c8cf1ab4d6fe3310ac61f4360770279a73eff0cf509114266b0a4"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 10,
+      "migration": 14,
+      "file": "database/014_portal_integration.sql",
+      "sha256": "3fde5cf0a0d2eb1fad24ea74aca88497fcf2877dc202c4a4e93df28e57b6ce6a",
+      "purpose": "Portal e feeds publicados",
+      "predecessor": "013",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_portal_integration.sql",
+          "sha256": "56aae82d7c444fb645a53708906fbab997066da3b5196fbfeb01916557c748bb"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 11,
+      "migration": 15,
+      "file": "database/015_elder_period_storage.sql",
+      "sha256": "627be58a8c1a27355375e3a335fe31fa15812196d6576cec20cca6a3347b0ab8",
+      "purpose": "Ancionato semanal e mensal",
+      "predecessor": "014",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_elder_period_storage.sql",
+          "sha256": "eab8ee317a58c94d48f33a706a9124193670069890efa85ff08f86abc79b1a7f"
+        },
+        {
+          "file": "database/check_governance_integration.sql",
+          "sha256": "d7f2cd93475769f3dd510726b3cc3b00cc4cd76380e7588e95fbd273c2ea4da6"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 12,
+      "migration": 16,
+      "file": "database/016_department_schedule_days.sql",
+      "sha256": "0ec464f0b86f617c8baf3ddb20a2b35e97e9a4d3f0dae68462b458d4f7f94818",
+      "purpose": "Dias de escala por departamento",
+      "predecessor": "015",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_department_schedule_days.sql",
+          "sha256": "dacb19409794b5f9deaa2f69abf3a8215631515c27c1d102001eacc8443fc171"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 13,
+      "migration": 17,
+      "file": "database/017_central_registry_integration.sql",
+      "sha256": "b070017ca52767599c22074fbc3ef3eeab5cc53a2638fdf661e87869421ae6f7",
+      "purpose": "Integração central de pessoas e vínculos",
+      "predecessor": "016",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_central_registry.sql",
+          "sha256": "147fa246a562efb0c053eb02653b96a082f5dd9ead239f7a05420aedd1f62035"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 14,
+      "migration": 18,
+      "file": "database/018_registry_search.sql",
+      "sha256": "fac1fea074df12a70a79139b6fdde8f0b316ec1901f969e3ce5a7e380b88e5d8",
+      "purpose": "Busca do Cadastro Geral",
+      "predecessor": "017",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_central_registry.sql",
+          "sha256": "147fa246a562efb0c053eb02653b96a082f5dd9ead239f7a05420aedd1f62035"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 15,
+      "migration": 19,
+      "file": "database/019_registry_identities.sql",
+      "sha256": "822f0869dd83aec7e35b091129e1121607f2cc75c469ed0a610dd79e6674fc20",
+      "purpose": "Identidades, aliases históricos e conciliação",
+      "predecessor": "018",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_registry_identities.sql",
+          "sha256": "f94c69bddeb7085886f2e09d71ff594b434c5282a642f4f62d03a969dcbd1458"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 16,
+      "migration": 20,
+      "file": "database/020_calendar_events.sql",
+      "sha256": "2d41de5d9e78246350fc01400196023274c7093e372d5e0fe1518fbb57630bea",
+      "purpose": "Eventos editoriais",
+      "predecessor": "019",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_calendar_events.sql",
+          "sha256": "75d25a649e20cb2d231be6734a8d76e2e96e74a0b6a6917be62637cbaa9aa6c5"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 17,
+      "migration": 21,
+      "file": "database/021_calendar_classification_privacy.sql",
+      "sha256": "3aa3266c3ff098469cbcadb0a6c0110e5d450aa3582b23049561e7b69e8247de",
+      "purpose": "Classificação e privacidade",
+      "predecessor": "020",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_calendar_privacy.sql",
+          "sha256": "9d880a222f07ff15291e31b838b19f25fe275335f17ac55e89d2bcafa5e01288"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 18,
+      "migration": 22,
+      "file": "database/022_event_planning.sql",
+      "sha256": "5cdbf963738112197923109da237f80a384431fcb672bf838095d2b5c717cdfa",
+      "purpose": "Recorrência e reservas",
+      "predecessor": "021",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_event_planning.sql",
+          "sha256": "ff314505f2e015fe54d00709f7947f142f802f3473f1d194d14673867125ffe7"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 19,
+      "migration": 23,
+      "file": "database/023_schedule_edit_window.sql",
+      "sha256": "7b47679b3ce73a5b42345499458aaa8c5ee3c61348f0886cd108c6c6a52a0adc",
+      "purpose": "Mês atual e janela de edição",
+      "predecessor": "022",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_schedule_edit_window.sql",
+          "sha256": "edaed8c1b3c1fe880ab832207f5e23e4169b82a0dcf561c360f876893bf488ff"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 20,
+      "migration": 24,
+      "file": "database/024_schedule_publication_rules.sql",
+      "sha256": "83af7be90d27d83af19e74fd3f56874d633ba311786b91f47dc1840e3dcb3bbf",
+      "purpose": "Comunicação e vagas pendentes",
+      "predecessor": "023",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_schedule_publication_rules.sql",
+          "sha256": "6c97f0f7a01c0a16ee409694335c41a1b1b671f1b2d38d9d73e57ab549622033"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 21,
+      "migration": 25,
+      "file": "database/025_event_direct_publication.sql",
+      "sha256": "bf3af5ed2f3ab93059f80d44a8ff7a9d3cabaf6102c2d103f1348462789291a3",
+      "purpose": "Kernel de publicação direta",
+      "predecessor": "024",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_event_direct_publication.sql",
+          "sha256": "22b719aaab512f95cf313b008c9af3ddd154a17b4e9e298f94ede63e815795ab"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    },
+    {
+      "order": 22,
+      "migration": 26,
+      "file": "database/026_governance_responsibilities.sql",
+      "sha256": "e6dbc223b38631cda5a11b01448c48507e82d44980db653ba51df3a914fbe36f",
+      "purpose": "Governança final G10.3 e aprovação geral",
+      "predecessor": "025",
+      "execute_after_authorization_only": true,
+      "transaction": "BEGIN/COMMIT próprios, um arquivo por etapa",
+      "checks": [
+        {
+          "file": "database/check_governance_responsibilities.sql",
+          "sha256": "f0c21ac2ebcf346b9c1618f10ac47cad8fa4c0cd57ea4f1f9a4fd8e13ab9c604"
+        }
+      ],
+      "expected_check_result": "Zero irregularidades ou DO concluído sem erro. Não basta retornar HTTP 200.",
+      "on_failure": "Interromper, registrar resultado, não executar a próxima etapa nem reaplicar a etapa commitada."
+    }
+  ],
+  "runtime_components": [
+    {
+      "file": "frontend/auth.js",
+      "sha256": "27a0a464d930cf21bbf7cb0836a3a526c61c13a86f799cdfd59ebf3a15ddce46"
+    },
+    {
+      "file": "frontend/agenda.js",
+      "sha256": "540bc21954da502a411c93e4847502f101bc75c3c12c9458f507774417c737da"
+    },
+    {
+      "file": "frontend/governance.js",
+      "sha256": "3a6a798894a6d8dc7c13909d0936cbb017ac5476375fd2815a2f6ab7bab26053"
+    },
+    {
+      "file": "frontend/portal-access.js",
+      "sha256": "f598af0e61fa5094e30fb759892922b4e50760e039a101c5b9c6a2b245b18368"
+    },
+    {
+      "file": "frontend/config.js",
+      "sha256": "3bae73629b6239ce4d6439a12ef96f3ccd22eb2c6ceedefc2e02551cb95dc662"
+    },
+    {
+      "file": "scripts/build_homologation.py",
+      "sha256": "c71ba151093eea86d11fcde1a99672389efe8a8a3c9eddc52e1be4c77b9e1dfd"
+    },
+    {
+      "file": "supabase/config.toml",
+      "sha256": "0a9cfdc7b009e4edf67e5b5f9122cf82bd5cc045c64e338a62bc2911a540c0eb"
+    },
+    {
+      "file": "supabase/functions/alias-login/index.ts",
+      "sha256": "2d36e710274c05e06ac1832f4415e55d2b8adb3647df5ffe164843c1c2108479"
+    },
+    {
+      "file": "supabase/functions/alias-login/handler.mjs",
+      "sha256": "73b8e25f612662077e3e95cd38f6ecbf3bac1e1ac340bb07898f140ed74a343d"
+    },
+    {
+      "file": "supabase/functions/access-assistance/index.ts",
+      "sha256": "06b2640fa06db03f746bedf4a965153e7f31f298bb10a43dae3c560c79ac34ed"
+    },
+    {
+      "file": "supabase/functions/access-assistance/handler.mjs",
+      "sha256": "b166854a5f819c414a8a026998947d90c1459ebed46fbe80a72ca070745380eb"
+    },
+    {
+      "file": "supabase/functions/access-assistance/credentials.mjs",
+      "sha256": "4314c40620b7789d63ce9aa86db9fac9260bf061c399e124147f80ebe6c829df"
+    }
+  ],
+  "final_checks": [
+    "database/check_church_isolation.sql",
+    "database/check_governance_responsibilities.sql"
+  ],
+  "authorization_granted_for_real_database": false,
+  "supabase_accessed": false,
+  "deployment_executed": false,
+  "stop_gates": [
+    "Antes de iniciar: projeto/ponto de recuperação/delta e papel operador confirmados.",
+    "Antes de 011: backup validado, janela de locks e DCL do provedor confirmados.",
+    "Não liberar novos módulos na etapa 025; concluir 026 para aplicar a regra de aprovação da G10.3.",
+    "Após 026: Auth/Edge/frontend e contas exigem autorizações próprias; não marcar troca de senha antes de disponibilizar o fluxo seguro."
+  ]
+}

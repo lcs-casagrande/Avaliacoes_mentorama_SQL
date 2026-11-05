@@ -1,0 +1,355 @@
+{
+  "checked_at_utc": "2026-11-05T15:13:41.281404+00:00",
+  "branch": "feat/schedule-management-b1",
+  "base_commit": "f7922c281d53a33a103f2510728fa02cdb69d58c",
+  "selected_unique_cases_passed": 104,
+  "python_passed": 75,
+  "postgresql_passed": 28,
+  "node_passed": 29,
+  "browser_and_package_python_passed": 47,
+  "g103_browser_cases_passed": 4,
+  "final_failures": 0,
+  "final_errors": 0,
+  "skipped": 0,
+  "counting": "Último resultado por ID; reexecuções não somadas.",
+  "test_harness_correction": "Uma chamada de preview passou lista JSON ao parâmetro uuid[]. Teste corrigido para usar o default da RPC; caso reexecutado com sucesso. Implementação não foi alterada por essa correção.",
+  "full_historical_suite_rerun": false,
+  "database": "PostgreSQL 17 descartável, --network none, sem portas; dados/Auth sintéticos.",
+  "real_supabase_accessed": false,
+  "real_accounts_created": false,
+  "real_credentials_generated": false,
+  "real_migrations_applied": false,
+  "real_configuration_changed": false,
+  "existing_migrations_001_025_modified": false,
+  "committed": false,
+  "pushed": false,
+  "merged": false,
+  "published": false,
+  "frontend_new_policy_enabled": false,
+  "g10_2_real_audit_repeated": false,
+  "g10_2_complete_artifact_available": false,
+  "g10_2_summary_reused": "Informado pelo usuário: 001–004, 12 tabelas, 22 funções, RLS ativa, sem executor/ledger. Não equivale à revisão do JSON completo.",
+  "migration_prepared": "database/026_governance_responsibilities.sql",
+  "migration_sha256": "e6dbc223b38631cda5a11b01448c48507e82d44980db653ba51df3a914fbe36f",
+  "verification": "database/check_governance_responsibilities.sql",
+  "published_preview_unchanged": true,
+  "evidence": [
+    "dist/governance-g10-3/postgres-complete.log",
+    "dist/governance-g10-3/postgres-correction.log",
+    "dist/governance-g10-3/browser-complete.log",
+    "dist/governance-g10-3/node-verified.log"
+  ],
+  "python_results": {
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_access_delegations_do_not_allow_nonadmin_grants_or_audit": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_account_plan_keeps_one_person_and_flags_existing_alias_collision": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_administrator_can_approve_and_retry_is_idempotent": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_administrator_links_existing_auth_through_existing_registry_editor_rpc": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_approval_revalidates_version_and_exclusive_reservations": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_approver_can_decide_general_church_event_without_editing_its_author_content": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_audit_is_admin_only_and_never_returns_freeform_secrets": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_authorized_elder_approves_other_department_without_gaining_edit": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_competing_approvals_only_one_commits": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_confirmed_leader_can_save_and_publish_own_schedule": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_confirmed_leader_publishes_only_own_department": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_conflict_preview_does_not_leak_other_general_unsubmitted_revision_title": {
+      "result": "ok",
+      "evidence": "postgres-correction.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_department_organizer_general_program_also_needs_approval": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_elder_multiple_departments_and_anchor_revocation": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_elder_publishes_week_and_month_independently_without_becoming_core_admin": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_general_church_event_requests_approval_and_is_hidden": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_general_revision_waits_again_and_keeps_prior_publication": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_general_series_can_be_submitted_and_occurrence_approved": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_installation_preserves_core_and_creates_no_auth_accounts": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_last_admin_still_protected_and_crono_core_compatible": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_leader_and_non_authorized_elder_cannot_approve": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_member_and_leadership_label_alone_do_not_grant_edit": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_new_permissions_checks_and_foreign_church_are_enforced": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_one_person_has_multiple_departments_and_central_id": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_other_leader_cannot_read_general_draft_history_or_private_series_definition": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_password_barrier_covers_direct_rest_and_private_helpers": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_responsibility_removal_invalidates_permissions": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_sql.G103GovernanceSQLTests.test_temporary_password_blocks_data_until_secure_confirmation": {
+      "result": "ok",
+      "evidence": "postgres-complete.log"
+    },
+    "test_g10_3_governance_browser.G103GovernanceBrowserTests.test_administrator_can_approve_and_publish_a_pending_event": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g10_3_governance_browser.G103GovernanceBrowserTests.test_leader_general_submission_is_pending_and_not_in_public_calendar": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g10_3_governance_browser.G103GovernanceBrowserTests.test_own_password_form_rejects_mismatch_and_success_requires_new_login": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g10_3_governance_browser.G103GovernanceBrowserTests.test_required_password_change_goes_to_password_form_without_ministry_editor": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_all_day_disables_hours_and_can_be_unchecked": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_edit_old_event_preserves_unknown_fields_and_source_identity": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_five_widths_keyboard_and_captures": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_four_sections_no_duplicate_organizer_or_audience": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_general_with_department_organizer_publishes_directly": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_monthly_first_thursday_shared_spaces_publishes": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_multi_space_public_event_then_unique_conflict_detailed": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_previously_pending_event_can_publish_without_recreating": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_refresh_does_not_rebase_unsaved_series_over_newer_version": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_restricted_general_event_can_publish_but_stays_hidden_publicly": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_same_title_and_time_in_different_rooms_is_not_a_duplicate": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_series_edit_all_and_cancel_single_from_interface": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_event_planning_browser.EventPlanningBrowserTests.test_weekly_series_conflict_can_save_draft_and_publish_after_resolution": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_admin_primary_modules_grouped_tools_and_discrete_account": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_all_administration_links_preserve_distinct_record_tools": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_five_modules_keep_crono_authorization_and_contextual_links": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_logout_removes_admin_navigation_and_public_drafts_remain_absent": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_mobile_menu_keyboard_escape_five_widths_and_screenshots": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_old_agenda_route_reload_back_forward_and_all_internal_targets": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_public_four_links_one_calendar_and_no_administrative_tools": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_portal_ux_browser.PortalUXBrowserTests.test_single_department_selector_preserves_choice_and_pending_changes": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g10_3_package.G103PackageTests.test_existing_iasd_parada_project_is_still_blocked_by_hml_builder": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g10_3_package.G103PackageTests.test_invalid_flag_or_missing_authenticated_governance_is_rejected": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g10_3_package.G103PackageTests.test_new_policy_flag_is_public_optional_and_no_server_code_is_packaged": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_admin_and_mobile_navigation": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_auth_metadata_does_not_grant_access": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_authorized_backup_roundtrip_preserves_data": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_leader_can_edit_and_logout_keeps_original_records": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_new_manual_record_loads_protected_template": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_public_pages_and_direct_access_preserve_storage": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_revocation_blocks_next_operation_and_hides_loaded_data": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_session_expiry_hides_private_content": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_frontend_access.FrontendAccessTests.test_wrong_password_cannot_load_saved_records": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9InventoryTests.test_core_church_before_schedules_and_partial_install_block_default_plan": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9InventoryTests.test_final_markers_do_not_allow_reapplication": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9InventoryTests.test_only_004_is_candidate_not_automatic_authorization": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9InventoryTests.test_structure_comparison_does_not_compare_production_data_to_fixtures": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9PackageTests.test_both_known_production_projects_are_rejected": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9PackageTests.test_isolated_real_hml_package_valid_and_original_config_unchanged": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9PackageTests.test_main_site_and_unsafe_modes_are_rejected": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9PackageTests.test_readonly_default_preserved": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9PackageTests.test_rollback_preserves_new_hml_namespace_and_integrity": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    },
+    "test_g9_preparation.G9PackageTests.test_secret_or_extra_private_fields_rejected_before_writing": {
+      "result": "ok",
+      "evidence": "browser-complete.log"
+    }
+  },
+  "g10_2_execution_reported_by_user": true,
+  "g10_2_conclusions_validated_in_this_environment": false,
+  "development_blocked_by_missing_g10_2_report": false,
+  "g10_2_report_search_required": false,
+  "development_basis": "Regras G10.3 fornecidas pelo usuário, implementações existentes e resumo G10.2 disponível; sem presumir validação remota.",
+  "deployment_dependencies_pending": [
+    "Confirmação técnica do delta 005–025 e pré-requisitos reais de 001–004.",
+    "Preservação da Cronoanálise e plano de backup/recuperação.",
+    "Configurações reais de Auth/Edge/frontend e autorização específica."
+  ],
+  "latest_followup_changes": "Somente documentação e registro de pendências; nenhuma repetição da auditoria ou instalação. Os 104 testes registrados são da execução anterior da G10.3."
+}

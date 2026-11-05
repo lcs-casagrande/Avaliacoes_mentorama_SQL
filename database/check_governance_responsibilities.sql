@@ -1,0 +1,10 @@
+-- Pós-026, somente em ambiente autorizado; apenas inspeção de metadados.
+DO $$ DECLARE f record;BEGIN
+ IF to_regprocedure('public.iasdpi_event_approve(uuid,bigint,uuid)') IS NULL OR to_regprocedure('public.iasdpi_responsibility_access_save(uuid,uuid,uuid,text,boolean,bigint,text)') IS NULL THEN RAISE EXCEPTION 'RPCs G10.3 ausentes.';END IF;
+ FOR f IN SELECT p.oid,n.nspname,p.proname,p.proconfig,r.rolname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner
+ WHERE n.nspname IN('iasdpi_admin_private','iasdpi_schedule_private') AND (p.proname LIKE '%_before_026' OR p.proname IN('responsibility_active','can_approve_general','has_confirmed_responsibility','access_change_audit','audit_projection','series_approval_state')) LOOP
+ IF f.rolname<>'iasdpi_church_executor' OR NOT coalesce(f.proconfig @> ARRAY['search_path=""'],false) OR has_function_privilege('anon',f.oid,'EXECUTE') OR has_function_privilege('authenticated',f.oid,'EXECUTE') OR has_function_privilege('service_role',f.oid,'EXECUTE') THEN RAISE EXCEPTION 'Helper ou cópia privada exposta: %.',f.proname;END IF;END LOOP;
+ IF has_function_privilege('authenticated','public.iasdpi_password_change_confirm(uuid)','EXECUTE') OR has_function_privilege('anon','public.iasdpi_event_approve(uuid,bigint,uuid)','EXECUTE') THEN RAISE EXCEPTION 'Privilégio indevido.';END IF;
+ IF NOT has_function_privilege('service_role','public.iasdpi_password_change_confirm(uuid)','EXECUTE') OR NOT has_function_privilege('authenticated','public.iasdpi_governance_history(integer)','EXECUTE') THEN RAISE EXCEPTION 'Privilégio necessário ausente.';END IF;
+ IF EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relkind='r' AND (n.nspname LIKE 'iasdpi\_%' ESCAPE '\' OR n.nspname='public' AND (c.relname LIKE 'iasdpi\_%' ESCAPE '\' OR c.relname LIKE 'schedule\_%' ESCAPE '\' OR c.relname='culto_archives')) AND NOT EXISTS(SELECT 1 FROM pg_policy p WHERE p.polrelid=c.oid AND p.polname='credential_change_required' AND NOT p.polpermissive)) THEN RAISE EXCEPTION 'Barreira de credencial incompleta.';END IF;
+END $$;

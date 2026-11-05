@@ -111,6 +111,7 @@ window.IASDPIAuth = (() => {
         const headers={Authorization:'Bearer '+token};
         const user=await jsonRequest('/auth/v1/user',{headers});
         if(user.is_anonymous!==false||!user.id)throw Error('Conta sem autorização.');
+        await credentialGate(token);
         const rows=await jsonRequest('/rest/v1/iasdpi_access?user_id=eq.'+encodeURIComponent(user.id)+'&select=user_id,role,enabled&limit=1',{headers});
         if(!Array.isArray(rows)||rows.length!==1||rows[0].user_id!==user.id||rows[0].enabled!==true||!['admin','leader'].includes(rows[0].role))throw Error('Conta sem autorização. Solicite acesso à administração.');
         if(ticket!==generation||church!==churchCode())throw Error('Sessão ou igreja alterada. Tente novamente.');
@@ -149,6 +150,11 @@ window.IASDPIAuth = (() => {
     return verify();
   }
   // Identidade não concede autorização global. Cada módulo verifica seu escopo no servidor.
+  async function credentialGate(token){
+    if(!window.IASDPIConfig?.responsibilityGovernanceEnabled)return;
+    const result=await jsonRequest('/rest/v1/rpc/iasdpi_password_change_context',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:'{}'});
+    if(result.must_change_password){access=null;passwordMessage='Altere sua senha provisória para continuar.';location.hash='#reset-password';throw Error(passwordMessage);}
+  }
   async function requireIdentity(){
     if(passwordRecoveryActive())throw Error('Conclua a recuperação de senha.');
     if(window.IASDPIChurches)await IASDPIChurches.ensure();
@@ -158,7 +164,7 @@ window.IASDPIAuth = (() => {
     const ticket=generation,token=session.access_token,church=churchCode();
     const user=await jsonRequest('/auth/v1/user',{headers:{Authorization:'Bearer '+token}});
     if(ticket!==generation||church!==churchCode()||!user.id||user.id!==session?.user.id||user.is_anonymous!==false)throw Error('Sessão alterada ou inválida. Entre novamente.');
-    identityChurch=church;return {token,user};
+    await credentialGate(token);identityChurch=church;return {token,user};
   }
   const aliasEnabled=()=>window.IASDPIConfig?.aliasLoginEnabled===true;
   function loginIdentifierField(){return aliasEnabled()?field('Identificador ou e-mail','email','','text',true,'autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254"'):field('E-mail','email','','email',true,'autocomplete="username"');}
@@ -195,6 +201,7 @@ window.IASDPIAuth = (() => {
     finally{signingIn=false;}
   }
   async function signup(email,password,key){
+    if(window.IASDPIConfig?.responsibilityGovernanceEnabled)throw Error('Contas individuais são criadas somente pela administração.');
     if(!remoteRequestAllowed('/auth/v1/signup','POST'))throw Error('Cadastro bloqueado no modo de consulta.');
     const cfg=config();if(key)cfg.key=key.trim();validateConfig(cfg);
     localStorage.setItem(IASDPIStorage.cloudConfig,JSON.stringify(cfg));
@@ -266,6 +273,7 @@ window.IASDPIAuth = (() => {
     adopt(data.session);
     if(!passwordRecoveryActive())throw Error('Link inválido ou expirado. Solicite um novo link.');
     if(typeof password!=='string'||password.length<12)throw Error('Use uma senha com pelo menos 12 caracteres.');
+    if(window.IASDPIConfig?.responsibilityGovernanceEnabled){await changeOwnPassword(password);recoveryMetadata(null);passwordMessage='Senha redefinida. Aguarde dois segundos e entre novamente.';return;}
     const result=await sdk.auth.updateUser({password});
     if(result.error){if([401,403].includes(result.error.status)){recoveryMetadata(null);passwordMessage='Link expirado. Solicite um novo link.';}throw Error('Não foi possível redefinir a senha. Verifique a conexão, a validade do link e os requisitos de senha do projeto.');}
     recoveryMetadata(null);passwordMessage='Senha redefinida. Entre novamente com a nova senha.';
@@ -277,7 +285,20 @@ window.IASDPIAuth = (() => {
     if(bootInProgress)return heading('ACESSO','Recuperar senha')+'<p role="status">Preparando formulário de recuperação…</p>';
     return heading('ACESSO','Recuperar senha','Informe seu e-mail. Esta solicitação não concede autorização de acesso à igreja.')+`<section class="panel auth-panel"><form id="password-request-form">${field('E-mail','email','','email',true,'autocomplete="email"')}<button type="submit" class="primary">Enviar link de recuperação</button><p class="password-feedback" role="status" aria-live="polite"></p></form><p><a href="#login" data-auth-page="login">Voltar para Entrar</a></p></section>`;
   }
+  async function changeOwnPassword(password){
+    if(!session||!window.IASDPIConfig?.responsibilityGovernanceEnabled)throw Error('Entre para alterar sua senha.');
+    const cfg=config(),token=session.access_token;
+    if(!remoteRequestAllowed('/functions/v1/access-assistance','POST'))throw Error('Alteração remota bloqueada neste ambiente.');
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
+    try{
+      const response=await fetch(cfg.url+'/functions/v1/access-assistance',{method:'POST',redirect:'error',signal:controller.signal,headers:{apikey:cfg.key,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({action:'change_password',church:await IASDPIChurches.ensure(),password})});
+      if(!response.ok)throw Error('Não foi possível concluir a alteração. Tente entrar novamente ou procure a administração.');
+      const result=await response.json();if(result.completed!==true)throw Error('Alteração não confirmada.');
+      await getClient().auth.signOut({scope:'local'});adopt(null);invalidate('anonymous','Senha alterada. Aguarde dois segundos e entre novamente.',true);location.hash='#login';
+    }finally{clearTimeout(timer);}
+  }
   function resetPasswordPage(){
+    if(window.IASDPIConfig?.responsibilityGovernanceEnabled&&session&&!passwordRecoveryActive())return heading('MINHA CONTA','Alterar senha')+`<section class="panel auth-panel"><p role="status">${esc(passwordMessage||'Defina uma senha individual. Não use seu apelido como senha.')}</p><form id="own-password-form">${field('Nova senha','password','','password',true,'minlength="12" maxlength="256" autocomplete="new-password"')}${field('Confirmar nova senha','repeat','','password',true,'minlength="12" maxlength="256" autocomplete="new-password"')}<button class="primary">Alterar senha</button><p role="status" data-password-feedback></p></form></section>`;
     if(bootInProgress)return heading('ACESSO','Definir nova senha')+'<p role="status">Conferindo sessão de recuperação…</p>';
     return heading('ACESSO','Definir nova senha','A redefinição usa uma sessão de recuperação do Supabase e não altera as permissões da conta.')+`<section class="panel auth-panel"><p role="status">${esc(passwordRecoveryActive()?'Link confirmado. Defina sua nova senha.':passwordMessage)}</p>${passwordRecoveryActive()?`<form id="password-reset-form">${field('Nova senha','password','','password',true,'minlength="12" maxlength="256" autocomplete="new-password"')}${field('Confirmar nova senha','repeat','','password',true,'minlength="12" maxlength="256" autocomplete="new-password"')}<button type="submit" class="primary">Definir nova senha</button></form>`:`<p><a href="#forgot-password" data-auth-page="forgot-password">Solicitar novo link</a></p>`}<p><a href="#login" data-auth-page="login">Voltar para Entrar</a></p></section>`;
   }
@@ -286,6 +307,7 @@ window.IASDPIAuth = (() => {
     return heading('ACESSO RESTRITO','Entrar no IASDPI','Cronogramas, registros, histórico e backups são exclusivos de administradores e líderes autorizados.')+
       `<section class="panel auth-panel"><p role="status">${esc(statusMessage)}</p><form id="auth-login-form">${window.IASDPIChurches?.loginSelector()||''}${loginIdentifierField()}${field('Senha','password','','password',true,'autocomplete="current-password"')}${rememberField()}${`<details ${config().key?'':'open'}><summary>Configuração da conexão</summary><p class="muted">Informe somente a chave pública do projeto.</p>${field('Chave pública publishable/anon','public-key','','text',!config().key,'autocomplete="off"')}</details>`}<button class="primary" type="submit">Entrar</button><p><a href="#forgot-password" data-auth-page="forgot-password">Esqueci minha senha</a></p>${window.IASDPIConfig?.governanceEnabled?'<p><a href="#access-request" data-auth-page="access-request">Solicitar acesso ou recuperação</a></p>':''}<p class="muted">Use Sair em dispositivos compartilhados. A autorização depende da administração da igreja.</p></form></section>`;
   }
+  document.addEventListener('submit',e=>{if(e.target.id!=='own-password-form')return;e.preventDefault();e.stopPropagation();const f=e.target,data=new FormData(f),feedback=f.querySelector('[data-password-feedback]'),button=f.querySelector('button');if(data.get('password')!==data.get('repeat')){feedback.textContent='As senhas precisam ser iguais.';return;}button.disabled=true;void changeOwnPassword(String(data.get('password'))).catch(error=>feedback.textContent=error.message).finally(()=>{f.reset();button.disabled=false;});},true);
   document.addEventListener('visibilitychange',()=>{
     if(!client)return;
     if(document.hidden)client.auth.stopAutoRefresh();
