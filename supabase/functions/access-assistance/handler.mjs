@@ -15,7 +15,7 @@ export function createAccessAssistanceHandler({readEnv,fetch:send=globalThis.fet
   if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'apikey, authorization, content-type, x-iasdpi-church'}});
   if(req.method!=='POST')return response(405,{error:INVALID});
   let b;try{b=await boundedBody(req);}catch{return response(400,{error:INVALID});}
-  const fields={submit:['action','church','id','name','identifier','department','kind','message'],issue:['action','church','request_id','version'],complete:['action','church','code','password'],change_password:['action','church','password'],create_account:['action','church','request_id','person','version','identifier','email']};
+  const fields={submit:['action','church','id','name','identifier','department','kind','message'],issue:['action','church','request_id','version'],institutional_reset:['action','church','identifier','version'],complete:['action','church','code','password'],change_password:['action','church','password'],create_account:['action','church','request_id','person','version','identifier','email']};
   if(!b||typeof b.action!=='string'||!Object.hasOwn(fields,b.action)||Object.keys(b).some(k=>!fields[b.action].includes(k))||typeof b.church!=='string'||!/^[A-Z][A-Z0-9_]{2,39}$/.test(b.church))return response(400,{error:INVALID});
   const url=(readEnv('SUPABASE_URL')||'').replace(/\/$/,''),service=readEnv('SUPABASE_SERVICE_ROLE_KEY'),publicKey=readEnv('SUPABASE_PUBLISHABLE_KEY')||readEnv('SUPABASE_ANON_KEY'),pepper=readEnv('IASDPI_GOVERNANCE_PEPPER');
   if(readEnv('IASDPI_GOVERNANCE_ENABLED')!=='true'||!/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(url)||!service||!publicKey||!pepper||pepper.length<32)return response(503,{error:INVALID});
@@ -41,6 +41,16 @@ export function createAccessAssistanceHandler({readEnv,fetch:send=globalThis.fet
     const authorization=req.headers.get('authorization')||'';if(!authorization.startsWith('Bearer '))return response(401,{error:INVALID});const token=authorization.slice(7);
     const userResponse=await remote('/auth/v1/user',{token});if(!userResponse.ok)return response(401,{error:INVALID});const identity=await userResponse.json();if(!identity.id||identity.is_anonymous!==false)return response(401,{error:INVALID});
     return response(200,await createIndividualAccount({body:b,token,remote,rpc,readEnv,randomBytes}));
+   }
+   if(b.action==='institutional_reset'){
+    if(readEnv('IASDPI_INSTITUTIONAL_ENABLED')!=='true')return response(503,{error:INVALID});
+    if(typeof b.identifier!=='string'||!/^[a-z][a-z0-9._-]{2,63}$/.test(b.identifier)||!Number.isInteger(b.version)||b.version<1)return response(400,{error:INVALID});
+    const authorization=req.headers.get('authorization')||'';if(!authorization.startsWith('Bearer '))return response(401,{error:INVALID});const token=authorization.slice(7);
+    const user=await remote('/auth/v1/user',{token});if(!user.ok)return response(401,{error:INVALID});const identity=await user.json();if(!identity.id||identity.is_anonymous!==false)return response(401,{error:INVALID});
+    const intent=await rpc('iasdpi_institutional_reset_request',{p_identifier:b.identifier,p_expected_version:b.version},token);
+    if(intent.self_change===true)return response(200,{self_change:true});
+    const code=hex(randomBytes(32)),issued=await rpc('iasdpi_access_reset_issue',{p_request:intent.request_id,p_expected_version:intent.version,p_hash:await hash('reset:'+b.church+':'+code)},token);
+    return response(200,{code,expires_at:issued.expires_at});
    }
    if(b.action==='change_password'){
     const authorization=req.headers.get('authorization')||'';if(!authorization.startsWith('Bearer '))return response(401,{error:INVALID});const token=authorization.slice(7);
@@ -70,6 +80,7 @@ export function createAccessAssistanceHandler({readEnv,fetch:send=globalThis.fet
    const changed=await remote('/auth/v1/user',{token:userToken,method:'PUT',data:{password:b.password}});if(!changed.ok)throw Error();
    const logout=await remote('/auth/v1/logout?scope=global',{token:userToken,data:{}});if(!logout.ok)throw Error();
    await rpc('iasdpi_access_reset_finish',{p_lease:lease,p_success:true});lease=null;userToken=null;
+   if(readEnv('IASDPI_INSTITUTIONAL_ENABLED')==='true')await rpc('iasdpi_password_change_confirm',{p_user:claim.user_id});
    return response(200,{completed:true});
   }catch{
    if(userToken)try{await remote('/auth/v1/logout?scope=global',{token:userToken,data:{}});}catch{}

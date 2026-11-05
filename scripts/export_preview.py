@@ -29,7 +29,9 @@ parser.add_argument('--governance-final-preview',action='store_true',help='G11: 
 parser.add_argument('--event-management-preview',action='store_true',help='Eventos com recorrência, locais e pendência; memória isolada, sem Supabase.')
 parser.add_argument('--calendar-privacy-preview',action='store_true',help='Classificação e privacidade simuladas: eventos abertos e Ancionato públicos, demais escalas com login fictício.')
 parser.add_argument('--events-preview',action='store_true',help='E1: calendário unificado e gestão de eventos com acesso simulado, sem Supabase real.')
+parser.add_argument('--institutional-access-preview',action='store_true',help='G12: tabela institucional isolada, sem Supabase real.')
 args = parser.parse_args()
+if args.institutional_access_preview:args.governance_final_preview=True
 if args.governance_final_preview:args.event_management_preview=True
 if args.event_management_preview:args.calendar_privacy_preview=True
 if args.calendar_privacy_preview:args.events_preview=True
@@ -110,6 +112,7 @@ for name in ('config.js', 'churches.js', 'storage.js', 'supabase-2.118.0.js', 'a
         if args.event_management_preview:script+='\n'+(root/'tests/fixtures/event-planning-preview.js').read_text()
     if name == 'app.js' and args.registry_identities_preview:script+='\n'+(root/'tests/fixtures/schedule-edit-window-preview.js').read_text()+'\n'+(root/'tests/fixtures/schedule-publication-preview.js').read_text()
     if name == 'app.js' and args.governance_final_preview:script+='\n'+(root/'tests/fixtures/governance-final-preview.js').read_text()
+    if name == 'app.js' and args.institutional_access_preview:script+='\n'+(root/'tests/fixtures/institutional-access-preview.js').read_text()
     script = script.replace('</script', '<\\/script')
     html = html.replace(f'  <script src="{name}" defer></script>\n', '')
     # Scripts executam após os elementos da página existirem.

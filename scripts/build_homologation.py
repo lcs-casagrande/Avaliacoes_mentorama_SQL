@@ -279,12 +279,14 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
         if not (real_homologation or prepare_existing) or not isinstance(public_config,dict):
             raise ValueError('Configuração alternativa exige homologação real explícita.')
         cfg = dict(public_config)
-    if not {'supabaseUrl', 'supabasePublishableKey'} <= set(cfg) or set(cfg) - {'supabaseUrl', 'supabasePublishableKey', 'governanceAdministrationEnabled', 'responsibilityGovernanceEnabled', 'eventsEnabled', 'calendarPrivacyEnabled', 'churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled', 'portalAccessEnabled', 'centralRegistryEnabled'} or type(cfg.get('churchIsolationEnabled',False)) is not bool or type(cfg.get('aliasLoginEnabled',False)) is not bool or (cfg.get('aliasLoginEnabled') and not cfg.get('churchIsolationEnabled')) or type(cfg.get('governanceEnabled',False)) is not bool or (cfg.get('governanceEnabled') and not (cfg.get('churchIsolationEnabled') and cfg.get('aliasLoginEnabled'))) or type(cfg.get('portalAccessEnabled',False)) is not bool or (cfg.get('portalAccessEnabled') and not cfg.get('governanceEnabled')) or type(cfg.get('centralRegistryEnabled',False)) is not bool or (cfg.get('centralRegistryEnabled') and not cfg.get('portalAccessEnabled')):
+    if not {'supabaseUrl', 'supabasePublishableKey'} <= set(cfg) or set(cfg) - {'supabaseUrl', 'supabasePublishableKey', 'institutionalAccessEnabled', 'governanceAdministrationEnabled', 'responsibilityGovernanceEnabled', 'eventsEnabled', 'calendarPrivacyEnabled', 'churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled', 'portalAccessEnabled', 'centralRegistryEnabled'} or type(cfg.get('churchIsolationEnabled',False)) is not bool or type(cfg.get('aliasLoginEnabled',False)) is not bool or (cfg.get('aliasLoginEnabled') and not cfg.get('churchIsolationEnabled')) or type(cfg.get('governanceEnabled',False)) is not bool or (cfg.get('governanceEnabled') and not (cfg.get('churchIsolationEnabled') and cfg.get('aliasLoginEnabled'))) or type(cfg.get('portalAccessEnabled',False)) is not bool or (cfg.get('portalAccessEnabled') and not cfg.get('governanceEnabled')) or type(cfg.get('centralRegistryEnabled',False)) is not bool or (cfg.get('centralRegistryEnabled') and not cfg.get('portalAccessEnabled')):
         raise ValueError('Revisar os campos da configuração antes de gerar o site.')
     if type(cfg.get('responsibilityGovernanceEnabled',False)) is not bool or cfg.get('responsibilityGovernanceEnabled') and not cfg.get('governanceEnabled'):
         raise ValueError('Governança de responsabilidades exige governança autenticada.')
     if type(cfg.get('governanceAdministrationEnabled',False)) is not bool or cfg.get('governanceAdministrationEnabled') and not cfg.get('responsibilityGovernanceEnabled'):
         raise ValueError('Administração G11 exige governança de responsabilidades.')
+    if type(cfg.get('institutionalAccessEnabled',False)) is not bool or cfg.get('institutionalAccessEnabled') and not cfg.get('governanceAdministrationEnabled'):
+        raise ValueError('Tabela institucional exige administração G11 e migração 028 revisada.')
     if type(cfg.get('eventsEnabled',False)) is not bool or cfg.get('eventsEnabled') and not cfg.get('portalAccessEnabled'):
         raise ValueError('Eventos exigem portal autorizado e flag booleana.')
     if type(cfg.get('calendarPrivacyEnabled',False)) is not bool or cfg.get('calendarPrivacyEnabled') and not cfg.get('eventsEnabled'):
@@ -316,7 +318,7 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
             raise ValueError('Preparação do projeto existente exige a referência pública do IASD_Parada.')
         cfg.update({key: True for key in ('churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled',
                    'portalAccessEnabled', 'centralRegistryEnabled', 'eventsEnabled',
-                   'calendarPrivacyEnabled', 'responsibilityGovernanceEnabled', 'governanceAdministrationEnabled')})
+                   'calendarPrivacyEnabled', 'responsibilityGovernanceEnabled', 'governanceAdministrationEnabled', 'institutionalAccessEnabled')})
         cfg.update(connectionPreparation=True, remoteDisabled=True, remoteReadOnly=True,
                    storageMode='supabase', storageNamespace='iasdpi-existing-preparation-v1')
     contents = {name: (ROOT / 'frontend' / name).read_bytes() for name in ASSETS}

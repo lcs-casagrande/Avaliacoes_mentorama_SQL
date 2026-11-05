@@ -61,14 +61,15 @@ function organizationDepartments(elder){
 }
 function organizationResults(){
   const query=organizationSearchText(organizationState.query);
-  const matches=ministry=>!query||organizationSearchText([ministry.name,ministry.original||'',ministryPeople(ministry)].join(' ')).includes(query);
+  const matches=ministry=>!ministry.archived&&(!query||organizationSearchText([ministry.name,ministry.original||'',ministryPeople(ministry)].join(' ')).includes(query));
   const oldAncionato=churchMinistries.find(ministry=>ministry.name==='Ancionato');const ancionato=window.IASDPIRegistry?.ministry(oldAncionato)||oldAncionato;
   const showAncionato=matches(ancionato);
   const groups=churchOrganization.map(elder=>({...elder,departments:organizationDepartments(elder).filter(matches)})).filter(elder=>elder.departments.length);
-  const count=groups.reduce((total,elder)=>total+elder.departments.length,0)+Number(showAncionato);
+  const represented=new Set(['Ancionato',...groups.flatMap(e=>e.departments.map(d=>d.name)),...(groups.some(e=>e.departments.some(d=>d.name.startsWith('Diaconato')))?['Diaconato']:[])]);const extras=(window.IASDPIRegistry?.publicDepartments?.()||[]).filter(d=>!represented.has(d.name)&&matches(d));
+  const count=groups.reduce((total,elder)=>total+elder.departments.length,0)+Number(showAncionato)+extras.length;
   const ministryHtml=ministry=>`<h3 class="organization-ministry-name">${esc(ministry.name)}</h3><p class="organization-responsible"><span class="muted">${ministry.responsibles.length>1?'Responsáveis':'Responsável'}:</span> <strong>${esc(ministryPeople(ministry))}</strong></p>`;
   return {count,html:count?`${showAncionato?`<section class="organization-ancionato" data-ministry="Ancionato">${ministryHtml(ancionato)}</section>`:''}
-    ${groups.length?`<p class="organization-level">Anciãos e departamentos sob seu acompanhamento</p><ul class="organization-elders">${groups.map(elder=>`<li class="organization-elder"><div class="organization-elder-heading"><span class="eyebrow">${['Márcia','Victoria','Rosana'].includes(elder.name)?'ANCIÃ':'ANCIÃO'} · ACOMPANHAMENTO</span><h2>${esc(elder.name)}</h2></div><ul class="organization-departments">${elder.departments.map(ministry=>`<li data-ministry="${esc(ministry.name)}">${ministryHtml(ministry)}</li>`).join('')}</ul></li>`).join('')}</ul>`:''}`:empty('Nenhum ministério encontrado','Revise o nome do ministério ou responsável, ou limpe a pesquisa.')};
+    ${groups.length?`<p class="organization-level">Anciãos e departamentos sob seu acompanhamento</p><ul class="organization-elders">${groups.map(elder=>`<li class="organization-elder"><div class="organization-elder-heading"><span class="eyebrow">${['Márcia','Victoria','Rosana'].includes(elder.name)?'ANCIÃ':'ANCIÃO'} · ACOMPANHAMENTO</span><h2>${esc(elder.name)}</h2></div><ul class="organization-departments">${elder.departments.map(ministry=>`<li data-ministry="${esc(ministry.name)}">${ministryHtml(ministry)}</li>`).join('')}</ul></li>`).join('')}</ul>`:''}${extras.length?`<section class="panel"><h2>Ministérios sem acompanhamento definido</h2>${extras.map(d=>`<div data-ministry="${esc(d.name)}">${ministryHtml(d)}</div>`).join('')}</section>`:''}`:empty('Nenhum ministério encontrado','Revise o nome do ministério ou responsável, ou limpe a pesquisa.')};
 }
 function organizationPage() {
   const results=organizationResults();

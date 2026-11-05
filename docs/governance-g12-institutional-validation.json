@@ -1,0 +1,52 @@
+{
+  "validated_at_utc": "2026-11-05T19:56:41.014486+00:00",
+  "branch": "feat/schedule-management-b1",
+  "base_commit": "ff235ba2d312fa2eca0e802cd66a7acb57a7a649",
+  "selected_unique_tests_passed": 139,
+  "suites": {
+    "browser-release.log": 15,
+    "contracts.log": 8,
+    "node-release.log": 63,
+    "g12-regression.log": 17,
+    "g11-regression.log": 8,
+    "crono-regression.log": 9,
+    "navigation-regression.log": 8,
+    "package-regression.log": 11
+  },
+  "reruns_counted": false,
+  "full_historical_suite_rerun": false,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "viewports": [
+    360,
+    390,
+    768,
+    1024,
+    1440
+  ],
+  "release_html_sha256": "12b579d5f0f3d6058398a6bf7978e2c7a8383ddc6e3cd2fc4630f20ca5652ead",
+  "migration_prepared": "database/028_institutional_access.sql",
+  "migration_sha256": "ecc3c8b2908b01fa3aa7a1e6054cab590da79c88279fd2934037376cadcf9f64",
+  "migration_executed_anywhere_this_round": false,
+  "postgresql_tests_this_round": 0,
+  "sql_validation": "Parser SQL externo (44 comandos) e contratos de arquivo; corpos PL/pgSQL/dependências/RLS/concorrência não executados. Ensaio PostgreSQL pendente.",
+  "real_accounts_created": false,
+  "real_supabase_changed": false,
+  "official_main_or_site_changed": false,
+  "homologation_main_explicitly_authorized": true,
+  "historical_sources_and_auth_config_unchanged": true,
+  "previous_styles_preserved_as_prefix": true,
+  "static_authentication": "Simulada em memória; sem rede real e sem persistência compartilhada.",
+  "pending": [
+    "Ensaio da 028 em PostgreSQL descartável quando autorizado",
+    "Backup recuperável e restauração",
+    "Conciliação de permissões legadas",
+    "Provisionamento individual e leitor exclusivo apenas com autorização",
+    "Configuração/homologação Auth, Edge, recuperação e sessões reais"
+  ],
+  "screenshots": [
+    "dist/institutional-g12/usuarios-1440.png",
+    "dist/institutional-g12/usuarios-390.png"
+  ]
+}
