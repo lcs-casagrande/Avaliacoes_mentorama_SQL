@@ -1,0 +1,72 @@
+{
+  "prepared_at_utc": "2026-11-05T16:06:32.298151+00:00",
+  "branch": "feat/schedule-management-b1",
+  "implementation_commit": "07b451b86c550ed7b3b51fd565e1773b0a69ea82",
+  "implementation_push_confirmed": true,
+  "remote": "https://github.com/lcs-casagrande/Avaliacoes_mentorama_SQL",
+  "previous_g10_4_evidence": "docs/governance-g10-4-validation.json",
+  "previous_tests_passed": 37,
+  "new_tests_run": 0,
+  "existing_tests_repeated": false,
+  "sql_runtime_and_check_hashes_still_match_tested_artifacts": true,
+  "precommit_files_scanned": 30,
+  "secret_material_findings": 0,
+  "complete_real_g10_1_json_available": false,
+  "g10_2_report_available": false,
+  "integral_remote_comparison_completed": false,
+  "remote_schema_status": "Indeterminado: apenas resumo G10.1 disponível; contagens e marcadores não provam compatibilidade.",
+  "real_audit_repeated": false,
+  "new_migrations": [],
+  "candidate_migrations": "005–026, 22 arquivos; implantação condicionada à comparação integral.",
+  "groups": {
+    "A": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "B": [
+      11
+    ],
+    "C": [
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "D": [
+      17,
+      18,
+      19
+    ],
+    "E": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      25
+    ],
+    "F": [
+      26
+    ]
+  },
+  "report": "docs/governance-g10-5-deployment.md",
+  "upstream_backup_documentation_consulted": true,
+  "real_backup_or_restore_performed": false,
+  "real_supabase_accessed": false,
+  "real_accounts_created_or_changed": false,
+  "real_migrations_applied": false,
+  "real_permissions_or_configuration_changed": false,
+  "merged": false,
+  "deployed": false,
+  "official_site_unchanged": true,
+  "protected_remote_refs_verified_after_implementation_push": {
+    "main": "a41d1156af932a275871d344f7fd990c6f2f8a7d",
+    "gh-pages": "db04d7e63593cc00b6ca28956f5149082239a06b"
+  },
+  "status": "Preparação documental pronta; G10.5 pendente do JSON integral, backup/recuperação e gates operacionais. Interrompido antes de operações reais."
+}
