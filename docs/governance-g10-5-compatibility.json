@@ -1,0 +1,542 @@
+{
+  "format": "IASDPI_G10_5_REAL_INVENTORY_REVIEW",
+  "version": 1,
+  "reviewed_at_utc": "2026-11-05T16:17:47.290557+00:00",
+  "input_file_name": "IASDPI_G10_1_inventario_completo.json",
+  "input_sha256": "002aeccc3a3dbf4933f8b1fab042da69adcc8c5fa6a47777bb2d10e96c71892b",
+  "captured_at_utc": "2026-11-05T12:55:26.365968+00:00",
+  "postgresql_version_num": 170011,
+  "source_branch": "feat/schedule-management-b1",
+  "source_commit": "5c4fa8f2b8dad4d5cd2c5e82247c6a45d94826fb",
+  "core_source_sha256": {
+    "database/001_single_church_access.sql": "09329dd4093680a7fd091485a25c5a4170e18d27d08eb4c5e50aeac4639c98f6",
+    "database/002_user_management.sql": "3b2c06c562da69adb802cdbddaaf6da41e007fe642868e433fc366241d541c8b",
+    "database/003_operational_storage.sql": "196f05de6a15b0b6db9b6d398387fa65c18b68fa1594c6bb72b697eae0334c31",
+    "database/004_culto_trash.sql": "69395f59a112ef2d61512e929dc308659161baab16c0da6d99e6b2f04bae99ee"
+  },
+  "counts": {
+    "relations": 12,
+    "functions": 22,
+    "dependencies": 384,
+    "default_privileges": 96,
+    "columns": 84,
+    "constraints": 64,
+    "indexes": 21,
+    "policies": 7,
+    "triggers": 0
+  },
+  "core_relation_names_match": true,
+  "core_relation_metadata_equal_with_observed_service_grants": true,
+  "core_signature_names_match": true,
+  "function_definition_proofs": [
+    {
+      "signature": "iasdpi_admin_private.lock_admin()",
+      "status": "unresolved",
+      "expected_md5": "698ce1ca9601dcf2af3e7bf3bd2e6309",
+      "body_crlf_md5": "a60a2ceb0c2411234c8ba1b872a6c81b",
+      "observed_md5": "a08de7e54bdd7ad4dbbd3c2487c6e92e"
+    },
+    {
+      "signature": "iasdpi_admin_private.require_admin()",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "d40f01fa381423df6bc8a2891ddf0d81",
+      "body_crlf_md5": "ff261e3cf3f5a93b3b0a56dc1d4a4f53",
+      "observed_md5": "ff261e3cf3f5a93b3b0a56dc1d4a4f53"
+    },
+    {
+      "signature": "iasdpi_operational_private.change_trash(p_id text, p_expected_version bigint, p_delete boolean, p_reason text, p_request_id uuid)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "400db97c824d684053d446d8a9596e08",
+      "body_crlf_md5": "d1d4805f9b69b5b69a09f44bacae194e",
+      "observed_md5": "d1d4805f9b69b5b69a09f44bacae194e"
+    },
+    {
+      "signature": "iasdpi_operational_private.fingerprint(p jsonb)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "720894794493a5c6ff2874c11fb7f901",
+      "body_crlf_md5": "de5d975383f33c22f277dddadb3e6ca0",
+      "observed_md5": "de5d975383f33c22f277dddadb3e6ca0"
+    },
+    {
+      "signature": "iasdpi_operational_private.preview_import_003(p_documents jsonb)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "ebd144420a2f10536227c60ffc7efd34",
+      "body_crlf_md5": "90204e4aa35c257175adb73272c46d57",
+      "observed_md5": "90204e4aa35c257175adb73272c46d57"
+    },
+    {
+      "signature": "iasdpi_operational_private.project_program(p jsonb)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "40e50fa9191a32f620fc8d6630679814",
+      "body_crlf_md5": "1334ff0523061662956f883a56f0a04d",
+      "observed_md5": "1334ff0523061662956f883a56f0a04d"
+    },
+    {
+      "signature": "iasdpi_operational_private.require_access()",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "3ff376939fbbca70ca7090bcb4cc8ba1",
+      "body_crlf_md5": "fff68b045367750071ca3ef14751b430",
+      "observed_md5": "fff68b045367750071ca3ef14751b430"
+    },
+    {
+      "signature": "iasdpi_operational_private.save_program_003(p_id text, p_expected_version bigint, p_document jsonb, p_request_id uuid, p_import boolean)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "6c5bbd44c0a363ce96347aff42de8cba",
+      "body_crlf_md5": "a7c936b722753b7dddf173d8d4ecb6b3",
+      "observed_md5": "a7c936b722753b7dddf173d8d4ecb6b3"
+    },
+    {
+      "signature": "public.iasdpi_accept_invite(p_token text)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "7489ac87bc3159850d807c4f6c6594f3",
+      "body_crlf_md5": "70530e0c9238c9c207e0f821093245c0",
+      "observed_md5": "70530e0c9238c9c207e0f821093245c0"
+    },
+    {
+      "signature": "public.iasdpi_create_invite(p_email text)",
+      "status": "unresolved",
+      "expected_md5": "b31cc90fcae9b1b88d14cca3dfe2b2cd",
+      "body_crlf_md5": "4480642944ef71693ee508bdaedc9828",
+      "observed_md5": "7a8b15d93b0a009e0d0489d8b333661d"
+    },
+    {
+      "signature": "public.iasdpi_find_account(p_email text)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "feb8e18adf8a4cf7a8cbc204872e6bb2",
+      "body_crlf_md5": "fdeae35d8d084b621c8c235a62558bea",
+      "observed_md5": "fdeae35d8d084b621c8c235a62558bea"
+    },
+    {
+      "signature": "public.iasdpi_list_invites()",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "3e824ac7c7a068b0b1421dfa498dc00c",
+      "body_crlf_md5": "2075ff9518bf5b3f981cfd60f7273b4d",
+      "observed_md5": "2075ff9518bf5b3f981cfd60f7273b4d"
+    },
+    {
+      "signature": "public.iasdpi_list_trash(p_offset integer)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "7243f436a350a0b7fa2ba883482be4d1",
+      "body_crlf_md5": "3ea1d7813aec632be27a2adad7267e44",
+      "observed_md5": "3ea1d7813aec632be27a2adad7267e44"
+    },
+    {
+      "signature": "public.iasdpi_list_users(p_offset integer)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "99f0e431d8301814397434677dc89196",
+      "body_crlf_md5": "b32b0d15577daf92f26e76123c952e91",
+      "observed_md5": "b32b0d15577daf92f26e76123c952e91"
+    },
+    {
+      "signature": "public.iasdpi_preview_import(p_documents jsonb)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "e0078ec53b91d1057dcec12c2564487e",
+      "body_crlf_md5": "dd0f8bd779666442fc213c7d2639bbf2",
+      "observed_md5": "dd0f8bd779666442fc213c7d2639bbf2"
+    },
+    {
+      "signature": "public.iasdpi_restore_program(p_id text, p_expected_version bigint, p_request_id uuid)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "4b42985e843c442fe7b7daba6ea4360d",
+      "body_crlf_md5": "d9c03e691fc144bd0ac3937b5cf6be26",
+      "observed_md5": "d9c03e691fc144bd0ac3937b5cf6be26"
+    },
+    {
+      "signature": "public.iasdpi_revoke_invite(p_id uuid)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "00ed5d2466d8b2b3b31ba55408feebdf",
+      "body_crlf_md5": "48de24c745c6458a4b722bbc69ea0a29",
+      "observed_md5": "48de24c745c6458a4b722bbc69ea0a29"
+    },
+    {
+      "signature": "public.iasdpi_save_program(p_id text, p_expected_version bigint, p_document jsonb, p_request_id uuid, p_import boolean)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "2d28a02a19dc8678528b231b92fd9d3e",
+      "body_crlf_md5": "bedafc2c3c110ee2b55bb7757e383f71",
+      "observed_md5": "bedafc2c3c110ee2b55bb7757e383f71"
+    },
+    {
+      "signature": "public.iasdpi_save_template(p_id text, p_expected_version bigint, p_name text, p_plan jsonb)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "0b8b9352bac848243ce64a909f392fad",
+      "body_crlf_md5": "8e6b12dd26c7d2c0030a079e57bd0e9e",
+      "observed_md5": "8e6b12dd26c7d2c0030a079e57bd0e9e"
+    },
+    {
+      "signature": "public.iasdpi_set_access(p_user_id uuid, p_role text, p_enabled boolean)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "7f220bd3493ef9acb60fb8c8c8889985",
+      "body_crlf_md5": "a6a7ec4056136fda50ac3eb6d4c00948",
+      "observed_md5": "a6a7ec4056136fda50ac3eb6d4c00948"
+    },
+    {
+      "signature": "public.iasdpi_trash_detail(p_id text)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "980322ed2982b43d03e09818efb3a359",
+      "body_crlf_md5": "29561f4c935cfb2ad3cfec086892769f",
+      "observed_md5": "29561f4c935cfb2ad3cfec086892769f"
+    },
+    {
+      "signature": "public.iasdpi_trash_program(p_id text, p_expected_version bigint, p_request_id uuid, p_reason text)",
+      "status": "exact_full_definition_with_body_crlf",
+      "expected_md5": "3046f1263082c1449950659ca64b0e01",
+      "body_crlf_md5": "d8bfb54eca63e24908302e5db7f81d16",
+      "observed_md5": "d8bfb54eca63e24908302e5db7f81d16"
+    }
+  ],
+  "functions_exact_raw_hash_count": 0,
+  "functions_proven_body_crlf_count": 20,
+  "unresolved_function_definitions": [
+    "iasdpi_admin_private.lock_admin()",
+    "public.iasdpi_create_invite(p_email text)"
+  ],
+  "remaining_function_differences_after_provider_grants": {
+    "iasdpi_admin_private.lock_admin()": [
+      "/definition_md5"
+    ],
+    "public.iasdpi_create_invite(p_email text)": [
+      "/definition_md5"
+    ]
+  },
+  "dependencies": {
+    "observed_count": 384,
+    "expected_count": 384,
+    "equal_after_system_oid_name_normalization": true
+  },
+  "provider_grant_differences": {
+    "service_role_public_tables": [
+      "public.culto_archives",
+      "public.iasdpi_access",
+      "public.iasdpi_activities",
+      "public.iasdpi_programs",
+      "public.iasdpi_subactivities",
+      "public.iasdpi_templates"
+    ],
+    "service_role_execute_functions": [
+      "iasdpi_operational_private.preview_import_003(p_documents jsonb)",
+      "iasdpi_operational_private.save_program_003(p_id text, p_expected_version bigint, p_document jsonb, p_request_id uuid, p_import boolean)",
+      "public.iasdpi_accept_invite(p_token text)",
+      "public.iasdpi_create_invite(p_email text)",
+      "public.iasdpi_find_account(p_email text)",
+      "public.iasdpi_list_invites()",
+      "public.iasdpi_list_trash(p_offset integer)",
+      "public.iasdpi_list_users(p_offset integer)",
+      "public.iasdpi_preview_import(p_documents jsonb)",
+      "public.iasdpi_restore_program(p_id text, p_expected_version bigint, p_request_id uuid)",
+      "public.iasdpi_revoke_invite(p_id uuid)",
+      "public.iasdpi_save_program(p_id text, p_expected_version bigint, p_document jsonb, p_request_id uuid, p_import boolean)",
+      "public.iasdpi_save_template(p_id text, p_expected_version bigint, p_name text, p_plan jsonb)",
+      "public.iasdpi_set_access(p_user_id uuid, p_role text, p_enabled boolean)",
+      "public.iasdpi_trash_detail(p_id text)",
+      "public.iasdpi_trash_program(p_id text, p_expected_version bigint, p_request_id uuid, p_reason text)"
+    ],
+    "public_schema_explicit_usage_grants": [
+      "anon",
+      "authenticated",
+      "service_role"
+    ],
+    "default_privilege_rows": 96,
+    "replayed_postgres_default_rows": 48,
+    "supabase_admin_default_rows_reviewed_not_replayed": 48,
+    "expected_provider_roles": "postgres não é superuser; service_role tem BYPASSRLS; authenticator NOINHERIT; executor ausente.",
+    "real_auth_schema_dcl_not_proven": true
+  },
+  "observed_markers": [
+    {
+      "number": 1,
+      "object": "public.iasdpi_access",
+      "present": true
+    },
+    {
+      "number": 2,
+      "object": "public.iasdpi_set_access(uuid,text,boolean)",
+      "present": true
+    },
+    {
+      "number": 3,
+      "object": "public.iasdpi_programs",
+      "present": true
+    },
+    {
+      "number": 4,
+      "object": "public.iasdpi_trash_program(text,bigint,uuid,text)",
+      "present": true
+    },
+    {
+      "number": 5,
+      "object": "public.schedule_people",
+      "present": false
+    },
+    {
+      "number": 6,
+      "object": "public.schedule_plans",
+      "present": false
+    },
+    {
+      "number": 7,
+      "object": "public.schedule_settings",
+      "present": false
+    },
+    {
+      "number": 8,
+      "object": "public.iasdpi_schedule_rotation_context(uuid,date)",
+      "present": false
+    },
+    {
+      "number": 9,
+      "object": "public.schedule_legacy_commitments",
+      "present": false
+    },
+    {
+      "number": 10,
+      "object": "public.iasdpi_schedule_daily_role(uuid)",
+      "present": false
+    },
+    {
+      "number": 11,
+      "object": "public.iasdpi_churches",
+      "present": false
+    },
+    {
+      "number": 12,
+      "object": "public.iasdpi_alias_save(text,uuid,boolean,bigint,text)",
+      "present": false
+    },
+    {
+      "number": 13,
+      "object": "public.iasdpi_governance_catalog()",
+      "present": false
+    },
+    {
+      "number": 14,
+      "object": "public.iasdpi_schedule_published(date)",
+      "present": false
+    },
+    {
+      "number": 15,
+      "object": "public.schedule_elder_periods",
+      "present": false
+    },
+    {
+      "number": 16,
+      "object": "public.schedule_departments.planning_weekdays",
+      "present": false
+    },
+    {
+      "number": 17,
+      "object": "public.schedule_source_links",
+      "present": false
+    },
+    {
+      "number": 18,
+      "object": "public.iasdpi_registry_people(text): assinatura compartilhada",
+      "present": false
+    },
+    {
+      "number": 19,
+      "object": "iasdpi_schedule_private.person_aliases",
+      "present": false
+    },
+    {
+      "number": 20,
+      "object": "public.iasdpi_events",
+      "present": false
+    },
+    {
+      "number": 21,
+      "object": "public.iasdpi_events.is_restricted",
+      "present": false
+    },
+    {
+      "number": 22,
+      "object": "public.iasdpi_event_series",
+      "present": false
+    },
+    {
+      "number": 23,
+      "object": "iasdpi_schedule_private.edit_bounds()",
+      "present": false
+    },
+    {
+      "number": 24,
+      "object": "iasdpi_schedule_private.departments_conflict(uuid,uuid)",
+      "present": false
+    },
+    {
+      "number": 25,
+      "object": "iasdpi_schedule_private.iasdpi_events_catalog_before_025()",
+      "present": false
+    }
+  ],
+  "migration_ledger": {
+    "columns": [],
+    "present": false,
+    "rows_read": false
+  },
+  "migration_classification": [
+    {
+      "migration": "001",
+      "status": "compatível no escopo",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "002",
+      "status": "divergente/indeterminada nas duas definições",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "003",
+      "status": "compatível no escopo",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "004",
+      "status": "compatível no escopo",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "005",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "006",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "007",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "008",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "009",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "010",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "011",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "012",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "013",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "014",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "015",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "016",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "017",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "018",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "019",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "020",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "021",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "022",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "023",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "024",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "025",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    },
+    {
+      "migration": "026",
+      "status": "pendente no escopo inventariado; instalação bloqueada",
+      "literal_execution_proven": false
+    }
+  ],
+  "new_offline_comparator_tests_passed": 8,
+  "targeted_provider_defaults_rehearsal": {
+    "passed": true,
+    "migration_checkpoints_passed": 22,
+    "core_synthetic_data_preserved_each_stage": true,
+    "network": "none",
+    "auth": "synthetic stub",
+    "limits": "Defaults/grants do inventário + CRLF comprovado em 20 funções; duas funções usam código nominal ainda não validado no real. postgres local é superuser; não prova DCL do provedor.",
+    "not_an_exact_real_database_clone": true
+  },
+  "prior_g104_selected_tests_reused": 37,
+  "prior_full_suite_repeated": false,
+  "remote_audit_repeated": false,
+  "real_supabase_accessed": false,
+  "real_migrations_applied": false,
+  "real_accounts_or_configuration_changed": false,
+  "real_business_data_read": false,
+  "full_inventory_published_to_git": false,
+  "supplemental_read_only_sql_prepared": "database/check_g10_5_function_definitions.sql",
+  "supplemental_sql_executed_on_supabase": false,
+  "technical_release_approved": false,
+  "installation_authorized": false,
+  "blockers": [
+    "Definições integrais de lock_admin() e iasdpi_create_invite(text), cujos hashes não foram conciliados.",
+    "Backup/restauração gerenciada, RPO/RTO, janela e deltas da Cronoanálise ainda não aprovados.",
+    "DCL/owners/GRANT no provedor e privilégios sobre Auth não comprovados por um executor local superuser.",
+    "Auth/Edge/frontend reais, origem e provisão de contas ainda não autorizados/homologados."
+  ],
+  "evidence": [
+    "dist/governance-g10-5/complete-comparison.json",
+    "dist/governance-g10-5/provider-defaults-comparison.json",
+    "dist/governance-g10-5/comparator-tests.log",
+    "dist/governance-g10-5/provider-defaults-rehearsal.json"
+  ]
+}

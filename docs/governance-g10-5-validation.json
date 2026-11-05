@@ -6,18 +6,18 @@
   "remote": "https://github.com/lcs-casagrande/Avaliacoes_mentorama_SQL",
   "previous_g10_4_evidence": "docs/governance-g10-4-validation.json",
   "previous_tests_passed": 37,
-  "new_tests_run": 0,
+  "new_tests_run": 8,
   "existing_tests_repeated": false,
   "sql_runtime_and_check_hashes_still_match_tested_artifacts": true,
   "precommit_files_scanned": 30,
   "secret_material_findings": 0,
-  "complete_real_g10_1_json_available": false,
+  "complete_real_g10_1_json_available": true,
   "g10_2_report_available": false,
   "integral_remote_comparison_completed": false,
-  "remote_schema_status": "Indeterminado: apenas resumo G10.1 disponível; contagens e marcadores não provam compatibilidade.",
+  "remote_schema_status": "Metadados estruturais compatíveis; 20 corpos conciliados por hash CRLF; lock_admin e create_invite permanecem divergentes/indeterminados. Instalação não liberada.",
   "real_audit_repeated": false,
   "new_migrations": [],
-  "candidate_migrations": "005–026, 22 arquivos; implantação condicionada à comparação integral.",
+  "candidate_migrations": "005–026, 22 arquivos; bloqueadas pelas duas definições não conciliadas e gates operacionais.",
   "groups": {
     "A": [
       5,
@@ -68,5 +68,23 @@
     "main": "a41d1156af932a275871d344f7fd990c6f2f8a7d",
     "gh-pages": "db04d7e63593cc00b6ca28956f5149082239a06b"
   },
-  "status": "Preparação documental pronta; G10.5 pendente do JSON integral, backup/recuperação e gates operacionais. Interrompido antes de operações reais."
+  "status": "Análise do inventário real concluída nos metadados disponíveis. Bloqueios: duas definições, backup/recuperação, DCL e ativação Auth/Edge/frontend. Nenhuma operação real.",
+  "available_inventory_compared_in_full": true,
+  "function_source_equivalence_completed": false,
+  "real_inventory_sha256": "002aeccc3a3dbf4933f8b1fab042da69adcc8c5fa6a47777bb2d10e96c71892b",
+  "real_inventory_captured_at_utc": "2026-11-05T12:55:26.365968+00:00",
+  "new_offline_comparator_tests_passed": 8,
+  "targeted_local_rehearsal_for_observed_differences": {
+    "passed": true,
+    "migration_checkpoints": 22,
+    "core_preserved_each_stage": true,
+    "limits": "20 corpos CRLF comprovados e defaults/grants postgres reproduzidos; duas funções usam código nominal, postgres superuser local, Auth sintético. Não prova o estado integral real."
+  },
+  "compatibility_evidence": "docs/governance-g10-5-compatibility.json",
+  "supplemental_read_only_select": "database/check_g10_5_function_definitions.sql",
+  "supplemental_select_local_read_only_syntax_passed": true,
+  "supplemental_select_executed_on_supabase": false,
+  "raw_real_inventory_versioned": false,
+  "reviewed_at_utc": "2026-11-05T16:17:47.290557+00:00",
+  "continuation_files_scanned": 6
 }
