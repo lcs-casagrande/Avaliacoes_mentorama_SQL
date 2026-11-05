@@ -136,6 +136,15 @@ def _validate_contents(contents, manifest):
             raise ValueError('Integridade do recurso imutável inválida: ' + name)
         if re.search(rb'sb_secret_[A-Za-z0-9_-]{10,}|-----BEGIN (?:RSA |EC )?PRIVATE KEY-----|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', contents[name]):
             raise ValueError('Material secreto no pacote: ' + name)
+    if manifest.get('connection_preparation'):
+        match = re.search(rb'Object\.freeze\((\{[\s\S]*\})\);', contents['config.js'])
+        cfg = json.loads(match[1]) if match else {}
+        if (cfg.get('remoteDisabled') is not True or cfg.get('remoteReadOnly') is not True
+                or cfg.get('connectionPreparation') is not True
+                or manifest.get('remote_disabled') is not True
+                or manifest['remote_read_only'] is not True
+                or b"connect-src 'none'" not in contents['index.html']):
+            raise ValueError('Preparação exige rede desativada no config, manifesto e CSP.')
     _agenda(contents['agenda-data.js'])
     if manifest.get('calendar_privacy'):validate_calendar_public(contents)
     html = _PackageHTML(contents)
@@ -252,8 +261,10 @@ def build_rollback(output, target_site, current_site):
     return manifest
 
 
-def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, operational=False, previous_site=None, *, real_homologation=False, public_config=None):
+def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, operational=False, previous_site=None, *, real_homologation=False, public_config=None, prepare_existing=False):
     output = Path(output).resolve()
+    if prepare_existing and (real_homologation or preserve_local or operational or previous_site):
+        raise ValueError('Preparação offline exige pacote limpo e não permite modos conectados ou recursos anteriores.')
     if output.exists() and any(output.iterdir()):
         raise ValueError('Destino não vazio. Escolha outra pasta; nenhum arquivo será substituído.')
     old_manifest = validate_package(previous_site) if previous_site else None
@@ -265,13 +276,15 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
         raise ValueError('Configuração pública não reconhecida.')
     cfg = json.loads(match[1])
     if public_config is not None:
-        if not real_homologation or not isinstance(public_config,dict):
+        if not (real_homologation or prepare_existing) or not isinstance(public_config,dict):
             raise ValueError('Configuração alternativa exige homologação real explícita.')
         cfg = dict(public_config)
-    if not {'supabaseUrl', 'supabasePublishableKey'} <= set(cfg) or set(cfg) - {'supabaseUrl', 'supabasePublishableKey', 'responsibilityGovernanceEnabled', 'eventsEnabled', 'calendarPrivacyEnabled', 'churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled', 'portalAccessEnabled', 'centralRegistryEnabled'} or type(cfg.get('churchIsolationEnabled',False)) is not bool or type(cfg.get('aliasLoginEnabled',False)) is not bool or (cfg.get('aliasLoginEnabled') and not cfg.get('churchIsolationEnabled')) or type(cfg.get('governanceEnabled',False)) is not bool or (cfg.get('governanceEnabled') and not (cfg.get('churchIsolationEnabled') and cfg.get('aliasLoginEnabled'))) or type(cfg.get('portalAccessEnabled',False)) is not bool or (cfg.get('portalAccessEnabled') and not cfg.get('governanceEnabled')) or type(cfg.get('centralRegistryEnabled',False)) is not bool or (cfg.get('centralRegistryEnabled') and not cfg.get('portalAccessEnabled')):
+    if not {'supabaseUrl', 'supabasePublishableKey'} <= set(cfg) or set(cfg) - {'supabaseUrl', 'supabasePublishableKey', 'governanceAdministrationEnabled', 'responsibilityGovernanceEnabled', 'eventsEnabled', 'calendarPrivacyEnabled', 'churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled', 'portalAccessEnabled', 'centralRegistryEnabled'} or type(cfg.get('churchIsolationEnabled',False)) is not bool or type(cfg.get('aliasLoginEnabled',False)) is not bool or (cfg.get('aliasLoginEnabled') and not cfg.get('churchIsolationEnabled')) or type(cfg.get('governanceEnabled',False)) is not bool or (cfg.get('governanceEnabled') and not (cfg.get('churchIsolationEnabled') and cfg.get('aliasLoginEnabled'))) or type(cfg.get('portalAccessEnabled',False)) is not bool or (cfg.get('portalAccessEnabled') and not cfg.get('governanceEnabled')) or type(cfg.get('centralRegistryEnabled',False)) is not bool or (cfg.get('centralRegistryEnabled') and not cfg.get('portalAccessEnabled')):
         raise ValueError('Revisar os campos da configuração antes de gerar o site.')
     if type(cfg.get('responsibilityGovernanceEnabled',False)) is not bool or cfg.get('responsibilityGovernanceEnabled') and not cfg.get('governanceEnabled'):
         raise ValueError('Governança de responsabilidades exige governança autenticada.')
+    if type(cfg.get('governanceAdministrationEnabled',False)) is not bool or cfg.get('governanceAdministrationEnabled') and not cfg.get('responsibilityGovernanceEnabled'):
+        raise ValueError('Administração G11 exige governança de responsabilidades.')
     if type(cfg.get('eventsEnabled',False)) is not bool or cfg.get('eventsEnabled') and not cfg.get('portalAccessEnabled'):
         raise ValueError('Eventos exigem portal autorizado e flag booleana.')
     if type(cfg.get('calendarPrivacyEnabled',False)) is not bool or cfg.get('calendarPrivacyEnabled') and not cfg.get('eventsEnabled'):
@@ -298,6 +311,14 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
         cfg.update(environment='production', storageMode='supabase', remoteReadOnly=False)
     if real_homologation:
         cfg.update(environment='homologation',storageMode='supabase',storageNamespace='iasdpi-hml-real-v1',remoteReadOnly=False)
+    if prepare_existing:
+        if cfg['supabaseUrl'] != 'https://pwbxksxxmnblqwpvlheu.supabase.co':
+            raise ValueError('Preparação do projeto existente exige a referência pública do IASD_Parada.')
+        cfg.update({key: True for key in ('churchIsolationEnabled', 'aliasLoginEnabled', 'governanceEnabled',
+                   'portalAccessEnabled', 'centralRegistryEnabled', 'eventsEnabled',
+                   'calendarPrivacyEnabled', 'responsibilityGovernanceEnabled', 'governanceAdministrationEnabled')})
+        cfg.update(connectionPreparation=True, remoteDisabled=True, remoteReadOnly=True,
+                   storageMode='supabase', storageNamespace='iasdpi-existing-preparation-v1')
     contents = {name: (ROOT / 'frontend' / name).read_bytes() for name in ASSETS}
     contents['config.js'] = ("'use strict';\n// Configuração PÚBLICA da homologação; sem segredos administrativos.\nwindow.IASDPIConfig = Object.freeze(" + json.dumps(cfg, ensure_ascii=False, indent=2) + ');\n').encode()
     if previous_site and agenda is None:
@@ -338,8 +359,9 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
         for token in re.findall(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', text):
             raise ValueError('JWT literal detectado; publicação recusada: ' + name)
     html = contents['index.html'].decode()
+    connection_policy = "'none'" if prepare_existing else "'self' " + cfg['supabaseUrl']
     csp = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-           "connect-src 'self' " + cfg['supabaseUrl'] + "; img-src 'self' data:; "
+           "connect-src " + connection_policy + "; img-src 'self' data:; "
            "object-src 'none'; base-uri 'none'; form-action 'self'")
     html = html.replace('<meta name="viewport"', '<meta http-equiv="Content-Security-Policy" content="' + csp + '">\n  <meta name="viewport"', 1)
     html = html.replace('<link rel="stylesheet" href="styles.css">', '<link rel="stylesheet" data-release-style href="' + style_url + '" integrity="' + style_sri + '" crossorigin="anonymous">')
@@ -359,6 +381,8 @@ def build(output, site_url=DEFAULT_URL, agenda=None, preserve_local=False, opera
                 'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                 'source_has_uncommitted_changes': bool(subprocess.check_output(['git', '--no-optional-locks', 'status', '--porcelain'], cwd=ROOT)),
                 'files': {name: hashlib.sha256(value).hexdigest() for name, value in contents.items()}}
+    if prepare_existing:
+        manifest.update(connection_preparation=True, remote_disabled=True)
     if cfg.get('calendarPrivacyEnabled'):validate_calendar_public(contents)
     _validate_contents(contents, manifest)
     output.mkdir(parents=True, exist_ok=True)
@@ -375,9 +399,10 @@ if __name__ == '__main__':
     parser.add_argument('--site-url', default=DEFAULT_URL)
     parser.add_argument('--agenda-data', type=Path, help='Snapshot JSON/JS público validado da agenda publicada')
     parser.add_argument('--real-homologation', action='store_true', help='Persistência real exclusivamente em projeto Supabase separado; não publica.')
+    parser.add_argument('--prepare-existing', action='store_true', help='Prepara IASD_Parada com todo acesso remoto desativado; não conecta nem publica.')
     parser.add_argument('--public-config', type=Path, help='JSON somente com URL/chave pública do projeto HML e flags aprovadas; nunca segredos.')
     args = parser.parse_args()
     config=json.loads(args.public_config.read_text()) if args.public_config else None
-    build(args.output, args.site_url, args.agenda_data, real_homologation=args.real_homologation, public_config=config)
+    build(args.output, args.site_url, args.agenda_data, real_homologation=args.real_homologation, public_config=config, prepare_existing=args.prepare_existing)
     print('Homologação preparada em', args.output)
     print('Nenhum commit, push ou publicação executado.')

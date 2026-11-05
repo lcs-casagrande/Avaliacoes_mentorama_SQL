@@ -15,6 +15,7 @@ window.IASDPIChurches=(()=>{
   if(!enabled())return [];if(loading)return loading;
   phase='loading';message='Carregando igrejas…';
   loading=(async()=>{try{
+   if(window.IASDPIConfig?.remoteDisabled===true)throw Error('Conexão preparada; acesso remoto ainda desativado.');
    const config=window.IASDPIAuth?.config?.()||{url:window.IASDPIConfig?.supabaseUrl,key:window.IASDPIConfig?.supabasePublishableKey};
    const url=new URL(config.url);
    if(url.protocol!=='https:'||! /^[a-z0-9]+\.supabase\.co$/.test(url.host)||url.pathname!=='/'||url.search||url.hash||url.username||url.password||!config.key)throw Error('Conexão pública não configurada.');

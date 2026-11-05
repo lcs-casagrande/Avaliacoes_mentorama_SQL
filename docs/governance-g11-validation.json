@@ -1,0 +1,75 @@
+{
+  "validated_at_utc": "2026-11-05T18:19:20.403545+00:00",
+  "branch": "feat/schedule-management-b1",
+  "base_commit": "24c0e83357b0d65956da154f18ddbebbd55913fe",
+  "source_was_dirty_at_validation": true,
+  "selected_unique_tests_passed": 127,
+  "postgresql": 39,
+  "g11_browser": 8,
+  "package_and_navigation_regression": 41,
+  "node_auth_and_accounts": 39,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "full_historical_suite_rerun": false,
+  "counting": "Último resultado por caso; repetições e evidência anterior de 118 testes não somadas.",
+  "evidence": {
+    "dist/governance-g11/postgres-release.log": 39,
+    "dist/governance-g11/browser-release.log": 8,
+    "dist/governance-g11/regression.log": 41,
+    "dist/governance-g11/node-release.log": 39
+  },
+  "initial_findings": [
+    "Fixtures corrigidas para usar versões atuais, sem atributo colidindo com helper.",
+    "Nova tabela passou a incluir barreira de credencial G10.3.",
+    "Mock de membro sem ACL ajustado para permitir somente login/troca da própria senha."
+  ],
+  "postgresql_environment": "PostgreSQL 17 descartável Docker --network none, sem portas; Auth e pessoas sintéticos.",
+  "g11_backend_and_g10_3_regressions_exercised_after_027": true,
+  "viewports": [
+    1440,
+    390
+  ],
+  "screenshots": [
+    "dist/governance-g11/admin-1440.png",
+    "dist/governance-g11/admin-390.png",
+    "dist/governance-g11/public-390.png"
+  ],
+  "migration": "database/027_governance_administration.sql",
+  "migration_sha256": "322573415531b49f91482ee2c67ba243eed62be4193f0fa6dee1056aa0a2484e",
+  "check": "database/check_g11_administration.sql",
+  "existing_migrations_005_026_unchanged": true,
+  "historical_assignments_preserved": {
+    "Comunicação": 5,
+    "Sonoplastia": 15
+  },
+  "immutable_source_sha256": {
+    "frontend/styles.css": "c10ef821f4738bf5fc489a7725528d3cbe55b26b8cd19f4dc55a69855a9a1d1b",
+    "frontend/config.js": "3bae73629b6239ce4d6439a12ef96f3ccd22eb2c6ceedefc2e02551cb95dc662",
+    "frontend/agenda-data.js": "7fbd6d7aeb9fc600f51cfd416db1d5d72e2f774bea4a3fb5c0dd9e5d1fc53c7b",
+    "frontend/organization.js": "88929bf1620a88948845b73c20690630834a16daf440dbd5724a508a0da2a29c"
+  },
+  "release_html_sha256": "ad0992281c37595adf171b473f7f366df236fab96870fda752a2d0f36c9e60d3",
+  "static_preview_database_connected": false,
+  "static_preview_real_network_disabled": true,
+  "static_preview_authentication": "simulated only; transient memory",
+  "real_supabase_accessed": false,
+  "real_sql_executed": false,
+  "real_users_created": false,
+  "real_credentials_created": false,
+  "real_settings_or_permissions_changed": false,
+  "backup_postponed_by_user": true,
+  "backup_still_required_for_deployment": true,
+  "real_auth_gotrue_smtp_gateway_tested": false,
+  "official_main_merged": false,
+  "official_site_deployed": false,
+  "provisioning_limit": "Auth e RPC não são uma transação única; falha parcial mantém intenção e exige conciliação administrativa sem apagar Auth nem repetir criação cegamente.",
+  "pending": [
+    "Backup recuperável e janela/DCL.",
+    "Autorização e instalação 005–027.",
+    "Configuração Auth/Edge, segredo servidor e domínio institucional.",
+    "Frontend realmente conectado e origens aprovadas.",
+    "Responsabilidades/contas reais autorizadas.",
+    "Homologação GoTrue/JWT/SMTP/gateway real."
+  ]
+}

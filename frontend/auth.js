@@ -4,7 +4,7 @@ window.IASDPIAuth = (() => {
   let scopedUser=null,accessChurch=null,identityChurch=null;
   const churchCode=()=>window.IASDPIChurches?.selected()||'IASD_PI';
   let phase='recovering', statusMessage='Recuperando sessão…', signingIn=false, expiryTimer=null;
-  const publicPages=new Set(['organization','agendas','login','invite','forgot-password','reset-password','schedule-setup','schedule-calendar','schedule-build','schedule-members','schedule-settings','access-admin','access-request','controlled-reset','events']);
+  const publicPages=new Set(['organization','agendas','login','invite','forgot-password','reset-password','schedule-setup','schedule-calendar','schedule-build','schedule-members','schedule-settings','access-admin','access-audit','access-request','controlled-reset','events']);
   const rememberKey=IASDPIStorage.authSession+':remember';
   let remember=true;try{remember=localStorage.getItem(rememberKey)!=='false';}catch(_){}
   const remembers=()=>{try{return localStorage.getItem(rememberKey)!=='false';}catch(_){return remember;}};
@@ -22,6 +22,7 @@ window.IASDPIAuth = (() => {
     if(value.key.startsWith('eyJ')){try{if(JSON.parse(atob(value.key.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).role!=='anon')throw Error();}catch(_){throw Error('Use somente a chave pública anon, nunca service_role.');}}
   }
   function remoteRequestAllowed(path,method='GET'){
+    if(window.IASDPIConfig?.remoteDisabled===true)return false;
     if(!window.IASDPIConfig?.remoteReadOnly)return true;
     if(method==='GET')return /^\/auth\/v1\/(health|settings|user)$/.test(path)||/^\/rest\/v1\/(iasdpi_access|iasdpi_templates|culto_archives)(?:\?|$)/.test(path);
     if(method!=='POST')return false;
@@ -29,7 +30,7 @@ window.IASDPIAuth = (() => {
       ['/rest/v1/rpc/iasdpi_event_preview','/rest/v1/rpc/iasdpi_schedule_visible','/rest/v1/rpc/iasdpi_events_visible','/rest/v1/rpc/iasdpi_events_catalog','/rest/v1/rpc/iasdpi_event_history','/rest/v1/rpc/iasdpi_events_published','/rest/v1/rpc/iasdpi_registry_identity_preview','/rest/v1/rpc/iasdpi_registry_audit','/rest/v1/rpc/iasdpi_registry_history','/rest/v1/rpc/iasdpi_registry_public','/rest/v1/rpc/iasdpi_registry_people','/rest/v1/rpc/iasdpi_registry_catalog','/rest/v1/rpc/iasdpi_schedule_department_days','/rest/v1/rpc/iasdpi_schedule_elder_workspace','/rest/v1/rpc/iasdpi_schedule_elder_versions','/rest/v1/rpc/iasdpi_portal_context','/rest/v1/rpc/iasdpi_my_churches','/rest/v1/rpc/iasdpi_schedule_published','/rest/v1/rpc/iasdpi_governance_catalog','/rest/v1/rpc/iasdpi_governance_history','/rest/v1/rpc/iasdpi_department_members','/rest/v1/rpc/iasdpi_access_requests','/rest/v1/rpc/iasdpi_access_request_options','/rest/v1/rpc/iasdpi_alias_list','/rest/v1/rpc/iasdpi_list_churches','/rest/v1/rpc/iasdpi_schedule_catalog','/rest/v1/rpc/iasdpi_schedule_person_details','/rest/v1/rpc/iasdpi_schedule_rotation_context','/rest/v1/rpc/iasdpi_schedule_workspace','/rest/v1/rpc/iasdpi_schedule_plan_version','/rest/v1/rpc/iasdpi_schedule_settings_get','/rest/v1/rpc/iasdpi_schedule_members','/rest/v1/rpc/iasdpi_schedule_person_history','/rest/v1/rpc/iasdpi_schedule_exceptions','/rest/v1/rpc/iasdpi_list_users','/rest/v1/rpc/iasdpi_list_invites','/rest/v1/rpc/iasdpi_find_account'].includes(path);
   }
   async function jsonRequest(path,options={}){
-    if(!remoteRequestAllowed(path,(options.method||'GET').toUpperCase()))throw Error('Homologação em modo de consulta: alterações remotas estão bloqueadas.');
+    if(!remoteRequestAllowed(path,(options.method||'GET').toUpperCase()))throw Error(window.IASDPIConfig?.remoteDisabled?'Conexão preparada; acesso remoto ainda desativado.':'Homologação em modo de consulta: alterações remotas estão bloqueadas.');
     // Esta RPC é pública por RLS. O contexto original só é utilizado se constar
     // na lista pública autorizada; não seleciona igreja nem amplia acesso privado.
     const publicRegistry=['/rest/v1/rpc/iasdpi_registry_public','/rest/v1/rpc/iasdpi_events_published'].includes(path)&&window.IASDPIChurches?.enabled()&&!IASDPIChurches.selected();
@@ -138,7 +139,7 @@ window.IASDPIAuth = (() => {
       }catch(error){
         const expired=error.status===400||error.status===401||/refresh_token|expirada/i.test(error.code||error.message||'');
         const denied=/Conta sem autorização/.test(error.message||'');
-        invalidate(denied&&scopedUser===session?.user.id?'scoped':denied?'unauthorized':expired?'expired':'unavailable',denied&&scopedUser===session?.user.id?'Sessão ministerial ativa. As demais áreas exigem autorização própria.':denied?error.message:expired?'Sessão expirada. Entre novamente.':'Não foi possível recuperar a sessão. Verifique sua conexão e tente novamente.');
+        invalidate(denied&&scopedUser===session?.user.id?'scoped':denied?'unauthorized':expired?'expired':'unavailable',denied&&scopedUser===session?.user.id?'Sessão ministerial ativa. As demais áreas exigem autorização própria.':denied?error.message:expired?'Sessão expirada. Entre novamente.':window.IASDPIConfig?.remoteDisabled?'Conexão preparada; acesso remoto ainda desativado.':'Não foi possível recuperar a sessão. Verifique sua conexão e tente novamente.');
         throw error;
       }finally{recovery=null;}
     });

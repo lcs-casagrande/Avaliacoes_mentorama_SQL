@@ -1,3 +1,4 @@
+import {createIndividualAccount} from './accounts.mjs';
 const INVALID='Não foi possível concluir. Confira os dados ou procure a administração.';
 async function boundedBody(req){
  if(!req.headers.get('content-type')?.toLowerCase().startsWith('application/json'))throw Error();
@@ -14,7 +15,7 @@ export function createAccessAssistanceHandler({readEnv,fetch:send=globalThis.fet
   if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'apikey, authorization, content-type, x-iasdpi-church'}});
   if(req.method!=='POST')return response(405,{error:INVALID});
   let b;try{b=await boundedBody(req);}catch{return response(400,{error:INVALID});}
-  const fields={submit:['action','church','id','name','identifier','department','kind','message'],issue:['action','church','request_id','version'],complete:['action','church','code','password'],change_password:['action','church','password']};
+  const fields={submit:['action','church','id','name','identifier','department','kind','message'],issue:['action','church','request_id','version'],complete:['action','church','code','password'],change_password:['action','church','password'],create_account:['action','church','request_id','person','version','identifier','email']};
   if(!b||typeof b.action!=='string'||!Object.hasOwn(fields,b.action)||Object.keys(b).some(k=>!fields[b.action].includes(k))||typeof b.church!=='string'||!/^[A-Z][A-Z0-9_]{2,39}$/.test(b.church))return response(400,{error:INVALID});
   const url=(readEnv('SUPABASE_URL')||'').replace(/\/$/,''),service=readEnv('SUPABASE_SERVICE_ROLE_KEY'),publicKey=readEnv('SUPABASE_PUBLISHABLE_KEY')||readEnv('SUPABASE_ANON_KEY'),pepper=readEnv('IASDPI_GOVERNANCE_PEPPER');
   if(readEnv('IASDPI_GOVERNANCE_ENABLED')!=='true'||!/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(url)||!service||!publicKey||!pepper||pepper.length<32)return response(503,{error:INVALID});
@@ -35,6 +36,11 @@ export function createAccessAssistanceHandler({readEnv,fetch:send=globalThis.fet
     if(typeof b.name!=='string'||b.name.trim().length<2||b.name.length>100||typeof b.identifier!=='string'||!b.identifier.trim()||b.identifier.length>254||!['access','password'].includes(b.kind)||typeof b.message!=='string'||b.message.length>1000)return response(400,{error:INVALID});
     await rpc('iasdpi_access_request_submit',{p_id:b.id,p_name:b.name,p_identifier:b.identifier,p_department:b.department||null,p_kind:b.kind,p_message:b.message});
     return response(202,{accepted:true});
+   }
+   if(b.action==='create_account'){
+    const authorization=req.headers.get('authorization')||'';if(!authorization.startsWith('Bearer '))return response(401,{error:INVALID});const token=authorization.slice(7);
+    const userResponse=await remote('/auth/v1/user',{token});if(!userResponse.ok)return response(401,{error:INVALID});const identity=await userResponse.json();if(!identity.id||identity.is_anonymous!==false)return response(401,{error:INVALID});
+    return response(200,await createIndividualAccount({body:b,token,remote,rpc,readEnv,randomBytes}));
    }
    if(b.action==='change_password'){
     const authorization=req.headers.get('authorization')||'';if(!authorization.startsWith('Bearer '))return response(401,{error:INVALID});const token=authorization.slice(7);

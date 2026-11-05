@@ -13,11 +13,11 @@
   "secret_material_findings": 0,
   "complete_real_g10_1_json_available": true,
   "g10_2_report_available": false,
-  "integral_remote_comparison_completed": false,
-  "remote_schema_status": "Metadados estruturais compatíveis; 20 corpos conciliados por hash CRLF; lock_admin e create_invite permanecem divergentes/indeterminados. Instalação não liberada.",
+  "integral_remote_comparison_completed": true,
+  "remote_schema_status": "Core 001–004 compatível no escopo analisado, com as duas definições da 002 confirmadas pelo usuário. Instalação segue sem liberação operacional ou autorização.",
   "real_audit_repeated": false,
   "new_migrations": [],
-  "candidate_migrations": "005–026, 22 arquivos; bloqueadas pelas duas definições não conciliadas e gates operacionais.",
+  "candidate_migrations": "005–026, 22 arquivos; aguardam backup recuperável, verificação Auth/Edge, janela/DCL e autorização específica.",
   "groups": {
     "A": [
       5,
@@ -68,9 +68,9 @@
     "main": "a41d1156af932a275871d344f7fd990c6f2f8a7d",
     "gh-pages": "db04d7e63593cc00b6ca28956f5149082239a06b"
   },
-  "status": "Análise do inventário real concluída nos metadados disponíveis. Bloqueios: duas definições, backup/recuperação, DCL e ativação Auth/Edge/frontend. Nenhuma operação real.",
+  "status": "Comparação G10.5 concluída com confirmação do usuário das duas funções. Pendentes backup recuperável, verificação Auth/Edge, janela/DCL e autorização para instalação. Nenhum SQL executado pelo assistente.",
   "available_inventory_compared_in_full": true,
-  "function_source_equivalence_completed": false,
+  "function_source_equivalence_completed": true,
   "real_inventory_sha256": "002aeccc3a3dbf4933f8b1fab042da69adcc8c5fa6a47777bb2d10e96c71892b",
   "real_inventory_captured_at_utc": "2026-11-05T12:55:26.365968+00:00",
   "new_offline_comparator_tests_passed": 8,
@@ -78,13 +78,31 @@
     "passed": true,
     "migration_checkpoints": 22,
     "core_preserved_each_stage": true,
-    "limits": "20 corpos CRLF comprovados e defaults/grants postgres reproduzidos; duas funções usam código nominal, postgres superuser local, Auth sintético. Não prova o estado integral real."
+    "limits": "Evidência do ensaio anterior preservada: 20 corpos CRLF e defaults/grants reproduzidos; duas funções usaram código nominal, posteriormente confirmado pelo usuário. postgres local superuser e Auth sintético; não prova operação hospedada."
   },
   "compatibility_evidence": "docs/governance-g10-5-compatibility.json",
   "supplemental_read_only_select": "database/check_g10_5_function_definitions.sql",
   "supplemental_select_local_read_only_syntax_passed": true,
-  "supplemental_select_executed_on_supabase": false,
+  "supplemental_select_executed_on_supabase": null,
   "raw_real_inventory_versioned": false,
   "reviewed_at_utc": "2026-11-05T16:17:47.290557+00:00",
-  "continuation_files_scanned": 6
+  "continuation_files_scanned": 6,
+  "comparison_completion_basis": "Metadados comparados offline; 20 hashes CRLF conciliados automaticamente e duas equivalências de corpos confirmadas pelo usuário. Nenhuma revalidação independente das duas funções pelo assistente.",
+  "function_confirmation": {
+    "recorded_at_utc": "2026-11-05T16:29:31.541313+00:00",
+    "source": "Confirmação expressa do usuário nesta conversa G10.5.",
+    "method": "Usuário consultou diretamente o Supabase IASD_Parada e comparou os corpos com database/002_user_management.sql.",
+    "result": "Ambas compatíveis; lógica equivalente e diferenças de formatação CRLF.",
+    "functions": [
+      "iasdpi_admin_private.lock_admin()",
+      "public.iasdpi_create_invite(p_email text)"
+    ],
+    "independently_reverified_by_assistant": false,
+    "audit_repeated_by_assistant": false,
+    "new_sql_executed_by_assistant": false
+  },
+  "supplemental_select_executed_by_assistant": false,
+  "specific_sql_used_by_user_confirmed": false,
+  "last_documentation_update_at_utc": "2026-11-05T16:29:31.541313+00:00",
+  "last_update_tests_run": 0
 }

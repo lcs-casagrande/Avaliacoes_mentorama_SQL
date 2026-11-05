@@ -2,7 +2,7 @@
 
 Data: 05/11/2026. Branch: `feat/schedule-management-b1`.
 
-**Decisão: análise do inventário real concluída no limite dos metadados recebidos; instalação bloqueada por duas definições de função ainda não conciliadas e pelos requisitos operacionais abaixo. Nenhum acesso ao Supabase foi feito nesta etapa.** A autorização atual cobre Git na branch de desenvolvimento; não cobre migrações, backup real, restauração, configuração ou contas.
+**Decisão: comparação de compatibilidade do core concluída, incluindo as duas funções confirmadas pelo usuário. Instalação ainda pendente de backup recuperável, verificação Auth/Edge, janela de implantação e autorização específica. Nenhum acesso ao Supabase foi feito pelo assistente nesta atualização.** A autorização de Git não cobre migrações, backup real, restauração, configuração ou contas.
 
 ## 1. Código consolidado e evidência reaproveitada
 
@@ -23,7 +23,7 @@ A comparação usou os objetos completos do JSON, não só os marcadores, e a ba
 | 12 tabelas e 84 colunas | Mesmos nomes, ordem, tipos, nulabilidade, defaults, identidade/geração, opções e owners |
 | 64 constraints e 21 índices | Mesmas definições/hashes, referências, validação, deferrabilidade, unicidade e validade |
 | RLS e triggers | RLS habilitada nas 12 tabelas; FORCE RLS e as 7 policies coincidem integralmente, incluindo roles/comandos/USING/WITH CHECK; nenhum trigger não interno em ambas as bases |
-| 22 funções | Assinaturas, retornos, linguagem, volatilidade, SECURITY DEFINER, owners e settings coincidem; hashes brutos diferem em todas, com **20 diferenças explicadas exatamente por CRLF** e **2 não conciliadas** |
+| 22 funções | Assinaturas, retornos, linguagem, volatilidade, SECURITY DEFINER, owners e settings coincidem; **20 diferenças de hash explicadas automaticamente por CRLF** e **2 compatibilidades confirmadas pelo usuário após comparação direta dos corpos** |
 | ACLs existentes | Anon/authenticated não ganharam capacidades adicionais em relação ao core nominal. `service_role` tem grants explícitos adicionais nas 6 tabelas públicas e EXECUTE em 16 funções, inclusive 2 backups privados sem USAGE do schema para esse papel |
 | Schemas | Schemas privados e suas barreiras coincidem; `public` tem grants explícitos USAGE adicionais a anon/authenticated/service_role, sem CREATE para clientes |
 | 384 dependências | Coincidem após normalizar exclusivamente OIDs em nomes automáticos de RI triggers/TOAST; nomes de negócio, referências e multiplicidade são preservados |
@@ -31,26 +31,30 @@ A comparação usou os objetos completos do JSON, não só os marcadores, e a ba
 | Auth/ambiente | `auth.users`, `auth.identities`, `auth.uid()`/`auth.jwt()` e colunas necessárias presentes. Extensões e publicação Realtime foram revisadas como diferenças do provedor, sem confundir seus schemas com o aplicativo; configuração/serviço Auth não é provada pelo JSON |
 | Delta 005–026 | Nenhuma tabela, schema privado de Escalas ou RPC exclusiva das novas fases aparece no escopo inventariado; apenas os objetos esperados do core. Os objetos novos da 026 também estão ausentes, embora a consulta antiga termine o conjunto de marcadores em 025. Nenhum ledger/executor existente foi encontrado |
 
-### Duas divergências que impedem liberar a instalação
+### Duas funções conciliadas por confirmação do usuário
+
+Em 05/11/2026, o usuário informou ter consultado diretamente as duas funções no Supabase IASD_Parada e comparado seus corpos com `database/002_user_management.sql`. Confirmou ambas como **compatíveis**, com lógica equivalente e diferenças de formatação CRLF. Essa confirmação encerra o bloqueio das duas definições. O assistente não repetiu a consulta nem recebeu novos corpos SQL para verificação independente.
+
+Os hashes abaixo são preservados como evidência histórica da comparação automática; não foram alterados para simular igualdade de bytes.
 
 | Função | MD5 local LF | MD5 local com corpo CRLF | MD5 informado pelo Supabase |
 | --- | --- | --- | --- |
 | `iasdpi_admin_private.lock_admin()` | `698ce1ca9601dcf2af3e7bf3bd2e6309` | `a60a2ceb0c2411234c8ba1b872a6c81b` | `a08de7e54bdd7ad4dbbd3c2487c6e92e` |
 | `public.iasdpi_create_invite(text)` | `b31cc90fcae9b1b88d14cca3dfe2b2cd` | `4480642944ef71693ee508bdaedc9828` | `7a8b15d93b0a009e0d0489d8b333661d` |
 
-O JSON contém hash, não corpo SQL. Não é possível determinar se essas duas diferenças são formatação adicional, comentários ou lógica alterada. `lock_admin` participa da serialização administrativa, e `create_invite` de convites/autorizações; a 011 preserva/transforma implementações existentes. Não substituir nem reexecutar 002 para eliminá-las.
+O JSON original contém hash, não corpo SQL. A confirmação posterior do usuário resolve a equivalência de lógica dessas duas funções sem alterar os hashes observados. `lock_admin` participa da serialização administrativa, e `create_invite` de convites/autorizações; a 011 preserva/transforma implementações existentes. Não substituir nem reexecutar 002 por diferenças de formatação.
 
 Para as outras 20 funções, o hash da **definição inteira** passou a coincidir ao transformar somente LF→CRLF no corpo local conhecido. Não foi feita normalização permissiva do código desconhecido. O comparador continua exibindo ACLs e outras diferenças, mesmo quando o corpo é conciliado.
 
-**Classificação:** 001/003/004 compatíveis no escopo inventariado; 002 parcialmente compatível, com duas definições divergentes/indeterminadas. A execução literal de qualquer arquivo continua sem prova de ledger. 005–026 pendentes no escopo, condicionadas aos bloqueios; não há necessidade demonstrada de 027. A integridade dos dados reais não é inferida de metadados.
+**Classificação:** 001–004 compatíveis no escopo analisado, com a conclusão das duas funções da 002 baseada na confirmação do usuário. A execução literal de qualquer arquivo continua sem prova de ledger. 005–026 pendentes no escopo, condicionadas aos bloqueios operacionais e à autorização; não há necessidade demonstrada de 027. A integridade dos dados reais não é inferida de metadados.
 
 ### Ensaio dirigido às diferenças do provedor
 
 Reproduzidos localmente os grants existentes, os 48 defaults de postgres/public, BYPASSRLS do service_role e os corpos CRLF comprovados. Os 48 defaults de supabase_admin foram revisados, mas não se aplicam às migrações executadas como postgres. Antes do delta, **todos os metadados das 12 tabelas coincidiram**; nas funções sobraram somente os dois hashes acima.
 
-As **22 etapas 005–026 e seus checks passaram**, preservando os dados sintéticos do core em cada etapa. Limites: as duas funções desconhecidas usam o código nominal local; postgres local é superuser; Auth é stub; não é clone do banco real nem prova de DCL, gateway, dados ou Auth gerenciado. Os 37 testes anteriores não foram repetidos; os 8 novos testes verificam o comparador e a detecção de divergências.
+As **22 etapas 005–026 e seus checks passaram**, preservando os dados sintéticos do core em cada etapa. Limites do ensaio anterior: as duas funções então pendentes usaram o código nominal local; postgres local é superuser; Auth é stub; não é clone do banco real nem prova de DCL, gateway, dados ou Auth gerenciado. Os 37 testes anteriores não foram repetidos; os 8 testes do comparador permanecem como evidência anterior. Nenhum teste foi reexecutado nesta atualização documental.
 
-**Para desbloquear a análise dessas duas definições:** usar uma exportação anterior que já contenha seus corpos ou autorizar a leitura complementar estritamente limitada a elas. Foi preparado `database/check_g10_5_function_definitions.sql`: um SELECT de catálogo, sem RPCs/linhas Auth/negócio, com conferência dos hashes do inventário para detectar mudança posterior. Não foi executado. Revisar privadamente o resultado antes de compartilhar, sem segredos. Não é necessário repetir o inventário inteiro.
+**Leitura complementar encerrada pela confirmação do usuário.** `database/check_g10_5_function_definitions.sql` permanece preservado como artefato de preparação e não precisa ser executado novamente. Nenhum SQL foi executado pelo assistente; não há solicitação de nova auditoria ou de reenvio das definições.
 
 O arquivo informa `transaction_read_only=off`: a sessão original não estava protegida por READ ONLY. Isso não torna o SELECT catalogal uma escrita nem justifica refazer a auditoria; tampouco se deve afirmar que aquela transação estava em modo READ ONLY. A identidade do projeto permanece atestada pelo envio do usuário, não por conexão independente desta análise.
 
@@ -63,11 +67,13 @@ Sem clicar em Save, Restore, Reset password, Generate ou Deploy:
 3. Em **Authentication → Users**, apenas confirmar que o administrador atual continua identificado. Não exportar usuários, criar conta ou redefinir senha.
 4. Em **Authentication → Sign In / Providers**, **URL Configuration**, **Email/SMTP**, **Sessions** e telas equivalentes da versão do painel, registrar configurações relevantes sem valores secretos: inscrições públicas, provedor e-mail, Site URL/redirects, política de senha, sessão/refresh e recuperação.
 5. Em **Edge Functions**, registrar se `alias-login` e `access-assistance` existem, versões e nomes dos segredos configurados. Não revelar/copiar valores. Em **Database/API/Integrations**, registrar schemas expostos e integrações externas relevantes, sem mudar nada.
-6. O JSON G10.1 já foi recuperado e analisado; não executar novamente a consulta. Se forem autorizadas as duas definições complementares, usar exclusivamente o SELECT limitado preparado, conferir `matches_g10_1` e guardar o resultado privadamente. Abrir o SQL Editor não é autorização para clicar **Run** em migração/check.
+6. O JSON G10.1 já foi analisado, e o usuário confirmou as duas definições complementares como compatíveis. Não repetir as consultas. Abrir o SQL Editor não é autorização para clicar **Run** em migração/check.
 
 Essas informações são pré-condições operacionais, não uma nova auditoria SQL. Os nomes de menus podem variar; não usar uma opção destrutiva para localizar uma informação.
 
 ## 4. Backup e restauração: procedimento para aprovação
+
+**Procedimento manual atualizado:** [backup antes da implantação](backup-manual-before-installation.md). O usuário confirmou plano Free e nenhum backup disponível no painel; o caminho atual é exportação lógica completa com validação em destino separado. Os caminhos gerenciados abaixo são alternativas condicionadas à disponibilidade futura e autorização, não opções já disponíveis no IASD_Parada.
 
 ### Caminho preferencial: backup gerenciado e recuperação separada
 
@@ -145,11 +151,11 @@ Checklist de ativação posterior, sem execução agora:
 
 | Bloqueio | Para remover |
 | --- | --- |
-| Duas definições do core não conciliadas | Obter e revisar somente os corpos de `lock_admin()` e `iasdpi_create_invite(text)`; o JSON integral já foi analisado |
+| Compatibilidade das duas definições do core | **Concluída por confirmação do usuário**; não constitui mais bloqueio |
 | Recuperação real e continuidade da Cronoanálise | Confirmar plano/ponto/RPO/RTO e autorizar backup/ensaio separado com contenção de integrações externas |
 | DCL, locks e janela da 011 | Confirmar operador e privilégios do provedor, duração aceitável e interrupção controlada de escritas |
 | Auth/Edge/frontend e dados iniciais | Autorizar configuração/implantação controlada e testes com identidades permitidas; não presumir importação ou provisionamento |
 
-**Você pode agora:** informar, por consulta ao painel, quais backups/PITR estão disponíveis e localizar uma exportação das duas definições pendentes. Se não houver exportação, autorizar a leitura complementar limitada; não repetir o inventário ou iniciar migrações.
+**Próxima etapa:** confirmar backup recuperável, configurações Auth/Edge e janela de implantação, mantendo a verificação de DCL do operador prevista no plano. A instalação das 22 migrações continua aguardando autorização específica. Não repetir o inventário ou as consultas das duas funções.
 
 **Exigem autorizações próprias:** exportar/copiar conteúdo real; criar destino e restaurar; executar cada lote SQL/checks no banco existente; mudar Auth/segredos/Edge/frontend; criar/vincular contas ou conceder permissões; importar/conciliar pessoas e históricos; realizar testes de gravação ou liberar módulos. A autorização atual de commit/push não cobre essas operações. Não há recomendação para começar 005 enquanto os bloqueios acima persistirem.

@@ -31,10 +31,12 @@
   "function_definition_proofs": [
     {
       "signature": "iasdpi_admin_private.lock_admin()",
-      "status": "unresolved",
+      "status": "user_confirmed_equivalent_crlf",
       "expected_md5": "698ce1ca9601dcf2af3e7bf3bd2e6309",
       "body_crlf_md5": "a60a2ceb0c2411234c8ba1b872a6c81b",
-      "observed_md5": "a08de7e54bdd7ad4dbbd3c2487c6e92e"
+      "observed_md5": "a08de7e54bdd7ad4dbbd3c2487c6e92e",
+      "automatic_hash_status_before_confirmation": "unresolved",
+      "resolution_source": "function_confirmation"
     },
     {
       "signature": "iasdpi_admin_private.require_admin()",
@@ -94,10 +96,12 @@
     },
     {
       "signature": "public.iasdpi_create_invite(p_email text)",
-      "status": "unresolved",
+      "status": "user_confirmed_equivalent_crlf",
       "expected_md5": "b31cc90fcae9b1b88d14cca3dfe2b2cd",
       "body_crlf_md5": "4480642944ef71693ee508bdaedc9828",
-      "observed_md5": "7a8b15d93b0a009e0d0489d8b333661d"
+      "observed_md5": "7a8b15d93b0a009e0d0489d8b333661d",
+      "automatic_hash_status_before_confirmation": "unresolved",
+      "resolution_source": "function_confirmation"
     },
     {
       "signature": "public.iasdpi_find_account(p_email text)",
@@ -186,10 +190,7 @@
   ],
   "functions_exact_raw_hash_count": 0,
   "functions_proven_body_crlf_count": 20,
-  "unresolved_function_definitions": [
-    "iasdpi_admin_private.lock_admin()",
-    "public.iasdpi_create_invite(p_email text)"
-  ],
+  "unresolved_function_definitions": [],
   "remaining_function_differences_after_provider_grants": {
     "iasdpi_admin_private.lock_admin()": [
       "/definition_md5"
@@ -381,7 +382,7 @@
     },
     {
       "migration": "002",
-      "status": "divergente/indeterminada nas duas definições",
+      "status": "compatível no escopo; duas definições confirmadas pelo usuário",
       "literal_execution_proven": false
     },
     {
@@ -512,7 +513,7 @@
     "core_synthetic_data_preserved_each_stage": true,
     "network": "none",
     "auth": "synthetic stub",
-    "limits": "Defaults/grants do inventário + CRLF comprovado em 20 funções; duas funções usam código nominal ainda não validado no real. postgres local é superuser; não prova DCL do provedor.",
+    "limits": "Ensaio anterior: defaults/grants e 20 corpos CRLF reproduzidos; duas funções usaram código nominal, posteriormente confirmado pelo usuário. postgres local é superuser; não prova DCL do provedor.",
     "not_an_exact_real_database_clone": true
   },
   "prior_g104_selected_tests_reused": 37,
@@ -524,19 +525,42 @@
   "real_business_data_read": false,
   "full_inventory_published_to_git": false,
   "supplemental_read_only_sql_prepared": "database/check_g10_5_function_definitions.sql",
-  "supplemental_sql_executed_on_supabase": false,
+  "supplemental_sql_executed_on_supabase": null,
   "technical_release_approved": false,
   "installation_authorized": false,
   "blockers": [
-    "Definições integrais de lock_admin() e iasdpi_create_invite(text), cujos hashes não foram conciliados.",
     "Backup/restauração gerenciada, RPO/RTO, janela e deltas da Cronoanálise ainda não aprovados.",
     "DCL/owners/GRANT no provedor e privilégios sobre Auth não comprovados por um executor local superuser.",
-    "Auth/Edge/frontend reais, origem e provisão de contas ainda não autorizados/homologados."
+    "Auth/Edge/frontend reais, origem e provisão de contas ainda não autorizados/homologados.",
+    "Autorização específica para instalar as migrações 005–026 ainda não concedida."
   ],
   "evidence": [
     "dist/governance-g10-5/complete-comparison.json",
     "dist/governance-g10-5/provider-defaults-comparison.json",
     "dist/governance-g10-5/comparator-tests.log",
     "dist/governance-g10-5/provider-defaults-rehearsal.json"
-  ]
+  ],
+  "function_confirmation": {
+    "recorded_at_utc": "2026-11-05T16:29:31.541313+00:00",
+    "source": "Confirmação expressa do usuário nesta conversa G10.5.",
+    "method": "Usuário consultou diretamente o Supabase IASD_Parada e comparou os corpos com database/002_user_management.sql.",
+    "result": "Ambas compatíveis; lógica equivalente e diferenças de formatação CRLF.",
+    "functions": [
+      "iasdpi_admin_private.lock_admin()",
+      "public.iasdpi_create_invite(p_email text)"
+    ],
+    "independently_reverified_by_assistant": false,
+    "audit_repeated_by_assistant": false,
+    "new_sql_executed_by_assistant": false
+  },
+  "functions_confirmed_by_user_count": 2,
+  "unresolved_automated_hash_comparisons": [
+    "iasdpi_admin_private.lock_admin()",
+    "public.iasdpi_create_invite(p_email text)"
+  ],
+  "core_compatibility_review_completed": true,
+  "comparison_basis": "20 funções com prova automática de hash CRLF; 2 com equivalência confirmada pelo usuário, sem nova verificação independente.",
+  "supplemental_sql_execution_note": "Usuário confirmou consulta direta das duas funções; não informou se utilizou o arquivo complementar. Assistente não executou SQL no Supabase.",
+  "last_update_tests_run": 0,
+  "last_update_scope": "Atualização documental da confirmação; nenhuma nova auditoria ou teste."
 }

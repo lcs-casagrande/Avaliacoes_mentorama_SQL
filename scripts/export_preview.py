@@ -25,10 +25,12 @@ parser.add_argument('--department-days-preview',action='store_true',help='G7: di
 parser.add_argument('--registry-preview',action='store_true',help='G8.2: cadastro central integrado em demonstração isolada.')
 parser.add_argument('--registry-consolidation-preview',action='store_true',help='G8.3: auditoria e lacunas do cadastro central em prévia isolada.')
 parser.add_argument('--registry-identities-preview',action='store_true',help='G8.4: nomes confirmados e conciliação administrativa, sem rede externa.')
+parser.add_argument('--governance-final-preview',action='store_true',help='G11: administração e auditoria simuladas, sem Supabase real.')
 parser.add_argument('--event-management-preview',action='store_true',help='Eventos com recorrência, locais e pendência; memória isolada, sem Supabase.')
 parser.add_argument('--calendar-privacy-preview',action='store_true',help='Classificação e privacidade simuladas: eventos abertos e Ancionato públicos, demais escalas com login fictício.')
 parser.add_argument('--events-preview',action='store_true',help='E1: calendário unificado e gestão de eventos com acesso simulado, sem Supabase real.')
 args = parser.parse_args()
+if args.governance_final_preview:args.event_management_preview=True
 if args.event_management_preview:args.calendar_privacy_preview=True
 if args.calendar_privacy_preview:args.events_preview=True
 if args.events_preview:
@@ -107,6 +109,7 @@ for name in ('config.js', 'churches.js', 'storage.js', 'supabase-2.118.0.js', 'a
         script+='\n'+(root/'tests/fixtures/events-preview.js').read_text()
         if args.event_management_preview:script+='\n'+(root/'tests/fixtures/event-planning-preview.js').read_text()
     if name == 'app.js' and args.registry_identities_preview:script+='\n'+(root/'tests/fixtures/schedule-edit-window-preview.js').read_text()+'\n'+(root/'tests/fixtures/schedule-publication-preview.js').read_text()
+    if name == 'app.js' and args.governance_final_preview:script+='\n'+(root/'tests/fixtures/governance-final-preview.js').read_text()
     script = script.replace('</script', '<\\/script')
     html = html.replace(f'  <script src="{name}" defer></script>\n', '')
     # Scripts executam após os elementos da página existirem.
@@ -137,6 +140,7 @@ if args.events_preview:
     html=html.replace('iasdpi-registry-g84-preview-v1','iasdpi-events-e1-preview-v1')
     html=html.replace('IASDPI · G8.4 — Cadastro Geral de Membros','IASDPI · Calendário e Eventos')
 if args.calendar_privacy_preview:html=html.replace('iasdpi-events-e1-preview-v1','iasdpi-calendar-privacy-preview-v1')
+if args.governance_final_preview:html=html.replace('iasdpi-calendar-privacy-preview-v1','iasdpi-g11-preview-v1').replace('IASDPI · Calendário e Eventos','IASDPI · Administração — homologação')
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(html, encoding='utf-8')
 with ZipFile(args.output.with_suffix('.zip'), 'w', ZIP_DEFLATED) as archive:
